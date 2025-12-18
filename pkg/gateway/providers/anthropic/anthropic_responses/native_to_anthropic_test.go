@@ -5,7 +5,7 @@ import (
 
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/llm/constants"
-	responses2 "github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,16 +19,16 @@ func newNativeToAnthropicConverter() *NativeResponseChunkToResponseChunkConverte
 }
 
 // Helper to create a native response.created chunk
-func createNativeResponseCreated(id, model string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfResponseCreated: &responses2.ChunkResponse[constants.ChunkTypeResponseCreated]{
+func createNativeResponseCreated(id, model string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfResponseCreated: &responses.ChunkResponse[constants.ChunkTypeResponseCreated]{
 			Type:           constants.ChunkTypeResponseCreated("response.created"),
 			SequenceNumber: 0,
-			Response: responses2.ChunkResponseData{
+			Response: responses.ChunkResponseData{
 				Id:     id,
 				Object: "response",
 				Status: "in_progress",
-				Request: responses2.Request{
+				Request: responses.Request{
 					Model: model,
 				},
 			},
@@ -37,12 +37,12 @@ func createNativeResponseCreated(id, model string) *responses2.ResponseChunk {
 }
 
 // Helper to create a native response.in_progress chunk
-func createNativeResponseInProgress(id string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfResponseInProgress: &responses2.ChunkResponse[constants.ChunkTypeResponseInProgress]{
+func createNativeResponseInProgress(id string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfResponseInProgress: &responses.ChunkResponse[constants.ChunkTypeResponseInProgress]{
 			Type:           constants.ChunkTypeResponseInProgress("response.in_progress"),
 			SequenceNumber: 1,
-			Response: responses2.ChunkResponseData{
+			Response: responses.ChunkResponseData{
 				Id:     id,
 				Object: "response",
 				Status: "in_progress",
@@ -52,31 +52,31 @@ func createNativeResponseInProgress(id string) *responses2.ResponseChunk {
 }
 
 // Helper to create a native output_item.added for text message
-func createNativeOutputItemAddedMessage(itemId string, outputIndex int) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfOutputItemAdded: &responses2.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
+func createNativeOutputItemAddedMessage(itemId string, outputIndex int) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
 			Type:           constants.ChunkTypeOutputItemAdded("response.output_item.added"),
 			SequenceNumber: 2,
 			OutputIndex:    outputIndex,
-			Item: responses2.ChunkOutputItemData{
+			Item: responses.ChunkOutputItemData{
 				Type:    "message",
 				Id:      itemId,
 				Status:  "in_progress",
 				Role:    constants.RoleAssistant,
-				Content: responses2.OutputContent{},
+				Content: responses.OutputContent{},
 			},
 		},
 	}
 }
 
 // Helper to create a native output_item.added for function_call
-func createNativeOutputItemAddedFunctionCall(itemId string, outputIndex int, callId, name string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfOutputItemAdded: &responses2.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
+func createNativeOutputItemAddedFunctionCall(itemId string, outputIndex int, callId, name string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
 			Type:           constants.ChunkTypeOutputItemAdded("response.output_item.added"),
 			SequenceNumber: 2,
 			OutputIndex:    outputIndex,
-			Item: responses2.ChunkOutputItemData{
+			Item: responses.ChunkOutputItemData{
 				Type:      "function_call",
 				Id:        itemId,
 				Status:    "in_progress",
@@ -89,16 +89,16 @@ func createNativeOutputItemAddedFunctionCall(itemId string, outputIndex int, cal
 }
 
 // Helper to create a native content_part.added for text
-func createNativeContentPartAddedText(itemId string, outputIndex, contentIndex int) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfContentPartAdded: &responses2.ChunkContentPart[constants.ChunkTypeContentPartAdded]{
+func createNativeContentPartAddedText(itemId string, outputIndex, contentIndex int) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfContentPartAdded: &responses.ChunkContentPart[constants.ChunkTypeContentPartAdded]{
 			Type:           constants.ChunkTypeContentPartAdded("response.content_part.added"),
 			SequenceNumber: 3,
 			ItemId:         itemId,
 			OutputIndex:    outputIndex,
 			ContentIndex:   contentIndex,
-			Part: responses2.OutputContentUnion{
-				OfOutputText: &responses2.OutputTextContent{
+			Part: responses.OutputContentUnion{
+				OfOutputText: &responses.OutputTextContent{
 					Text: "",
 				},
 			},
@@ -107,9 +107,9 @@ func createNativeContentPartAddedText(itemId string, outputIndex, contentIndex i
 }
 
 // Helper to create a native output_text.delta
-func createNativeOutputTextDelta(itemId string, outputIndex, contentIndex int, delta string, seqNum int) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfOutputTextDelta: &responses2.ChunkOutputText[constants.ChunkTypeOutputTextDelta]{
+func createNativeOutputTextDelta(itemId string, outputIndex, contentIndex int, delta string, seqNum int) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputTextDelta: &responses.ChunkOutputText[constants.ChunkTypeOutputTextDelta]{
 			Type:           constants.ChunkTypeOutputTextDelta("response.output_text.delta"),
 			SequenceNumber: seqNum,
 			ItemId:         itemId,
@@ -121,9 +121,9 @@ func createNativeOutputTextDelta(itemId string, outputIndex, contentIndex int, d
 }
 
 // Helper to create a native output_text.done
-func createNativeOutputTextDone(itemId string, outputIndex, contentIndex int, text string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfOutputTextDone: &responses2.ChunkOutputText[constants.ChunkTypeOutputTextDone]{
+func createNativeOutputTextDone(itemId string, outputIndex, contentIndex int, text string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputTextDone: &responses.ChunkOutputText[constants.ChunkTypeOutputTextDone]{
 			Type:           constants.ChunkTypeOutputTextDone("response.output_text.done"),
 			SequenceNumber: 5,
 			ItemId:         itemId,
@@ -135,16 +135,16 @@ func createNativeOutputTextDone(itemId string, outputIndex, contentIndex int, te
 }
 
 // Helper to create a native content_part.done
-func createNativeContentPartDone(itemId string, outputIndex, contentIndex int, text string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfContentPartDone: &responses2.ChunkContentPart[constants.ChunkTypeContentPartDone]{
+func createNativeContentPartDone(itemId string, outputIndex, contentIndex int, text string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfContentPartDone: &responses.ChunkContentPart[constants.ChunkTypeContentPartDone]{
 			Type:           constants.ChunkTypeContentPartDone("response.content_part.done"),
 			SequenceNumber: 6,
 			ItemId:         itemId,
 			OutputIndex:    outputIndex,
 			ContentIndex:   contentIndex,
-			Part: responses2.OutputContentUnion{
-				OfOutputText: &responses2.OutputTextContent{
+			Part: responses.OutputContentUnion{
+				OfOutputText: &responses.OutputTextContent{
 					Text: text,
 				},
 			},
@@ -153,19 +153,19 @@ func createNativeContentPartDone(itemId string, outputIndex, contentIndex int, t
 }
 
 // Helper to create a native output_item.done for message
-func createNativeOutputItemDoneMessage(itemId string, outputIndex int, text string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfOutputItemDone: &responses2.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
+func createNativeOutputItemDoneMessage(itemId string, outputIndex int, text string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
 			Type:           constants.ChunkTypeOutputItemDone("response.output_item.done"),
 			SequenceNumber: 7,
 			OutputIndex:    outputIndex,
-			Item: responses2.ChunkOutputItemData{
+			Item: responses.ChunkOutputItemData{
 				Type:   "message",
 				Id:     itemId,
 				Status: "completed",
 				Role:   constants.RoleAssistant,
-				Content: responses2.OutputContent{
-					{OfOutputText: &responses2.OutputTextContent{Text: text}},
+				Content: responses.OutputContent{
+					{OfOutputText: &responses.OutputTextContent{Text: text}},
 				},
 			},
 		},
@@ -173,13 +173,13 @@ func createNativeOutputItemDoneMessage(itemId string, outputIndex int, text stri
 }
 
 // Helper to create a native output_item.done for function_call
-func createNativeOutputItemDoneFunctionCall(itemId string, outputIndex int, callId, name, args string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfOutputItemDone: &responses2.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
+func createNativeOutputItemDoneFunctionCall(itemId string, outputIndex int, callId, name, args string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
 			Type:           constants.ChunkTypeOutputItemDone("response.output_item.done"),
 			SequenceNumber: 7,
 			OutputIndex:    outputIndex,
-			Item: responses2.ChunkOutputItemData{
+			Item: responses.ChunkOutputItemData{
 				Type:      "function_call",
 				Id:        itemId,
 				Status:    "completed",
@@ -192,9 +192,9 @@ func createNativeOutputItemDoneFunctionCall(itemId string, outputIndex int, call
 }
 
 // Helper to create a native function_call_arguments.delta
-func createNativeFunctionCallArgumentsDelta(itemId string, outputIndex int, delta string, seqNum int) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfFunctionCallArgumentsDelta: &responses2.ChunkFunctionCall[constants.ChunkTypeFunctionCallArgumentsDelta]{
+func createNativeFunctionCallArgumentsDelta(itemId string, outputIndex int, delta string, seqNum int) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfFunctionCallArgumentsDelta: &responses.ChunkFunctionCall[constants.ChunkTypeFunctionCallArgumentsDelta]{
 			Type:           constants.ChunkTypeFunctionCallArgumentsDelta("response.function_call_arguments.delta"),
 			SequenceNumber: seqNum,
 			ItemId:         itemId,
@@ -205,9 +205,9 @@ func createNativeFunctionCallArgumentsDelta(itemId string, outputIndex int, delt
 }
 
 // Helper to create a native function_call_arguments.done
-func createNativeFunctionCallArgumentsDone(itemId string, outputIndex int, args string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfFunctionCallArgumentsDone: &responses2.ChunkFunctionCall[constants.ChunkTypeFunctionCallArgumentsDone]{
+func createNativeFunctionCallArgumentsDone(itemId string, outputIndex int, args string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfFunctionCallArgumentsDone: &responses.ChunkFunctionCall[constants.ChunkTypeFunctionCallArgumentsDone]{
 			Type:           constants.ChunkTypeFunctionCallArgumentsDone("response.function_call_arguments.done"),
 			SequenceNumber: 6,
 			ItemId:         itemId,
@@ -218,23 +218,23 @@ func createNativeFunctionCallArgumentsDone(itemId string, outputIndex int, args 
 }
 
 // Helper to create a native reasoning_summary_part.added
-func createNativeReasoningSummaryPartAdded(itemId string, outputIndex, summaryIndex int) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfReasoningSummaryPartAdded: &responses2.ChunkReasoningSummaryPart[constants.ChunkTypeReasoningSummaryPartAdded]{
+func createNativeReasoningSummaryPartAdded(itemId string, outputIndex, summaryIndex int) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfReasoningSummaryPartAdded: &responses.ChunkReasoningSummaryPart[constants.ChunkTypeReasoningSummaryPartAdded]{
 			Type:           constants.ChunkTypeReasoningSummaryPartAdded("response.reasoning_summary_part.added"),
 			SequenceNumber: 3,
 			ItemId:         itemId,
 			OutputIndex:    outputIndex,
 			SummaryIndex:   summaryIndex,
-			Part:           responses2.SummaryTextContent{Text: ""},
+			Part:           responses.SummaryTextContent{Text: ""},
 		},
 	}
 }
 
 // Helper to create a native reasoning_summary_text.delta
-func createNativeReasoningSummaryTextDelta(itemId string, outputIndex, summaryIndex int, delta string, seqNum int) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfReasoningSummaryTextDelta: &responses2.ChunkReasoningSummaryText[constants.ChunkTypeReasoningSummaryTextDelta]{
+func createNativeReasoningSummaryTextDelta(itemId string, outputIndex, summaryIndex int, delta string, seqNum int) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfReasoningSummaryTextDelta: &responses.ChunkReasoningSummaryText[constants.ChunkTypeReasoningSummaryTextDelta]{
 			Type:           constants.ChunkTypeReasoningSummaryTextDelta("response.reasoning_summary_text.delta"),
 			SequenceNumber: seqNum,
 			ItemId:         itemId,
@@ -246,9 +246,9 @@ func createNativeReasoningSummaryTextDelta(itemId string, outputIndex, summaryIn
 }
 
 // Helper to create a native reasoning_summary_text.delta with encrypted content (signature)
-func createNativeReasoningSummaryTextDeltaWithSignature(itemId string, outputIndex, summaryIndex int, signature string) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfReasoningSummaryTextDelta: &responses2.ChunkReasoningSummaryText[constants.ChunkTypeReasoningSummaryTextDelta]{
+func createNativeReasoningSummaryTextDeltaWithSignature(itemId string, outputIndex, summaryIndex int, signature string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfReasoningSummaryTextDelta: &responses.ChunkReasoningSummaryText[constants.ChunkTypeReasoningSummaryTextDelta]{
 			Type:             constants.ChunkTypeReasoningSummaryTextDelta("response.reasoning_summary_text.delta"),
 			SequenceNumber:   5,
 			ItemId:           itemId,
@@ -260,22 +260,22 @@ func createNativeReasoningSummaryTextDeltaWithSignature(itemId string, outputInd
 }
 
 // Helper to create a native response.completed
-func createNativeResponseCompleted(id, model string, inputTokens, outputTokens int, outputs []responses2.OutputMessageUnion) *responses2.ResponseChunk {
-	return &responses2.ResponseChunk{
-		OfResponseCompleted: &responses2.ChunkResponse[constants.ChunkTypeResponseCompleted]{
+func createNativeResponseCompleted(id, model string, inputTokens, outputTokens int, outputs []responses.OutputMessageUnion) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfResponseCompleted: &responses.ChunkResponse[constants.ChunkTypeResponseCompleted]{
 			Type:           constants.ChunkTypeResponseCompleted("response.completed"),
 			SequenceNumber: 10,
-			Response: responses2.ChunkResponseData{
+			Response: responses.ChunkResponseData{
 				Id:     id,
 				Object: "response",
 				Status: "completed",
 				Output: outputs,
-				Usage: responses2.ChunkResponseUsage{
+				Usage: responses.Usage{
 					InputTokens:  inputTokens,
 					OutputTokens: outputTokens,
 					TotalTokens:  inputTokens + outputTokens,
 				},
-				Request: responses2.Request{
+				Request: responses.Request{
 					Model: model,
 				},
 			},
@@ -440,13 +440,13 @@ func TestNativeToAnthropic_ResponseCompleted(t *testing.T) {
 	// Setup
 	converter.NativeResponseChunkToResponseChunk(createNativeResponseCreated("resp_complete", "claude-3"))
 
-	outputs := []responses2.OutputMessageUnion{
+	outputs := []responses.OutputMessageUnion{
 		{
-			OfOutputMessage: &responses2.OutputMessage{
+			OfOutputMessage: &responses.OutputMessage{
 				ID:   "item_1",
 				Role: constants.RoleAssistant,
-				Content: responses2.OutputContent{
-					{OfOutputText: &responses2.OutputTextContent{Text: "Hello"}},
+				Content: responses.OutputContent{
+					{OfOutputText: &responses.OutputTextContent{Text: "Hello"}},
 				},
 			},
 		},
@@ -478,20 +478,20 @@ func TestNativeToAnthropic_ResponseCompletedIncomplete(t *testing.T) {
 	converter.NativeResponseChunkToResponseChunk(createNativeResponseCreated("resp_incomplete", "claude-3"))
 
 	// Create a completed chunk with "incomplete" status
-	completedChunk := &responses2.ResponseChunk{
-		OfResponseCompleted: &responses2.ChunkResponse[constants.ChunkTypeResponseCompleted]{
+	completedChunk := &responses.ResponseChunk{
+		OfResponseCompleted: &responses.ChunkResponse[constants.ChunkTypeResponseCompleted]{
 			Type:           constants.ChunkTypeResponseCompleted("response.completed"),
 			SequenceNumber: 10,
-			Response: responses2.ChunkResponseData{
+			Response: responses.ChunkResponseData{
 				Id:     "resp_incomplete",
 				Object: "response",
 				Status: "incomplete", // This should result in max_tokens stop reason
-				Output: []responses2.OutputMessageUnion{},
-				Usage: responses2.ChunkResponseUsage{
+				Output: []responses.OutputMessageUnion{},
+				Usage: responses.Usage{
 					InputTokens:  100,
 					OutputTokens: 4096,
 				},
-				Request: responses2.Request{
+				Request: responses.Request{
 					Model: "claude-3",
 				},
 			},
@@ -585,12 +585,12 @@ func TestNativeToAnthropic_EndToEnd_TextStreaming(t *testing.T) {
 	assert.NotNil(t, result[0].OfContentBlockStop)
 
 	// 7. response.completed -> message_delta + message_stop
-	outputs := []responses2.OutputMessageUnion{
+	outputs := []responses.OutputMessageUnion{
 		{
-			OfOutputMessage: &responses2.OutputMessage{
+			OfOutputMessage: &responses.OutputMessage{
 				ID:      "item_1",
 				Role:    constants.RoleAssistant,
-				Content: responses2.OutputContent{{OfOutputText: &responses2.OutputTextContent{Text: "Hello World"}}},
+				Content: responses.OutputContent{{OfOutputText: &responses.OutputTextContent{Text: "Hello World"}}},
 			},
 		},
 	}
@@ -613,7 +613,7 @@ func TestNativeToAnthropic_StatePreservation(t *testing.T) {
 	assert.NotNil(t, result[0].OfMessageStart)
 
 	// Later chunks should use the stored model - verify by calling completed
-	outputs := []responses2.OutputMessageUnion{}
+	outputs := []responses.OutputMessageUnion{}
 	completed := createNativeResponseCompleted("resp_state", "claude-3-sonnet", 100, 50, outputs)
 
 	result = converter.NativeResponseChunkToResponseChunk(completed)

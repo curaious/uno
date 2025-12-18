@@ -82,7 +82,7 @@ type LLMOptions struct {
 
 // NewLLM creates a new core.LLM that calls the agent-server via HTTP.
 // Uses the ExternalLLMGateway which routes through the gateway API.
-func (c *Client) NewLLM(opts LLMOptions) core.LLM {
+func (c *Client) NewLLM(opts LLMOptions) llm.Provider {
 	return client.NewLLMClient(
 		adapters.NewExternalLLMGateway(c.endpoint, c.virtualKey),
 		opts.Provider,
