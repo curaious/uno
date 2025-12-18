@@ -1,0 +1,103 @@
+---
+title: Quickstart
+description: Get up and running with Uno LLM Gateway in minutes.
+---
+
+# Quickstart
+
+This guide will walk you through setting up the Uno LLM Gateway locally and making your first LLM call.
+
+## Prerequisites
+
+- [Docker](https://www.docker.com/products/docker-desktop/) and Docker Compose.
+- [Go 1.25+](https://go.dev/doc/install) (if you want to use the SDK).
+
+## 1. Start the Gateway
+
+The easiest way to start Uno and its dependencies (ClickHouse and OpenTelemetry Collector) is using Docker Compose.
+
+```bash
+# Clone the repository
+git clone github.com/praveen001/uno
+cd uno
+
+# Start the infrastructure
+docker-compose up -d
+```
+
+Next, run the Agent Server:
+
+```bash
+# Install dependencies
+go mod download
+
+# Start the server
+go run main.go agent-server
+```
+
+The server will be available at `http://localhost:6060`.
+
+## 2. Launch the Dashboard
+
+Start the React dashboard to configure your providers:
+
+```bash
+cd frontend
+npm install
+npm start
+```
+
+Open `http://localhost:3000` in your browser.
+
+## 3. Configure a Provider
+
+1.  Navigate to the **Providers** section in the Dashboard.
+2.  Click **Add Provider** and select **OpenAI**.
+3.  Enter your OpenAI API Key and click **Save**.
+4.  Go to **Virtual Keys** and create a new key for your project. Note down the key (it starts with `ux_`).
+
+## 4. Make Your First Call
+
+Now, use the Uno SDK to make an LLM call through the gateway.
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "github.com/praveen001/uno/pkg/gateway/sdk"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/internal/utils"
+)
+
+func main() {
+    // Initialize client in Gateway Mode
+    client, _ := sdk.NewClient(&sdk.ClientOptions{
+        Endpoint:    "http://localhost:6060",
+        VirtualKey:  "your_virtual_key_here", // The ux_... key
+    })
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o",
+    })
+
+    resp, _ := model.NewResponses(context.Background(), &responses.Request{
+        Input: responses.InputUnion{
+            OfString: utils.Ptr("Hello Uno!"),
+        },
+    })
+
+    fmt.Println(resp.Output[0].OfOutputMessage.Content[0].OfOutputText.Text)
+}
+```
+
+## Next Steps
+
+Now that you have Uno running, explore more advanced features:
+
+- [Text Generation](/gateway/sdk/text-generation) - Deep dive into LLM calls.
+- [Tool Calling](/gateway/sdk/tool-calling) - Extend models with custom functions.
+- [Reasoning](/gateway/sdk/reasoning) - Work with chain-of-thought models.

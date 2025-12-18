@@ -1,0 +1,42 @@
+---
+title: Welcome to Uno LLM Gateway
+description: The unified interface for reliable and observable LLM operations.
+---
+
+# Introduction
+
+**Uno LLM Gateway** is a high-performance, open-source gateway designed to simplify how developers and teams interact with Large Language Models (LLMs). It acts as a bridge between your application and multiple LLM providers like OpenAI, Anthropic, and Gemini, providing a unified API, enhanced security, and deep observability.
+
+## Why Use Uno LLM Gateway?
+
+Managing multiple LLM integrations can quickly become complex. Uno solves this by centralizing configuration and providing production-grade features out of the box.
+
+### Key Features
+
+*   **Unified API**: Interact with different LLM providers using a single, consistent request/response format.
+*   **Virtual Keys**: Protect your provider API keys by using Uno-generated virtual keys in your client applications.
+*   **Centralized Configuration**: Manage models, fallback logic, and provider settings through a user-friendly UI without changing code.
+*   **Deep Observability**: Automatically capture traces, token usage, and latency metrics for every request using ClickHouse and OpenTelemetry.
+*   **Direct & Gateway Modes**: Choose between maximum features (Gateway Mode) or minimal latency (Direct Mode) using the same SDK.
+*   **MCP Support**: Built-in support for Model Context Protocol (MCP) to extend your LLMs with custom tools and data.
+
+## Architecture
+
+Uno consists of three main components:
+
+1.  **Gateway Server**: The core engine that routes requests, manages keys, and collects telemetry.
+2.  **Dashboard (UI)**: A React-based interface for configuring providers, projects, and monitoring usage.
+3.  **Golang SDK**: A flexible SDK that makes it easy to integrate Uno into your Go applications.
+
+---
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/gateway/quickstart">
+    Get Uno running locally in less than 5 minutes.
+  </Card>
+  <Card title="SDK Modes" icon="code" href="/gateway/sdk/gateway-mode-vs-direct-mode">
+    Understand the difference between Gateway and Direct modes.
+  </Card>
+</CardGroup>
