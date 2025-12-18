@@ -1,0 +1,91 @@
+package adapters
+
+import (
+	"fmt"
+
+	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/llm"
+)
+
+// InMemoryConfigStore implements gateway.ConfigStore for SDK use.
+// It holds API keys and provider configs in memory.
+type InMemoryConfigStore struct {
+	providerConfigs map[llm.ProviderName]*gateway.ProviderConfig
+	apiKeys         map[llm.ProviderName][]*gateway.APIKeyConfig
+}
+
+// ProviderOptions configures a provider for in-memory use
+type ProviderOptions struct {
+	APIKey        string
+	BaseURL       string
+	CustomHeaders map[string]string
+}
+
+// NewInMemoryConfigStore creates a config store with simple API keys map.
+func NewInMemoryConfigStore(apiKeys map[llm.ProviderName]string) *InMemoryConfigStore {
+	store := &InMemoryConfigStore{
+		providerConfigs: make(map[llm.ProviderName]*gateway.ProviderConfig),
+		apiKeys:         make(map[llm.ProviderName][]*gateway.APIKeyConfig),
+	}
+
+	for provider, key := range apiKeys {
+		store.apiKeys[provider] = []*gateway.APIKeyConfig{
+			{
+				ProviderName: provider,
+				APIKey:       key,
+				Enabled:      true,
+				IsDefault:    true,
+			},
+		}
+	}
+
+	return store
+}
+
+// NewInMemoryConfigStoreWithOptions creates a config store with full provider options.
+func NewInMemoryConfigStoreWithOptions(configs map[llm.ProviderName]*ProviderOptions) *InMemoryConfigStore {
+	store := &InMemoryConfigStore{
+		providerConfigs: make(map[llm.ProviderName]*gateway.ProviderConfig),
+		apiKeys:         make(map[llm.ProviderName][]*gateway.APIKeyConfig),
+	}
+
+	for provider, opts := range configs {
+		if opts == nil {
+			continue
+		}
+
+		// Set provider config
+		store.providerConfigs[provider] = &gateway.ProviderConfig{
+			ProviderName:  provider,
+			BaseURL:       opts.BaseURL,
+			CustomHeaders: opts.CustomHeaders,
+		}
+
+		// Set API key
+		store.apiKeys[provider] = []*gateway.APIKeyConfig{
+			{
+				ProviderName: provider,
+				APIKey:       opts.APIKey,
+				Enabled:      true,
+				IsDefault:    true,
+			},
+		}
+	}
+
+	return store
+}
+
+func (s *InMemoryConfigStore) GetProviderConfig(providerName llm.ProviderName) (*gateway.ProviderConfig, []*gateway.APIKeyConfig, error) {
+	keys := s.apiKeys[providerName]
+	if len(keys) == 0 {
+		return nil, nil, fmt.Errorf("no API key configured for provider %s", providerName)
+	}
+
+	config := s.providerConfigs[providerName]
+	return config, keys, nil
+}
+
+func (s *InMemoryConfigStore) GetVirtualKey(secretKey string) (*gateway.VirtualKeyConfig, error) {
+	// In-memory store doesn't support virtual keys - they're managed by agent-server
+	return nil, fmt.Errorf("virtual keys are not supported in direct mode")
+}

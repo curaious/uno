@@ -1,0 +1,382 @@
+.container {
+  padding: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.searchSection {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  align-items: flex-end;
+  background: #1e1e21;
+  border-radius: 12px;
+  padding: 20px;
+  border: 1px solid #2a2a2d;
+}
+
+.searchGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.searchLabel {
+  font-size: 12px !important;
+  font-weight: 500 !important;
+  color: #888 !important;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.searchActions {
+  display: flex;
+  gap: 8px;
+}
+
+.searchButton {
+  background: #10a37f !important;
+  border: none !important;
+  color: #fff !important;
+  font-size: 13px !important;
+  padding: 8px 20px !important;
+  border-radius: 8px !important;
+  text-transform: none !important;
+  transition: all 0.2s ease !important;
+  height: 40px !important;
+}
+
+.searchButton:hover {
+  background: #0d8a6a !important;
+}
+
+.searchButton:disabled {
+  background: #2a2a2d !important;
+  color: #666 !important;
+}
+
+.conversationInfo {
+  background: #1e1e21;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 24px;
+  border: 1px solid #2a2a2d;
+}
+
+.conversationHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.conversationName {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.conversationId {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #10a37f;
+  background: rgba(16, 163, 127, 0.1);
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.messageCount {
+  font-size: 0.875rem;
+  color: #888;
+}
+
+.messagesList {
+  background: #1e1e21;
+  border-radius: 12px;
+  border: 1px solid #2a2a2d;
+  overflow: hidden;
+}
+
+.messagesTable {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.messagesTable th {
+  text-align: left;
+  padding: 14px 16px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  border-bottom: 1px solid #2a2a2d;
+  background: #171719;
+}
+
+.messagesTable td {
+  padding: 14px 16px;
+  font-size: 0.875rem;
+  color: #ccc;
+  border-bottom: 1px solid #2a2a2d;
+  vertical-align: top;
+}
+
+.messagesTable td:nth-child(2) {
+  /* Trace ID column - allow wrapping */
+  max-width: 300px;
+  word-break: break-all;
+}
+
+.messagesTable tr:hover {
+  background: #252529;
+}
+
+.messagesTable tr:last-child td {
+  border-bottom: none;
+}
+
+.messageIndex {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #666;
+  font-weight: 600;
+}
+
+.traceId {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: #10a37f;
+  word-break: break-all;
+  display: inline-block;
+  max-width: 100%;
+}
+
+.noTrace {
+  font-size: 0.75rem;
+  color: #666;
+  font-style: italic;
+}
+
+.contentPreview {
+  font-size: 0.85rem;
+  color: #ccc;
+  max-width: 400px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roleBadge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.roleUser {
+  background: rgba(59, 130, 246, 0.15);
+  color: #60a5fa;
+}
+
+.roleAssistant {
+  background: rgba(16, 163, 127, 0.15);
+  color: #10a37f;
+}
+
+.roleSystem {
+  background: rgba(168, 85, 247, 0.15);
+  color: #a855f7;
+}
+
+.roleTool {
+  background: rgba(249, 115, 22, 0.15);
+  color: #fb923c;
+}
+
+.duration {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #aaa;
+}
+
+.durationSlow {
+  color: #ff8800;
+}
+
+.durationVerySlow {
+  color: #ff4444;
+}
+
+.spanCount {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.errorBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(255, 68, 68, 0.15);
+  color: #ff6666;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.successBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: rgba(16, 163, 127, 0.15);
+  color: #10a37f;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+}
+
+.viewTraceLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #10a37f;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.2s;
+  text-decoration: none;
+}
+
+.viewTraceLink:hover {
+  color: #14c4a0;
+}
+
+.emptyState {
+  text-align: center;
+  padding: 48px;
+  color: #666;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  margin-bottom: 16px;
+  opacity: 0.5;
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 48px;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #888;
+  font-size: 0.875rem;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.backButton:hover {
+  color: #fff;
+}
+
+.conversationsList {
+  background: #1e1e21;
+  border-radius: 12px;
+  border: 1px solid #2a2a2d;
+  overflow: hidden;
+  margin-top: 24px;
+}
+
+.conversationsHeader {
+  padding: 16px 20px;
+  border-bottom: 1px solid #2a2a2d;
+  background: #171719;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #fff;
+}
+
+.conversationItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  border-bottom: 1px solid #2a2a2d;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.conversationItem:last-child {
+  border-bottom: none;
+}
+
+.conversationItem:hover {
+  background: #252529;
+}
+
+.conversationItemName {
+  font-weight: 500;
+  color: #fff;
+  font-size: 0.9rem;
+}
+
+.conversationItemId {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  font-size: 0.75rem;
+  color: #666;
+}
+
+.conversationItemArrow {
+  color: #666;
+  font-size: 1rem;
+}
+
+.statsRow {
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.statItem {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: #888;
+}
+
+.statValue {
+  font-family: 'JetBrains Mono', 'Fira Code', monospace;
+  color: #fff;
+}
+

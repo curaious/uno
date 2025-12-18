@@ -1,0 +1,82 @@
+.root {
+    display: flex;
+    flex-direction: row;
+    height: 100vh;
+    flex: 1;
+    background-color: oklch(21% .006 285.885);
+    color: #fff;
+}
+
+.sidebar {
+    width: 220px;
+    color: white;
+    padding: 0px;
+    box-sizing: border-box;
+    overflow: auto;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+.mainContent {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    overflow-y: auto;
+    width: 100%;
+    background-color: oklch(23% .006 285.885);
+    border-radius: 5px;
+    margin-left: 16px;
+}
+
+.chatContainer {
+    width: 70%;
+    max-width: 70%;
+    align-self: center;
+    flex: 1;
+    display: flex;
+}
+
+.conversationList {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    flex-basis: 0;
+    overflow: auto;
+}
+
+.sidebarMenuItem {
+    padding: 0px 8px;
+    border-radius: 5px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.sidebarMenuItem.activeSidebarMenuItem {
+    background-color: oklch(28.4% .006 286.033);
+}
+
+.sidebarMenuItem:hover {
+    background-color: oklch(27.4% .006 286.033);
+    cursor: pointer;
+}
+
+.newChatBtn {
+    display: flex;
+    align-items: center;
+    padding-left: 8px;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.subHeading {
+    font-size: 14px;
+    color: #888;
+    margin-top: 20px;
+    margin-left: 8px;
+    margin-bottom: 8px;
+}

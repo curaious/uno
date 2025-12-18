@@ -1,0 +1,31 @@
+package gateway
+
+import (
+	"github.com/praveen001/uno/pkg/llm"
+)
+
+// ProviderConfig contains provider-level configuration.
+// This is the gateway's own type, independent of services layer.
+type ProviderConfig struct {
+	ProviderName  llm.ProviderName
+	BaseURL       string
+	CustomHeaders map[string]string
+}
+
+// APIKeyConfig contains API key information for a provider.
+// This is the gateway's own type, independent of services layer.
+type APIKeyConfig struct {
+	ProviderName llm.ProviderName
+	APIKey       string
+	Name         string
+	Enabled      bool
+	IsDefault    bool
+}
+
+// VirtualKeyConfig contains virtual key access configuration.
+// This is the gateway's own type, independent of services layer.
+type VirtualKeyConfig struct {
+	SecretKey        string
+	AllowedProviders []llm.ProviderName
+	AllowedModels    []string
+}

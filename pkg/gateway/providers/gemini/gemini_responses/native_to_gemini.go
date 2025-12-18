@@ -1,0 +1,406 @@
+package gemini_responses
+
+import (
+	"log/slog"
+	"slices"
+
+	"github.com/bytedance/sonic"
+	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/llm/constants"
+	"github.com/praveen001/uno/pkg/llm/responses"
+)
+
+func ResponsesInputToGeminiResponsesInput(in *responses.Request) *Request {
+	out := &Request{
+		Model:    in.Model,
+		Contents: NativeMessagesToMessages(in.Input),
+		GenerationConfig: &GenerationConfig{
+			MaxOutputTokens: in.MaxOutputTokens,
+			Temperature:     in.Temperature,
+			TopP:            in.TopP,
+		},
+		Tools:  NativeToolsToTools(in.Tools),
+		Stream: in.Stream,
+	}
+
+	if in.Reasoning != nil {
+		out.GenerationConfig.ThinkingConfig = &ThinkingConfig{
+			IncludeThoughts: utils.Ptr(slices.Contains(in.Include, responses.IncludableReasoningEncryptedContent)),
+			ThinkingBudget:  in.Reasoning.BudgetTokens,
+		}
+	}
+
+	if in.Instructions != nil {
+		out.SystemInstruction = &Content{
+			Parts: []Part{
+				{
+					Text: in.Instructions,
+				},
+			},
+			Role: RoleSystem,
+		}
+	}
+
+	// Gemini doesn't allow structured outputs while also having tools
+	if in.Text != nil && in.Text.Format != nil && (in.Tools == nil || len(in.Tools) == 0) {
+		if schema, ok := in.Text.Format["schema"].(map[string]any); ok {
+			out.GenerationConfig.ResponseMimeType = utils.Ptr("application/json")
+			out.GenerationConfig.ResponseJsonSchema = schema
+		}
+	}
+
+	return out
+}
+
+func NativeRoleToRole(role constants.Role) Role {
+	switch role {
+	case constants.RoleUser:
+		return RoleUser
+
+	case constants.RoleSystem, constants.RoleDeveloper:
+		return RoleUser
+
+	case constants.RoleAssistant:
+		return RoleModel
+	}
+
+	return RoleUser
+}
+
+func NativeToolsToTools(nativeTools []responses.ToolUnion) []Tool {
+	out := Tool{
+		FunctionDeclarations: []FunctionTool{},
+	}
+
+	for _, nativeTool := range nativeTools {
+		if nativeTool.OfFunction != nil {
+			out.FunctionDeclarations = append(out.FunctionDeclarations, FunctionTool{
+				Name:                 nativeTool.OfFunction.Name,
+				Description:          *nativeTool.OfFunction.Description,
+				ParametersJsonSchema: nativeTool.OfFunction.Parameters,
+				ResponseJsonSchema:   nil,
+			})
+		}
+	}
+
+	return []Tool{out}
+}
+
+func NativeMessagesToMessages(in responses.InputUnion) []Content {
+	out := []Content{}
+
+	if in.OfString != nil {
+		out = append(out, Content{
+			Role: RoleUser,
+			Parts: []Part{
+				{Text: in.OfString},
+			},
+		})
+
+		return out
+	}
+
+	if in.OfInputMessageList != nil {
+		prevFunctionCallName := ""
+		for _, nativeMessage := range in.OfInputMessageList {
+			// Easy Message
+			if nativeMessage.OfEasyInput != nil {
+				parts := []Part{}
+
+				if nativeMessage.OfEasyInput.Content.OfString != nil {
+					parts = append(parts, Part{
+						Text: nativeMessage.OfEasyInput.Content.OfString,
+					})
+				}
+
+				if nativeMessage.OfEasyInput.Content.OfInputMessageList != nil {
+					for _, nativeContent := range nativeMessage.OfEasyInput.Content.OfInputMessageList {
+						if nativeContent.OfInputText != nil {
+							parts = append(parts, Part{
+								Text: utils.Ptr(nativeContent.OfInputText.Text),
+							})
+						}
+
+						if nativeContent.OfOutputText != nil {
+							parts = append(parts, Part{
+								Text: utils.Ptr(nativeContent.OfOutputText.Text),
+							})
+						}
+					}
+				}
+
+				out = append(out, Content{
+					Role:  NativeRoleToRole(nativeMessage.OfEasyInput.Role),
+					Parts: parts,
+				})
+			}
+
+			// Text Message
+			if nativeMessage.OfInputMessage != nil {
+				parts := []Part{}
+
+				for _, nativeContent := range nativeMessage.OfInputMessage.Content {
+					if nativeContent.OfInputText != nil {
+						parts = append(parts, Part{
+							Text: utils.Ptr(nativeContent.OfInputText.Text),
+						})
+					}
+
+					if nativeContent.OfOutputText != nil {
+						parts = append(parts, Part{
+							Text: utils.Ptr(nativeContent.OfOutputText.Text),
+						})
+					}
+				}
+
+				out = append(out, Content{
+					Role:  NativeRoleToRole(nativeMessage.OfInputMessage.Role),
+					Parts: parts,
+				})
+			}
+
+			// Function call
+			if nativeMessage.OfFunctionCall != nil {
+				args := map[string]any{}
+				err := sonic.Unmarshal([]byte(nativeMessage.OfFunctionCall.Arguments), &args)
+				if err != nil {
+					slog.Warn("error in unmarshalling function arg into map[string]any")
+				}
+
+				out = append(out, Content{
+					Role: RoleModel,
+					Parts: []Part{
+						{
+							FunctionCall: &FunctionCall{
+								Name: nativeMessage.OfFunctionCall.Name,
+								Args: args,
+							},
+						},
+					},
+				})
+				prevFunctionCallName = nativeMessage.OfFunctionCall.Name
+			}
+
+			// Function call output
+			if nativeMessage.OfFunctionCallOutput != nil {
+				parts := []Part{}
+
+				if nativeMessage.OfFunctionCallOutput.Output.OfString != nil {
+					parts = append(parts, Part{
+						FunctionResponse: &FunctionResponse{
+							ID:   nativeMessage.OfFunctionCallOutput.CallID,
+							Name: prevFunctionCallName,
+							Response: map[string]any{
+								"output": nativeMessage.OfFunctionCallOutput.Output.OfString,
+							},
+						},
+					})
+				}
+
+				if nativeMessage.OfFunctionCallOutput.Output.OfList != nil {
+					for _, nativeOutput := range nativeMessage.OfFunctionCallOutput.Output.OfList {
+						if nativeOutput.OfInputText != nil {
+							parts = append(parts, Part{
+								FunctionResponse: &FunctionResponse{
+									ID:   nativeMessage.OfFunctionCallOutput.CallID,
+									Name: prevFunctionCallName,
+									Response: map[string]any{
+										"output": nativeOutput.OfInputText.Text,
+									},
+								},
+							})
+						}
+					}
+				}
+
+				out = append(out, Content{
+					Role:  RoleUser,
+					Parts: parts,
+				})
+			}
+
+			// Reasoning
+			if nativeMessage.OfReasoning != nil {
+
+			}
+
+			// Image Generation Call
+			if nativeMessage.OfImageGenerationCall != nil {
+				out = append(out, Content{
+					Parts: []Part{
+						{
+							InlineData: &InlinePartData{
+								MimeType: "image/" + nativeMessage.OfImageGenerationCall.OutputFormat,
+								Data:     nativeMessage.OfImageGenerationCall.Result,
+							},
+						},
+					},
+				})
+			}
+		}
+	}
+
+	return out
+}
+
+func NativeResponseToResponse(in *responses.Response) *Response {
+	parts := []Part{}
+
+	for _, nativeOutput := range in.Output {
+		if nativeOutput.OfOutputMessage != nil {
+			for _, nativeContent := range nativeOutput.OfOutputMessage.Content {
+				parts = append(parts, Part{
+					Text: utils.Ptr(nativeContent.OfOutputText.Text),
+				})
+			}
+		}
+
+		if nativeOutput.OfFunctionCall != nil {
+			parts = append(parts, Part{
+				FunctionCall: &FunctionCall{
+					Name: nativeOutput.OfFunctionCall.Name,
+					Args: nativeOutput.OfFunctionCall.Arguments,
+				},
+			})
+		}
+	}
+
+	var stopReason string
+	if in.Metadata != nil {
+		if val, ok := in.Metadata["stop_reason"]; ok {
+			stopReason = val.(string)
+		}
+	}
+
+	return &Response{
+		ModelVersion: in.Model,
+		ResponseID:   in.ID,
+		UsageMetadata: &UsageMetadata{
+			PromptTokenCount:     in.Usage.InputTokens,
+			CandidatesTokenCount: in.Usage.OutputTokens,
+			TotalTokenCount:      in.Usage.TotalTokens,
+			PromptTokensDetails:  nil,
+			ThoughtsTokenCount:   in.Usage.OutputTokensDetails.ReasoningTokens,
+		},
+		Candidates: []Candidate{
+			{
+				Content: Content{
+					Role:  RoleModel,
+					Parts: parts,
+				},
+				FinishReason: stopReason,
+			},
+		},
+		Error: nil,
+	}
+}
+
+// =============================================================================
+// Native to Gemini ResponseChunk Conversion
+// =============================================================================
+
+// NativeResponseChunkToResponseChunkConverter converts native stream chunks to Gemini format.
+// Gemini expects Response objects with parts, so we only emit responses for content-bearing events.
+type NativeResponseChunkToResponseChunkConverter struct {
+	// Stored state from response.created for building Gemini responses
+	responseCreated *responses.ChunkResponse[constants.ChunkTypeResponseCreated]
+}
+
+// NativeResponseChunkToResponseChunk converts a native chunk to zero or more Gemini responses.
+// Many native events don't map to Gemini output (Gemini doesn't have the same granular events).
+func (c *NativeResponseChunkToResponseChunkConverter) NativeResponseChunkToResponseChunk(in *responses.ResponseChunk) []Response {
+	if in == nil {
+		return nil
+	}
+
+	switch {
+	case in.OfResponseCreated != nil:
+		return c.handleResponseCreated(in.OfResponseCreated)
+	case in.OfOutputTextDelta != nil:
+		return c.handleOutputTextDelta(in.OfOutputTextDelta)
+	case in.OfReasoningSummaryTextDelta != nil:
+		return c.handleReasoningSummaryTextDelta(in.OfReasoningSummaryTextDelta)
+	case in.OfOutputItemAdded != nil:
+		return c.handleOutputItemAdded(in.OfOutputItemAdded)
+	}
+
+	// Most native events don't map to Gemini output:
+	// - response.in_progress, output_text.done, content_part.added/done,
+	// - function_call_arguments.delta/done, output_item.done, response.completed
+	// - reasoning events (Gemini handles thinking differently)
+	return nil
+}
+
+// =============================================================================
+// Event Handlers
+// =============================================================================
+
+// handleResponseCreated stores state but doesn't emit Gemini output
+// (Gemini doesn't have a "response started" event - it just sends content)
+func (c *NativeResponseChunkToResponseChunkConverter) handleResponseCreated(resp *responses.ChunkResponse[constants.ChunkTypeResponseCreated]) []Response {
+	c.responseCreated = resp
+	return nil
+}
+
+// handleOutputTextDelta emits a Gemini response with a text part
+func (c *NativeResponseChunkToResponseChunkConverter) handleOutputTextDelta(delta *responses.ChunkOutputText[constants.ChunkTypeOutputTextDelta]) []Response {
+	if c.responseCreated == nil {
+		return nil
+	}
+
+	return []Response{
+		c.buildResponse([]Part{{Text: utils.Ptr(delta.Delta)}}),
+	}
+}
+
+// handleReasoningSummaryTextDelta emits Gemini response with a thought part
+func (c *NativeResponseChunkToResponseChunkConverter) handleReasoningSummaryTextDelta(delta *responses.ChunkReasoningSummaryText[constants.ChunkTypeReasoningSummaryTextDelta]) []Response {
+	if c.responseCreated == nil {
+		return nil
+	}
+
+	return []Response{
+		c.buildResponse([]Part{{Text: utils.Ptr(delta.Delta), Thought: utils.Ptr(true)}}),
+	}
+}
+
+// handleOutputItemAdded emits a Gemini response for function calls only
+// (text items don't emit here - they use output_text.delta)
+func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemAdded(item *responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]) []Response {
+	if c.responseCreated == nil {
+		return nil
+	}
+
+	if item.Item.Type != "function_call" {
+		return nil
+	}
+
+	return []Response{
+		c.buildResponse([]Part{{
+			FunctionCall: &FunctionCall{
+				Name: *item.Item.Name,
+				Args: item.Item.Arguments,
+			},
+		}}),
+	}
+}
+
+// =============================================================================
+// Response Builder
+// =============================================================================
+
+func (c *NativeResponseChunkToResponseChunkConverter) buildResponse(parts []Part) Response {
+	return Response{
+		Candidates: []Candidate{{
+			Content: Content{
+				Role:  RoleModel,
+				Parts: parts,
+			},
+			FinishReason: "",
+		}},
+		UsageMetadata: nil,
+		ModelVersion:  c.responseCreated.Response.Model,
+		ResponseID:    c.responseCreated.Response.Id,
+		Error:         nil,
+	}
+}

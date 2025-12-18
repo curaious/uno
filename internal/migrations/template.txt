@@ -1,0 +1,19 @@
+package migrations
+
+import "github.com/jmoiron/sqlx"
+
+func init() {
+	m.addMigration(&migration{
+		version: "{{.Version}}",
+		up:      mig_{{.Version}}_{{.Title}}_up,
+		down:    mig_{{.Version}}_{{.Title}}_down,
+	})
+}
+
+func mig_{{.Version}}_{{.Title}}_up(tx *sqlx.Tx) error {
+	return nil
+}
+
+func mig_{{.Version}}_{{.Title}}_down(tx *sqlx.Tx) error {
+	return nil
+}

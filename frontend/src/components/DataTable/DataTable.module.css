@@ -1,0 +1,187 @@
+.container {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  color: var(--text-default);
+}
+
+.loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 200px;
+  gap: 16px;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #333;
+  border-top: 3px solid #10a37f;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.error {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  background-color: #fee;
+  color: #c53030;
+  border: 1px solid #feb2b2;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-size: 14px;
+}
+
+.errorContent {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.errorContent p {
+  margin: 0;
+}
+
+.retryButton {
+  padding: 6px 12px;
+  background-color: #c53030;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.retryButton:hover {
+  background-color: #9c2626;
+}
+
+.emptyState {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  text-align: center;
+  gap: 16px;
+}
+
+.emptyIcon {
+  font-size: 48px;
+  opacity: 0.5;
+}
+
+.emptyState h3 {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0;
+  color: var(--text-default);
+}
+
+.emptyState p {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+.tableContainer {
+  border-radius: 6px;
+  border: 1px solid #333;
+  overflow: hidden;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--text-default);
+}
+
+.table th {
+  background-color: color-mix(in oklab, oklch(27.4% .006 286.033) 50%, transparent);
+  color: var(--text-default);
+  font-weight: 600;
+  font-size: 14px;
+  text-align: left;
+  border-bottom: 1px solid #333;
+  padding: 0px 16px;
+  height: 40px;
+}
+
+.table td {
+  padding: 8px 16px;
+  border-bottom: 1px solid #2a2a2a;
+  vertical-align: middle;
+  font-size: 14px;
+}
+
+.tableRow {
+  transition: background-color 0.2s ease;
+}
+
+.tableRow:hover {
+  background-color: color-mix(in oklab, oklch(27.4% .006 286.033) 60%, transparent);
+}
+
+.tableRow:last-child td {
+  border-bottom: none;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
+
+.actionButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  background-color: transparent;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.actionButton svg {
+  font-size: 18px;
+}
+
+.actionButton:hover {
+  background-color: #333;
+  color: var(--text-default);
+  border-color: #555;
+}
+
+.actionButton.deleteButton {
+  /* This will be applied when className includes 'deleteButton' */
+}
+
+.actionButton.deleteButton:hover {
+  background-color: #fee;
+  color: #c53030;
+  border-color: #feb2b2;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .tableContainer {
+    overflow-x: auto;
+  }
+  
+  .table {
+    min-width: 600px;
+  }
+}

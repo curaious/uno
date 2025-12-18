@@ -1,0 +1,97 @@
+.message {
+    width: fit-content;
+    line-height: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.message p {
+    margin: 0;
+}
+
+.message table {
+    width: 100%;
+    border-collapse: collapse;
+    border-spacing: 0;
+    margin: 1em 0;
+    font-size: 0.95rem;
+  }
+  
+.message th,
+.message td {
+    padding: 8px 12px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.message th {
+    background: rgba(255, 255, 255, 0.03);
+    font-weight: 600;
+}
+
+.message tr:nth-child(even) td {
+    background: rgba(255, 255, 255, 0.015); /* faint zebra striping */
+}
+
+.message table {
+    border: 1px solid rgba(255, 255, 255, 0.1); /* outer border */
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.message hr {
+    border: none;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.2);
+    margin: 1.75rem 0;
+  }
+  
+
+.message a {
+    color: #008cff;
+    text-decoration: none;
+    &:hover {
+        text-decoration: underline;
+    }
+}
+
+.message.right {
+    align-self: flex-end;
+    max-width: 70%;
+    align-items: flex-end;
+}
+
+.userMessage {
+    border-radius: 8px;
+    padding: 8px;
+    background: #323232d9;
+}
+
+.assistantMessage {
+    align-self: flex-start;
+}
+
+.messageActions {
+    display: flex;
+    align-items: center;
+}
+
+.messageActionBtn {
+    padding: 4px;
+    height: 20px;
+    width: 20px;
+    border-radius: 25%;
+}
+
+.message.right .messageActionBtn {
+    visibility: hidden;
+}
+
+.message.right:hover .messageActionBtn {
+    visibility: visible;
+}
+
+.messageActionBtn:hover {
+    cursor: pointer;
+    background-color: #333;
+}
