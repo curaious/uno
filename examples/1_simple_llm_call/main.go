@@ -8,9 +8,9 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/gateway/sdk"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
-	"github.com/praveen001/uno/pkg/sdk"
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
