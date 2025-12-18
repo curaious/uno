@@ -2,3 +2,4 @@
 /node_modules/
 /deployments/
 traces.txt
+.idea
