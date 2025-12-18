@@ -1,5 +1,10 @@
 {
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
   "name": "Uno Docs",
+  "colors": {
+    "primary": "#ff0000"
+  },
   "navigation": {
     "pages": ["index"]
   }
