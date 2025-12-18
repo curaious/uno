@@ -3,7 +3,7 @@
     "theme": "mint",
     "name": "Uno",
     "colors": {
-        "primary": "#ff0000"
+        "primary": "#4ade80"
     },
     "appearance": {
         "default": "dark"
