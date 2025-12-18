@@ -30,7 +30,10 @@
                         "group": "Golang SDK",
                         "expanded": true,
                         "pages": [
-                          "gateway/sdk/gateway-mode-vs-direct-mode"
+                          "gateway/sdk/go/gateway-mode-vs-direct-mode",
+                          "gateway/sdk/go/text-generation",
+                          "gateway/sdk/go/tool-calling",
+                          "gateway/sdk/go/reasoning"
                         ]
                       }
                     ]
