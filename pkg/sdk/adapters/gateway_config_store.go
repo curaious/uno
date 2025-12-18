@@ -15,40 +15,44 @@ type InMemoryConfigStore struct {
 }
 
 // ProviderOptions configures a provider for in-memory use
-type ProviderOptions struct {
-	APIKey        string
+type ProviderConfig struct {
+	ProviderName  llm.ProviderName
 	BaseURL       string
 	CustomHeaders map[string]string
+	Keys          []*ProviderKey
+}
+
+type ProviderKey struct {
+	Name string
+	Key  string
 }
 
 // NewInMemoryConfigStore creates a config store with full provider options.
-func NewInMemoryConfigStore(configs map[llm.ProviderName]*ProviderOptions) *InMemoryConfigStore {
+func NewInMemoryConfigStore(configs []*ProviderConfig) *InMemoryConfigStore {
 	store := &InMemoryConfigStore{
 		providerConfigs: make(map[llm.ProviderName]*gateway.ProviderConfig),
 		apiKeys:         make(map[llm.ProviderName][]*gateway.APIKeyConfig),
 	}
 
-	for provider, opts := range configs {
-		if opts == nil {
-			continue
-		}
-
+	for _, config := range configs {
 		// Set provider config
-		store.providerConfigs[provider] = &gateway.ProviderConfig{
-			ProviderName:  provider,
-			BaseURL:       opts.BaseURL,
-			CustomHeaders: opts.CustomHeaders,
+		store.providerConfigs[config.ProviderName] = &gateway.ProviderConfig{
+			ProviderName:  config.ProviderName,
+			BaseURL:       config.BaseURL,
+			CustomHeaders: config.CustomHeaders,
 		}
 
-		// Set API key
-		store.apiKeys[provider] = []*gateway.APIKeyConfig{
-			{
-				ProviderName: provider,
-				APIKey:       opts.APIKey,
+		var keys []*gateway.APIKeyConfig
+		for _, key := range config.Keys {
+			keys = append(keys, &gateway.APIKeyConfig{
+				ProviderName: config.ProviderName,
+				APIKey:       key.Key,
+				Name:         key.Name,
 				Enabled:      true,
 				IsDefault:    true,
-			},
+			})
 		}
+		store.apiKeys[config.ProviderName] = keys
 	}
 
 	return store

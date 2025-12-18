@@ -1,65 +1,62 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "theme": "mint",
-  "name": "Uno Docs",
-  "colors": {
-    "primary": "#ff0000"
-  },
-  "appearance": {
-    "default": "dark" 
-  },
-  "navigation": {
-    "groups": [
-      {
-        "group": "Getting started",
-        "icon": "play",
-        "pages": [
-          "quickstart",
-          {
-            "group": "Editing",
-            "expanded": false,
-            "icon": "pencil",
-            "pages": [
-              "installation",
-              "editor"
-            ]
-          }
+    "$schema": "https://mintlify.com/docs.json",
+    "theme": "mint",
+    "name": "Uno",
+    "colors": {
+        "primary": "#ff0000"
+    },
+    "appearance": {
+        "default": "dark"
+    },
+    "navigation": {
+        "tabs": [
+            {
+                "tab": "LLM Gateway",
+                "icon": "route",
+                "groups": [
+                    {
+                        "group": "Getting started",
+                        "icon": "rocket",
+                        "pages": [
+                            "gateway/welcome",
+                            "gateway/quickstart"
+                        ]
+                    },
+                  {
+                    "group": "SDK",
+                    "icon": "code",
+                    "pages": [
+                      {
+                        "group": "Golang SDK",
+                        "expanded": true,
+                        "pages": [
+                          "gateway/sdk/gateway-mode-vs-direct-mode"
+                        ]
+                      }
+                    ]
+                  }
+                ]
+            },
+            {
+                "tab": "Agent Server",
+                "icon": "robot",
+                "groups": [
+                    {
+                        "group": "Getting started",
+                        "icon": "rocket",
+                        "pages": [
+                            "agent-server/welcome"
+                        ]
+                    }
+                ]
+            },
+            {
+                "tab": "API Reference",
+                "icon": "code",
+                "pages": [
+                    "api"
+                ]
+            }
         ]
-      },
-      {
-        "group": "Writing content",
-        "icon": "notebook-text",
-        "tag": "NEW",
-        "pages": [
-          "writing-content/page",
-          "writing-content/text"
-        ]
-      }
-    ],
-    "tabs": [
-      {
-        "tab": "API reference",
-        "icon": "square-terminal",
-        "pages": [
-          "api-reference/get",
-          "api-reference/post",
-          "api-reference/delete"
-        ]
-      },
-      {
-        "tab": "SDKs",
-        "icon": "code",
-        "pages": [
-          "sdk/fetch",
-          "sdk/create",
-          "sdk/delete"
-        ]
-      },
-      {
-        "tab": "Blog",
-        "icon": "newspaper",
-        "href": "https://external-link.com/blog"
-      }
-    ]
-  }
+    }
 }

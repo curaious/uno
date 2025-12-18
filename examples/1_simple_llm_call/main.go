@@ -16,13 +16,17 @@ import (
 
 func main() {
 	client, err := sdk.NewClient(&sdk.ClientOptions{
-		Endpoint:    "http://localhost:6060",
-		ProjectName: "projectName",
-		LLMConfigs: adapters.NewInMemoryConfigStore(map[llm.ProviderName]*adapters.ProviderOptions{
-			llm.ProviderNameOpenAI: {
-				APIKey:        "",
+		LLMConfigs: adapters.NewInMemoryConfigStore([]*adapters.ProviderConfig{
+			{
+				ProviderName:  llm.ProviderNameOpenAI,
 				BaseURL:       "",
 				CustomHeaders: nil,
+				Keys: []*adapters.ProviderKey{
+					{
+						Name: "Key 1",
+						Key:  "",
+					},
+				},
 			},
 		}),
 	})
