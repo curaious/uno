@@ -21,29 +21,8 @@ type ProviderOptions struct {
 	CustomHeaders map[string]string
 }
 
-// NewInMemoryConfigStore creates a config store with simple API keys map.
-func NewInMemoryConfigStore(apiKeys map[llm.ProviderName]string) *InMemoryConfigStore {
-	store := &InMemoryConfigStore{
-		providerConfigs: make(map[llm.ProviderName]*gateway.ProviderConfig),
-		apiKeys:         make(map[llm.ProviderName][]*gateway.APIKeyConfig),
-	}
-
-	for provider, key := range apiKeys {
-		store.apiKeys[provider] = []*gateway.APIKeyConfig{
-			{
-				ProviderName: provider,
-				APIKey:       key,
-				Enabled:      true,
-				IsDefault:    true,
-			},
-		}
-	}
-
-	return store
-}
-
-// NewInMemoryConfigStoreWithOptions creates a config store with full provider options.
-func NewInMemoryConfigStoreWithOptions(configs map[llm.ProviderName]*ProviderOptions) *InMemoryConfigStore {
+// NewInMemoryConfigStore creates a config store with full provider options.
+func NewInMemoryConfigStore(configs map[llm.ProviderName]*ProviderOptions) *InMemoryConfigStore {
 	store := &InMemoryConfigStore{
 		providerConfigs: make(map[llm.ProviderName]*gateway.ProviderConfig),
 		apiKeys:         make(map[llm.ProviderName][]*gateway.APIKeyConfig),

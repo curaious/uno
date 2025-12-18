@@ -4,43 +4,58 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"log/slog"
 
+	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/praveen001/uno/pkg/sdk"
+	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
 func main() {
 	client, err := sdk.NewClient(&sdk.ClientOptions{
 		Endpoint:    "http://localhost:6060",
-		ProjectName: "Planner3",
-		VirtualKey:  "",
+		ProjectName: "projectName",
+		LLMConfigs: adapters.NewInMemoryConfigStore(map[llm.ProviderName]*adapters.ProviderOptions{
+			llm.ProviderNameOpenAI: {
+				APIKey:        "",
+				BaseURL:       "",
+				CustomHeaders: nil,
+			},
+		}),
 	})
+
 	if err != nil {
 		log.Fatal(err)
 	}
 
 	model := client.NewLLM(sdk.LLMOptions{
 		Provider: llm.ProviderNameOpenAI,
-		Model:    "gpt-4o-mini",
+		Model:    "gpt-4.1-mini",
 	})
 
-	resp, err := model.NewStreamingResponses(
+	stream, err := model.NewStreamingResponses(
 		context.Background(),
-		responses.Request{
+		&responses.Request{
 			Instructions: utils.Ptr("You are helpful assistant. You greet user with a light-joke"),
 			Input: responses.InputUnion{
 				OfString: utils.Ptr("Hello!"),
 			},
-		},
-		func(message *responses.ResponseChunk) {
-			fmt.Println(message)
 		},
 	)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	fmt.Println(resp)
+	for chunk := range stream {
+		b, err := sonic.Marshal(chunk)
+		if err != nil {
+			slog.Warn("unable to marshal chunk", slog.Any("error", err))
+			continue
+		}
+
+		fmt.Println(string(b))
+	}
 }

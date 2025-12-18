@@ -19,17 +19,28 @@ func (g *LLMGateway) getProvider(ctx context.Context, providerName llm.ProviderN
 	_, span := tracer.Start(ctx, "Gateway.GetProvider")
 	defer span.End()
 
-	isVirtualKey := strings.HasPrefix(key, "sk-amg")
+	hasConfigStore := g.ConfigStore != nil
 
-	baseUrl := ""
-	customHeaders := map[string]string{}
-	directKey := key
-	if isVirtualKey {
-		// Get the virtual key and its configs
-		virtualKey, err := g.ConfigStore.GetVirtualKey(key)
-		if err != nil {
+	var directKey, baseUrl string
+	var customHeaders map[string]string
+
+	// If virtual key is provided, fetch the associated direct key
+	if strings.HasPrefix(key, "sk-amg") {
+		// When using virtual key, configStore is required
+		if !hasConfigStore {
+			err := errors.New("config store is required when virtual key is provided")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
+
+		virtualKey, err := g.ConfigStore.GetVirtualKey(key)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+
 		span.SetAttributes(
 			attribute.Int("virtual_key.allowed_providers", len(virtualKey.AllowedProviders)),
 			attribute.Int("virtual_key.allowed_models", len(virtualKey.AllowedModels)),
@@ -43,26 +54,38 @@ func (g *LLMGateway) getProvider(ctx context.Context, providerName llm.ProviderN
 			return nil, err
 		}
 
-		// Check whether the model is allowed for the virtual key
-		//if len(virtualKey.AllowedModels) > 0 && {
-		//
-		//}
-
-		// Check rate limits
-		// Check budget limits
-
-		// Convert to direct key
-		pc, keys, err := g.ConfigStore.GetProviderConfig(providerName)
+		providerConfig, providerKeys, err := g.ConfigStore.GetProviderConfig(providerName)
 		if err != nil {
+			err = errors.New("failed to get provider config")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
 			return nil, err
 		}
 
-		if pc != nil {
-			baseUrl = pc.BaseURL
-			customHeaders = pc.CustomHeaders
+		if providerConfig != nil {
+			baseUrl = providerConfig.BaseURL
+			customHeaders = providerConfig.CustomHeaders
 		}
 
-		directKey = keys[0].APIKey
+		// TODO: add support for key rotation
+		if len(providerKeys) > 0 {
+			directKey = providerKeys[0].APIKey
+		}
+	} else {
+		directKey = key
+
+		providerConfig, _, err := g.ConfigStore.GetProviderConfig(providerName)
+		if err != nil {
+			err = errors.New("failed to get provider config")
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+
+		if providerConfig != nil {
+			baseUrl = providerConfig.BaseURL
+			customHeaders = providerConfig.CustomHeaders
+		}
 	}
 
 	span.SetAttributes(attribute.String("base_url", baseUrl))
