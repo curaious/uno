@@ -1,0 +1,38 @@
+# Dependencies
+frontend/node_modules
+node_modules
+
+# Build outputs
+frontend/build
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# Documentation
+docs/
+*.md
+!frontend/README.md
+
+# Test files
+*_test.go
+**/*_test.go
+
+# Local development
+.env
+.env.*
+*.log
+
+# Helm charts (not needed in image)
+deployments/helm
+
+# OS files
+.DS_Store
+Thumbs.db
+
