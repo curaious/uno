@@ -3,8 +3,6 @@ title: Quickstart
 description: Get up and running with Uno LLM Gateway in minutes.
 ---
 
-# Quickstart
-
 This guide will walk you through setting up the Uno LLM Gateway locally and making your first LLM call.
 
 ## Prerequisites
@@ -12,49 +10,48 @@ This guide will walk you through setting up the Uno LLM Gateway locally and maki
 - [Docker](https://www.docker.com/products/docker-desktop/) and Docker Compose.
 - [Go 1.25+](https://go.dev/doc/install) (if you want to use the SDK).
 
-## 1. Start the Gateway
+## 1. Start Uno
 
-The easiest way to start Uno and its dependencies (ClickHouse and OpenTelemetry Collector) is using Docker Compose.
+Clone the repository and start Uno with Docker Compose:
 
 ```bash
-# Clone the repository
 git clone github.com/praveen001/uno
-cd uno
-
-# Start the infrastructure
-docker-compose up -d
+cd uno/deployments
+docker compose up -d
 ```
 
-Next, run the Agent Server:
+This starts the complete stack:
+- **Uno App** - Backend API (port 8080) and Frontend UI (port 3000)
+- **PostgreSQL** - Primary database
+- **Redis** - Caching layer
+- **ClickHouse** - Analytics and telemetry storage
+- **OpenTelemetry Collector** - Trace and metrics collection
+
+## 2. Open the Dashboard
+
+Once the services are running, open `http://localhost:3000` in your browser.
+
+<Tip>
+**For Development**: If you want to run the backend and frontend locally (for development), use the dev compose file instead:
 
 ```bash
-# Install dependencies
-go mod download
+# Start only dependencies
+docker compose -f docker-compose.dev.yaml up -d
 
-# Start the server
+# Run backend locally
 go run main.go agent-server
+
+# Run frontend locally (in another terminal)
+cd frontend && npm install && npm start
 ```
-
-The server will be available at `http://localhost:6060`.
-
-## 2. Launch the Dashboard
-
-Start the React dashboard to configure your providers:
-
-```bash
-cd frontend
-npm install
-npm start
-```
-
-Open `http://localhost:3000` in your browser.
+</Tip>
 
 ## 3. Configure a Provider
 
 1.  Navigate to the **Providers** section in the Dashboard.
 2.  Click **Add Provider** and select **OpenAI**.
 3.  Enter your OpenAI API Key and click **Save**.
-4.  Go to **Virtual Keys** and create a new key for your project. Note down the key (it starts with `ux_`).
+4.  Go to **Virtual Keys** and create a new key for your project. Note down the key.
 
 ## 4. Make Your First Call
 
