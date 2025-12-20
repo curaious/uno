@@ -22,22 +22,35 @@
                             "gateway/quickstart"
                         ]
                     },
-                  {
-                    "group": "SDK",
-                    "icon": "code",
-                    "pages": [
-                      {
-                        "group": "Golang SDK",
-                        "expanded": true,
+                    {
+                      "group": "Integrations",
+                      "icon": "plug",
+                      "pages": [
+                        "gateway/integrations/openai"
+                      ]
+                    },
+                    {
+                        "group": "SDK",
+                        "icon": "code",
                         "pages": [
-                          "gateway/sdk/go/gateway-mode-vs-direct-mode",
-                          "gateway/sdk/go/text-generation",
-                          "gateway/sdk/go/tool-calling",
-                          "gateway/sdk/go/reasoning"
+                            {
+                                "group": "Golang SDK",
+                                "expanded": true,
+                                "pages": [
+                                    "gateway/sdk/go/gateway-mode-vs-direct-mode",
+                                    {
+                                      "group": "Responses",
+                                      "expanded": true,
+                                      "pages": [
+                                        "gateway/sdk/go/text-generation",
+                                        "gateway/sdk/go/tool-calling",
+                                        "gateway/sdk/go/reasoning"
+                                      ]
+                                    }
+                                ]
+                            }
                         ]
-                      }
-                    ]
-                  }
+                    }
                 ]
             },
             {

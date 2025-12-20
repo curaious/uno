@@ -75,7 +75,7 @@ services:
     image: ${UNO_IMAGE:-ghcr.io/praveen001/uno:latest}
     container_name: uno-app
     ports:
-      - "8080:8080"   # Backend API
+      - "6060:6060"   # Backend API
       - "3000:3000"   # Frontend UI
     environment:
       DATABASE_URL: postgres://postgres:postgres@uno-postgres:5432/uno?sslmode=disable

@@ -74,7 +74,7 @@ RUN chown -R uno:uno /app && \
 USER uno
 
 # Backend port and frontend port
-EXPOSE 8080 3000
+EXPOSE 6060 3000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
 

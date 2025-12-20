@@ -5,28 +5,55 @@ description: The unified interface for reliable and observable LLM operations.
 
 # Introduction
 
-**Uno LLM Gateway** is a high-performance, open-source gateway designed to provide a unified interface to interact with Large Language Models (LLMs). It acts as a bridge between your application and multiple LLM providers like OpenAI, Anthropic, and Gemini, providing a unified API, enhanced security, and deep observability.
-
-## Why Use Uno LLM Gateway?
-
-Managing multiple LLM integrations can quickly become complex. Uno solves this by centralizing configuration and providing production-grade features out of the box.
+**Uno LLM Gateway** is a high-performance, open-source gateway written in Golang. It is designed to provide a unified interface to interact with LLMs from various providers like OpenAI, Anthropic, and Gemini. It sits between your application and the LLM providers and provides access control via virtual keys, and observability through OTEL traces.
 
 ### Key Features
 
 - **Unified API**: Interact with different LLM providers using a single, consistent request/response format.
 - **Virtual Keys**: Protect your provider API keys by using Uno-generated virtual keys in your client applications.
-- **Centralized Configuration**: Manage models, fallback logic, and provider settings through a user-friendly UI without changing code.
+- **Centralized Configuration**: Manage provider settings through a user-friendly UI without changing code.
 - **Deep Observability**: Automatically capture traces, token usage, and latency metrics for every request using ClickHouse and OpenTelemetry.
-- **Direct & Gateway Modes**: Choose between maximum features (Gateway Mode) or minimal latency (Direct Mode) using the same SDK.
-- **MCP Support**: Built-in support for Model Context Protocol (MCP) to extend your LLMs with custom tools and data.
 
-## Architecture
+## Supported Models
 
-Uno consists of three main components:
+The gateway currently has support for the OpenAI, Gemini and Anthropic. Support for more provider are in the roadmap.
 
-1. **Gateway Server**: The core engine that routes requests, manages keys, and collects telemetry.
-2. **Dashboard (UI)**: A React-based interface for configuring providers, projects, and monitoring usage.
-3. **Golang SDK**: A flexible SDK that makes it easy to integrate Uno into your Go applications.
+<table>
+    <thead>
+        <tr>
+            <th>Providers</th>
+            <th>Text</th>
+            <th>Image</th>
+            <th>Tool calls</th>
+            <th>Reasoning</th>
+        </tr>
+    </thead>
+    <tbody>
+        <tr>
+            <th style={{textAlign:"right"}}>OpenAI</th>
+            <td><center>✅</center></td>
+            <td><center>✅</center></td>
+            <td><center>✅</center></td>
+            <td><center>✅</center></td>
+        </tr>
+
+        <tr>
+            <th style={{textAlign:"right"}}>Anthropic</th>
+            <td><center>✅</center></td>
+            <td><center>❌</center></td>
+            <td><center>✅</center></td>
+            <td><center>✅</center></td>
+        </tr>
+
+        <tr>
+            <th style={{textAlign:"right"}}>Gemini</th>
+            <td><center>✅</center></td>
+            <td><center>✅</center></td>
+            <td><center>✅</center></td>
+            <td><center>✅</center></td>
+        </tr>
+    </tbody>
+</table>
 
 ---
 

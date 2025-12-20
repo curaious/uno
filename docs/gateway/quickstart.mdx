@@ -3,12 +3,10 @@ title: Quickstart
 description: Get up and running with Uno LLM Gateway in minutes.
 ---
 
-This guide will walk you through setting up the Uno LLM Gateway locally and making your first LLM call.
-
 ## Prerequisites
 
 - [Docker](https://www.docker.com/products/docker-desktop/) and Docker Compose.
-- [Go 1.25+](https://go.dev/doc/install) (if you want to use the SDK).
+- [Go 1.25.3+](https://go.dev/doc/install) (if you want to use the SDK).
 
 ## 1. Start Uno
 
@@ -21,7 +19,7 @@ docker compose up -d
 ```
 
 This starts the complete stack:
-- **Uno App** - Backend API (port 8080) and Frontend UI (port 3000)
+- **Uno App** - Backend API (port 6060) and Frontend UI (port 3000)
 - **PostgreSQL** - Primary database
 - **Redis** - Caching layer
 - **ClickHouse** - Analytics and telemetry storage
@@ -49,52 +47,65 @@ cd frontend && npm install && npm start
 ## 3. Configure a Provider
 
 1.  Navigate to the **Providers** section in the Dashboard.
-2.  Click **Add Provider** and select **OpenAI**.
-3.  Enter your OpenAI API Key and click **Save**.
+2.  Choose one of the supported providers from the sidebar.
+3.  Click **Add API Key** and enter your provider API Key and click **Create**.
 4.  Go to **Virtual Keys** and create a new key for your project. Note down the key.
 
-## 4. Make Your First Call
+## 4. Point your SDK to the LLM Gateway
 
-Now, use the Uno SDK to make an LLM call through the gateway.
+Now, update your application to send LLM calls to the gateway and use the virtual key instead of the provider's API key.
 
-```go
-package main
+<CodeGroup dropdown>
+    ```go main.go
+    package main
 
-import (
-    "context"
-    "fmt"
-    "github.com/praveen001/uno/pkg/gateway/sdk"
-    "github.com/praveen001/uno/pkg/llm"
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/internal/utils"
-)
+    import (
+        "context"
+        "fmt"
 
-func main() {
-    // Initialize client in Gateway Mode
-    client, _ := sdk.NewClient(&sdk.ClientOptions{
-        Endpoint:    "http://localhost:6060",
-        VirtualKey:  "your_virtual_key_here", // The ux_... key
-    })
+        "github.com/openai/openai-go/v3"
+        "github.com/openai/openai-go/v3/option"
+        "github.com/openai/openai-go/v3/shared"
+    )
 
-    model := client.NewLLM(sdk.LLMOptions{
-        Provider: llm.ProviderNameOpenAI,
-        Model:    "gpt-4o",
-    })
+    func main() {
+        client := openai.NewClient(
+            option.WithBaseURL("http://localhost:6060/api/gateway/openai")
+            option.WithAPIKey("your-virtual-key--or--provider-api-key"),
+        )
 
-    resp, _ := model.NewResponses(context.Background(), &responses.Request{
-        Input: responses.InputUnion{
-            OfString: utils.Ptr("Hello Uno!"),
-        },
-    })
+        chatCompletion, err := client.Chat.Completions.New(context.TODO(), openai.ChatCompletionNewParams{
+            Model: openai.ChatModelGPT4_1Mini,
+            Instructions: "You are a coding assistant that talks like a pirate.",
+            Messages: []openai.ChatCompletionMessageParamUnion{
+                openai.UserMessage("Hello!"),
+            },
+        })
 
-    fmt.Println(resp.Output[0].OfOutputMessage.Content[0].OfOutputText.Text)
-}
-```
+        if err != nil {
+            panic(err.Error())
+        }
 
-## Next Steps
+        println(chatCompletion.Choices[0].Message.Content)
+    }
+    ```
 
-Now that you have Uno running, explore more advanced features:
+    ```python main.py
+    import os
+    from openai import OpenAI
 
-- [Text Generation](/gateway/sdk/text-generation) - Deep dive into LLM calls.
-- [Tool Calling](/gateway/sdk/tool-calling) - Extend models with custom functions.
-- [Reasoning](/gateway/sdk/reasoning) - Work with chain-of-thought models.
+    client = OpenAI(
+        base_url="http://localhost:6060/api/gateway/openai",
+        api_key="your-virtual-key--or--provider-api-key",
+    )
+
+    response = client.responses.create(
+        model="gpt-4.1-mini",
+        instructions="You are a coding assistant that talks like a pirate.",
+        input="Hello!",
+    )
+
+    print(response.output_text)
+    ```
+</CodeGroup>
+
