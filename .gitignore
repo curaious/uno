@@ -1,5 +1,5 @@
 .env
 /node_modules/
-/deployments/
+/deployments/helm
 traces.txt
 .idea
