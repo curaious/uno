@@ -16,7 +16,7 @@ import (
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
-type Client struct {
+type SDK struct {
 	endpoint       string
 	projectId      uuid.UUID
 	virtualKey     string
@@ -38,9 +38,9 @@ type ClientOptions struct {
 	ProjectName string
 }
 
-func NewClient(opts *ClientOptions) (*Client, error) {
+func New(opts *ClientOptions) (*SDK, error) {
 	if opts.LLMConfigs != nil {
-		return &Client{
+		return &SDK{
 			llmConfigs:     opts.LLMConfigs,
 			projectId:      uuid.New(),
 			directLLMCalls: true,
@@ -64,7 +64,7 @@ func NewClient(opts *ClientOptions) (*Client, error) {
 
 	for _, proj := range projectsRes.Data {
 		if proj.Name == opts.ProjectName {
-			return &Client{
+			return &SDK{
 				endpoint:   opts.Endpoint,
 				projectId:  proj.ID,
 				virtualKey: opts.VirtualKey,
@@ -75,7 +75,7 @@ func NewClient(opts *ClientOptions) (*Client, error) {
 	return nil, fmt.Errorf("project %s not found", opts.ProjectName)
 }
 
-func (c *Client) NewConversationManager(namespace, msgId, previousMsgId string, opts ...history.ConversationManagerOptions) core.ChatHistory {
+func (c *SDK) NewConversationManager(namespace, msgId, previousMsgId string, opts ...history.ConversationManagerOptions) core.ChatHistory {
 	return history.NewConversationManager(
 		adapters.NewExternalConversationPersistence(c.endpoint),
 		c.projectId,
@@ -86,7 +86,7 @@ func (c *Client) NewConversationManager(namespace, msgId, previousMsgId string, 
 	)
 }
 
-func (c *Client) NewPromptManager(name string, label string, resolver core.SystemPromptResolver) core.SystemPromptProvider {
+func (c *SDK) NewPromptManager(name string, label string, resolver core.SystemPromptResolver) core.SystemPromptProvider {
 	return prompts.NewPromptManager(
 		adapters.NewExternalPromptPersistence(c.endpoint, c.projectId),
 		name,
@@ -101,7 +101,7 @@ type LLMOptions struct {
 }
 
 // NewLLM creates a new LLMClient that provides access to multiple LLM providers.
-func (c *Client) NewLLM(opts LLMOptions) llm.Provider {
+func (c *SDK) NewLLM(opts LLMOptions) llm.Provider {
 	return client.NewLLMClient(
 		c.getGatewayAdapter(),
 		opts.Provider,
@@ -109,7 +109,7 @@ func (c *Client) NewLLM(opts LLMOptions) llm.Provider {
 	)
 }
 
-func (c *Client) getGatewayAdapter() client.LLMGateway {
+func (c *SDK) getGatewayAdapter() client.LLMGateway {
 	if c.directLLMCalls {
 		return adapters.NewLocalLLMGateway(gateway.NewLLMGateway(c.llmConfigs))
 	}

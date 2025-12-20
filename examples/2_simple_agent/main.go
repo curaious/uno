@@ -14,7 +14,7 @@ import (
 )
 
 func main() {
-	client, err := sdk.NewClient(&sdk.ClientOptions{
+	client, err := sdk.New(&sdk.ClientOptions{
 		Endpoint:    "http://localhost:6060",
 		ProjectName: "Planner3",
 		VirtualKey:  "sk-amg-qi590eZbIv9MQym__ww__31AGBIo6M_9AfSuI6fxbfc",
