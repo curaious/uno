@@ -6,60 +6,24 @@ description: Get up and running with Uno LLM Gateway in minutes.
 ## Prerequisites
 
 - [Docker](https://www.docker.com/products/docker-desktop/) and Docker Compose.
-- [Node.js 14+](https://nodejs.org/) (for the quickstart command).
-- [Go 1.25.3+](https://go.dev/doc/install) (if you want to use the SDK).
 
-## 1. Start Uno
-
-### Option 1: Quick Start (Recommended)
+## 1. Start Uno LLM Gateway
 
 Start Uno with a single command:
 
 ```bash
-npx uno-llm-gateway
+npx --registry=https://npm.pkg.github.com @praveen001/uno
 ```
 
 This command will automatically download the required files and start all services.
-
-### Option 2: Manual Setup
-
-Clone the repository and start Uno with Docker Compose:
-
-```bash
-git clone github.com/praveen001/uno
-cd uno/deployments
-docker compose up -d
-```
-
-This starts the complete stack:
-- **Uno App** - Backend API (port 6060) and Frontend UI (port 3000)
-- **PostgreSQL** - Primary database
-- **Redis** - Caching layer
-- **ClickHouse** - Analytics and telemetry storage
-- **OpenTelemetry Collector** - Trace and metrics collection
 
 ## 2. Open the Dashboard
 
 Once the services are running, open `http://localhost:3000` in your browser.
 
-<Tip>
-**For Development**: If you want to run the backend and frontend locally (for development), use the dev compose file instead:
-
-```bash
-# Start only dependencies
-docker compose -f docker-compose.dev.yaml up -d
-
-# Run backend locally
-go run main.go agent-server
-
-# Run frontend locally (in another terminal)
-cd frontend && npm install && npm start
-```
-</Tip>
-
 ## 3. Configure a Provider
 
-1.  Navigate to the **Providers** section in the Dashboard.
+1.  Navigate to the **Providers** tab in the Dashboard.
 2.  Choose one of the supported providers from the sidebar.
 3.  Click **Add API Key** and enter your provider API Key and click **Create**.
 4.  Go to **Virtual Keys** and create a new key for your project. Note down the key.

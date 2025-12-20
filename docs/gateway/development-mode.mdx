@@ -1,0 +1,93 @@
+---
+title: Development Mode
+description: Learn how to start Uno in development mode for local development.
+---
+
+This guide will help you set up Uno LLM Gateway for local development. In development mode, you'll run the backend and frontend locally while using Docker Compose for infrastructure services.
+
+## Prerequisites
+
+Before starting, ensure you have the following installed:
+
+- **Docker** - [Download Docker Desktop](https://www.docker.com/products/docker-desktop/)
+- **Docker Compose** - Usually included with Docker Desktop
+- **Node.js 20+** - [Download Node.js](https://nodejs.org/)
+- **Go 1.25.3+** - [Download Go](https://go.dev/doc/install)
+
+Verify your installations:
+
+```bash
+docker --version
+docker compose version
+node --version  # Should be v20.0.0 or higher
+go version      # Should be go1.25.3 or higher
+```
+
+## 1. Clone the Repository
+
+Clone the Uno repository:
+
+```bash
+git clone https://github.com/praveen001/uno.git
+cd uno
+```
+
+## 2. Start Infrastructure Services
+
+Start the required infrastructure services (PostgreSQL, Redis, ClickHouse, etc.) using Docker Compose:
+
+```bash
+docker compose -f ./deployments/docker-compose.dev.yaml up -d
+```
+
+This command starts:
+- **PostgreSQL** - Primary database
+- **Redis** - Caching layer
+- **ClickHouse** - Analytics and telemetry storage
+- **OpenTelemetry Collector** - Trace and metrics collection
+
+Verify that all services are running:
+
+```bash
+docker compose -f ./deployments/docker-compose.dev.yaml ps
+```
+
+## 3. Start the Backend
+
+In the root directory, start the backend server:
+
+```bash
+go run main.go agent-server
+```
+
+The backend will start on `http://localhost:6060`. You should see logs indicating the server is running.
+
+## 4. Start the Frontend
+
+Open a new terminal window, navigate to the frontend directory, and start the development server:
+
+```bash
+cd frontend
+npm install  # Only needed the first time or after dependency changes
+npm start
+```
+
+The frontend will start on `http://localhost:3000` and automatically open in your browser.
+
+## Development Workflow
+
+### Making Changes
+
+- **Backend changes**: The Go server will need to be restarted manually after code changes
+- **Frontend changes**: The React development server supports hot reloading - changes will appear automatically
+
+### Stopping Services
+
+To stop all services:
+
+```bash
+# Stop backend: Press Ctrl+C in the backend terminal
+# Stop frontend: Press Ctrl+C in the frontend terminal
+# Stop infrastructure:
+docker compose -f ./deployments/docker-compose.dev.yaml down
+```

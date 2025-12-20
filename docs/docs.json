@@ -19,7 +19,8 @@
                         "icon": "rocket",
                         "pages": [
                             "gateway/introduction",
-                            "gateway/quickstart"
+                            "gateway/quickstart",
+                            "gateway/development-mode"
                         ]
                     },
                     {
