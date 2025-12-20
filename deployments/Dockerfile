@@ -20,7 +20,10 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Build Backend
 # =============================================================================
-FROM golang:1.25.3-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS backend-builder
+
+ARG TARGETOS
+ARG TARGETARCH
 
 WORKDIR /app
 
@@ -34,8 +37,8 @@ RUN go mod download
 # Copy source code
 COPY . .
 
-# Build the binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o /app/uno .
+# Build the binary for target platform
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o /app/uno .
 
 # =============================================================================
 # Stage 3: Final Runtime Image
