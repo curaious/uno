@@ -5,6 +5,12 @@
   "bin": {
     "uno": "./bin/cli.js"
   },
+  "files": [
+    "bin/",
+    "deployments/docker-compose.yaml",
+    "deployments/clickhouse-init.sql",
+    "deployments/otel-collector-config.yaml"
+  ],
   "repository": {
     "type": "git",
     "url": "https://github.com/praveen001/uno.git"
