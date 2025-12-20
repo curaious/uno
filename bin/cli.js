@@ -45,37 +45,6 @@ function checkDocker() {
   }
 }
 
-function showHelp() {
-  console.log(`
-${BOLD}Usage:${RESET} npx github:praveen001/uno [command]
-
-${BOLD}Commands:${RESET}
-  up, start     Start all Uno services (default)
-  down, stop    Stop all Uno services
-  logs          Show logs from all services
-  status, ps    Show status of all services
-  restart       Restart all services
-  help          Show this help message
-
-${BOLD}Examples:${RESET}
-  ${DIM}# Start Uno${RESET}
-  npx github:praveen001/uno
-
-  ${DIM}# Stop Uno${RESET}
-  npx github:praveen001/uno down
-
-  ${DIM}# View logs${RESET}
-  npx github:praveen001/uno logs
-
-${BOLD}Services:${RESET}
-  • Backend API:  http://localhost:6060
-  • Frontend UI:  http://localhost:3000
-  • ClickHouse:   http://localhost:8123
-  • PostgreSQL:   localhost:5432
-  • Redis:        localhost:6379
-`);
-}
-
 function runDockerCompose(args, options = {}) {
   const composeArgs = [
     'compose',
@@ -102,15 +71,7 @@ function runDockerCompose(args, options = {}) {
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const command = args[0] || 'up';
-  
   banner();
-  
-  if (command === 'help' || command === '--help' || command === '-h') {
-    showHelp();
-    process.exit(0);
-  }
   
   if (!checkDocker()) {
     process.exit(1);
@@ -120,41 +81,10 @@ async function main() {
     log(`Error: docker-compose.yaml not found at ${COMPOSE_FILE}`, RED);
     process.exit(1);
   }
-  
-  switch (command) {
-    case 'up':
-    case 'start':
-      log('Starting Uno services...', GREEN);
-      log(`${DIM}This may take a few minutes on first run to pull images.${RESET}`);
-      runDockerCompose(['up', '-d']);
-      break;
-      
-    case 'down':
-    case 'stop':
-      log('Stopping Uno services...', YELLOW);
-      runDockerCompose(['down']);
-      break;
-      
-    case 'logs':
-      log('Showing logs (Ctrl+C to exit)...', CYAN);
-      runDockerCompose(['logs', '-f', ...args.slice(1)]);
-      break;
-      
-    case 'status':
-    case 'ps':
-      log('Service status:', CYAN);
-      runDockerCompose(['ps']);
-      break;
-      
-    case 'restart':
-      log('Restarting Uno services...', YELLOW);
-      runDockerCompose(['restart']);
-      break;
-      
-    default:
-      // Pass through any other docker compose commands
-      runDockerCompose(args);
-  }
+
+    log('Starting Uno services...', GREEN);
+    log(`${DIM}This may take a few minutes on first run to pull images.${RESET}`);
+    runDockerCompose(['up']);
 }
 
 main().catch((err) => {

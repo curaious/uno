@@ -105,6 +105,8 @@ func init() {
 	llmGateway = gateway.NewLLMGateway(adapters.NewServiceConfigStore(svc.Provider, svc.VirtualKey))
 	slog.Info("LLM gateway initialized")
 
+	fmt.Println(conf)
+
 	// Initialize Redis
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
