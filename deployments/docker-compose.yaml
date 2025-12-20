@@ -77,11 +77,8 @@ services:
     ports:
       - "6060:6060"   # Backend API
       - "3000:3000"   # Frontend UI
-    environment:
-      DATABASE_URL: postgres://postgres:postgres@uno-postgres:5432/uno?sslmode=disable
-      REDIS_URL: redis://uno-redis:6379
-      CLICKHOUSE_URL: http://uno-clickhouse:8123
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://uno-otel-collector:4318
+    env_file:
+      - env_vars
     depends_on:
       uno-postgres:
         condition: service_healthy
