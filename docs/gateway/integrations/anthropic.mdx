@@ -1,4 +1,232 @@
 ---
 title: Anthropic
-description: Anthropic
+description: Integrate Uno LLM Gateway with Anthropic SDKs using the Messages API
 ---
+
+Uno LLM Gateway supports Anthropic's **Messages API** for text generation, images, tool calling, and reasoning. You can use **any Anthropic SDK** by simply pointing it to Uno's gateway endpoint. This allows you to leverage Uno's features like virtual keys, provider management, and observability while using your existing Anthropic code.
+
+## Overview
+
+The Uno LLM Gateway provides an endpoint at `/api/gateway/anthropic/v1/messages` that implements Anthropic's Messages API specification. This means you can use any Anthropic SDK (Python, JavaScript, Go, etc.) without modifying your code - just change the base URL.
+
+## Usage Examples
+
+<CodeGroup dropdown>
+```python main.py
+from anthropic import Anthropic
+
+# Point the client to Uno's gateway endpoint
+client = Anthropic(
+    base_url="http://localhost:6060/api/gateway/anthropic/v1",
+    api_key="sk-amg-your-virtual-key-here",  # or your Anthropic API key
+)
+
+# Use the Messages API
+message = client.messages.create(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Hello, how are you?"}
+    ],
+)
+
+print(message.content[0].text)
+```
+
+```javascript main.js
+const Anthropic = require('@anthropic-ai/sdk');
+
+const anthropic = new Anthropic({
+  baseURL: 'http://localhost:6060/api/gateway/anthropic/v1',
+  apiKey: 'sk-amg-your-virtual-key-here', // or your Anthropic API key
+});
+
+async function main() {
+  const message = await anthropic.messages.create({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 1024,
+    messages: [
+      { role: 'user', content: 'Hello, how are you?' }
+    ],
+  });
+
+  console.log(message.content[0].text);
+}
+
+main();
+```
+
+```go main.go
+package main
+
+import (
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+)
+
+func main() {
+    url := "http://localhost:6060/api/gateway/anthropic/v1/messages"
+    
+    requestBody := map[string]interface{}{
+        "model":      "claude-3-5-sonnet-20241022",
+        "max_tokens": 1024,
+        "messages": []map[string]interface{}{
+            {
+                "role":    "user",
+                "content": "Hello, how are you?",
+            },
+        },
+    }
+    
+    jsonData, _ := json.Marshal(requestBody)
+    req, _ := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewBuffer(jsonData))
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("x-api-key", "sk-amg-your-virtual-key-here") // or your Anthropic API key
+    
+    client := &http.Client{}
+    resp, _ := client.Do(req)
+    defer resp.Body.Close()
+    
+    body, _ := io.ReadAll(resp.Body)
+    var result map[string]interface{}
+    json.Unmarshal(body, &result)
+    
+    content := result["content"].([]interface{})
+    textBlock := content[0].(map[string]interface{})
+    
+    fmt.Println(textBlock["text"])
+}
+```
+</CodeGroup>
+
+## Streaming Support
+
+The gateway supports streaming responses via Server-Sent Events (SSE). Use your SDK's streaming methods as you normally would:
+
+<CodeGroup dropdown>
+```python streaming.py
+from anthropic import Anthropic
+
+client = Anthropic(
+    base_url="http://localhost:6060/api/gateway/anthropic/v1",
+    api_key="sk-amg-your-virtual-key-here",
+)
+
+with client.messages.stream(
+    model="claude-3-5-sonnet-20241022",
+    max_tokens=1024,
+    messages=[
+        {"role": "user", "content": "Tell me a story."}
+    ],
+) as stream:
+    for event in stream:
+        if event.type == "content_block_delta":
+            print(event.delta.text, end="", flush=True)
+```
+
+```javascript streaming.js
+const Anthropic = require('@anthropic-ai/sdk');
+
+const anthropic = new Anthropic({
+  baseURL: 'http://localhost:6060/api/gateway/anthropic/v1',
+  apiKey: 'sk-amg-your-virtual-key-here',
+});
+
+async function main() {
+  const stream = await anthropic.messages.stream({
+    model: 'claude-3-5-sonnet-20241022',
+    max_tokens: 1024,
+    messages: [
+      { role: 'user', content: 'Tell me a story.' }
+    ],
+  });
+
+  for await (const event of stream) {
+    if (event.type === 'content_block_delta') {
+      process.stdout.write(event.delta.text);
+    }
+  }
+}
+
+main();
+```
+
+```go streaming.go
+package main
+
+import (
+    "bufio"
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "io"
+    "net/http"
+    "strings"
+)
+
+func main() {
+    url := "http://localhost:6060/api/gateway/anthropic/v1/messages"
+    
+    requestBody := map[string]interface{}{
+        "model":      "claude-3-5-sonnet-20241022",
+        "max_tokens": 1024,
+        "stream":     true,
+        "messages": []map[string]interface{}{
+            {
+                "role":    "user",
+                "content": "Tell me a story.",
+            },
+        },
+    }
+    
+    jsonData, _ := json.Marshal(requestBody)
+    req, _ := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewBuffer(jsonData))
+    req.Header.Set("Content-Type", "application/json")
+    req.Header.Set("x-api-key", "sk-amg-your-virtual-key-here")
+    
+    client := &http.Client{}
+    resp, _ := client.Do(req)
+    defer resp.Body.Close()
+    
+    scanner := bufio.NewScanner(resp.Body)
+    for scanner.Scan() {
+        line := scanner.Text()
+        if strings.HasPrefix(line, "event: ") {
+            continue
+        }
+        if strings.HasPrefix(line, "data: ") {
+            data := line[6:]
+            var chunk map[string]interface{}
+            if err := json.Unmarshal([]byte(data), &chunk); err == nil {
+                if delta, ok := chunk["delta"].(map[string]interface{}); ok {
+                    if text, ok := delta["text"].(string); ok {
+                        fmt.Print(text)
+                    }
+                }
+            }
+        }
+    }
+}
+```
+</CodeGroup>
+
+
+## Supported Features
+
+The gateway currently supports the Messages API with:
+- ✅ **Text generation** - Standard text completions
+- ✅ **Images** - Image input (vision capabilities)
+- ✅ **Tool calling** - Function calling capabilities
+- ✅ **Reasoning** - Advanced reasoning models
+
+## Authentication
+
+The gateway accepts authentication via the `x-api-key` header:
+
+- **Virtual Key**: Use a virtual key (starts with `sk-amg-`) for managed access control
+- **Direct API Key**: Use your Anthropic API key directly
