@@ -1,0 +1,3217 @@
+openapi: 3.0.3
+info:
+  title: Uno Agent Server API
+  description: API specification for the Uno Agent Server
+  version: 1.0.0
+servers:
+  - url: http://localhost:6060
+    description: Local development server
+  - url: https://api.example.com
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Projects
+    description: Project management endpoints
+  - name: Agents
+    description: Agent configuration endpoints
+  - name: Models
+    description: Model configuration endpoints
+  - name: Prompts
+    description: Prompt management endpoints
+  - name: Providers
+    description: Provider and API key management endpoints
+  - name: VirtualKeys
+    description: Virtual key management endpoints
+  - name: MCPServers
+    description: MCP server management endpoints
+  - name: Schemas
+    description: Schema management endpoints
+  - name: Conversations
+    description: Conversation, thread, and message management endpoints
+  - name: Gateway
+    description: LLM Gateway endpoints
+  - name: Converse
+    description: Agent conversation endpoints
+  - name: Traces
+    description: Tracing and observability endpoints
+
+paths:
+  /api/health:
+    get:
+      tags:
+        - Health
+      summary: Health check
+      description: Check if the API server is healthy
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Server is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  # Projects
+  /api/agent-server/projects:
+    post:
+      tags:
+        - Projects
+      summary: Create a new project
+      operationId: createProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProjectRequest'
+      responses:
+        '200':
+          description: Project created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Projects
+      summary: List all projects
+      operationId: listProjects
+      responses:
+        '200':
+          description: Projects retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectsListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/project/id:
+    get:
+      tags:
+        - Projects
+      summary: Get project ID by name
+      operationId: getProjectIdByName
+      parameters:
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Project ID retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectIdResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/projects/{id}:
+    put:
+      tags:
+        - Projects
+      summary: Update a project
+      operationId: updateProject
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProjectRequest'
+      responses:
+        '200':
+          description: Project updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Projects
+      summary: Delete a project
+      operationId: deleteProject
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Project deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Agents
+  /api/agent-server/agents:
+    post:
+      tags:
+        - Agents
+      summary: Create a new agent
+      operationId: createAgent
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAgentRequest'
+      responses:
+        '200':
+          description: Agent created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Agents
+      summary: List all agents
+      operationId: listAgents
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agents retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentsListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/agents/by-name:
+    get:
+      tags:
+        - Agents
+      summary: Get agent by name
+      operationId: getAgentByName
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Agent retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/agents/{id}:
+    get:
+      tags:
+        - Agents
+      summary: Get agent by ID
+      operationId: getAgentById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agent retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - Agents
+      summary: Update an agent
+      operationId: updateAgent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAgentRequest'
+      responses:
+        '200':
+          description: Agent updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AgentResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Agents
+      summary: Delete an agent
+      operationId: deleteAgent
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Agent deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Models
+  /api/agent-server/models:
+    post:
+      tags:
+        - Models
+      summary: Create a new model
+      operationId: createModel
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateModelRequest'
+      responses:
+        '200':
+          description: Model created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Models
+      summary: List all models
+      operationId: listModels
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: provider_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OpenAI, Anthropic, Gemini, xAI]
+      responses:
+        '200':
+          description: Models retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelsListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/models/by-name:
+    get:
+      tags:
+        - Models
+      summary: Get model by name
+      operationId: getModelByName
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Model retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/models/{id}:
+    get:
+      tags:
+        - Models
+      summary: Get model by ID
+      operationId: getModelById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Model retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - Models
+      summary: Update a model
+      operationId: updateModel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateModelRequest'
+      responses:
+        '200':
+          description: Model updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ModelResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Models
+      summary: Delete a model
+      operationId: deleteModel
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Model deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Prompts
+  /api/agent-server/prompts:
+    post:
+      tags:
+        - Prompts
+      summary: Create a new prompt
+      operationId: createPrompt
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptRequest'
+      responses:
+        '200':
+          description: Prompt created successfully with first version
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Prompts
+      summary: List all prompts
+      operationId: listPrompts
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompts retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptsListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Prompts
+      summary: Delete a prompt
+      operationId: deletePrompt
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Prompt deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/prompts/by-name:
+    get:
+      tags:
+        - Prompts
+      summary: Get prompt by name
+      operationId: getPromptByName
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Prompt retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/prompts/{name}/versions:
+    post:
+      tags:
+        - Prompts
+      summary: Create a new prompt version
+      operationId: createPromptVersion
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePromptVersionRequest'
+      responses:
+        '200':
+          description: Prompt version created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Prompts
+      summary: List prompt versions
+      operationId: listPromptVersions
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompt versions retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionsListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/prompts/{name}/versions/{version}:
+    get:
+      tags:
+        - Prompts
+      summary: Get prompt version by version number
+      operationId: getPromptVersion
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompt version retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    patch:
+      tags:
+        - Prompts
+      summary: Update prompt version label
+      operationId: updatePromptVersionLabel
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePromptVersionLabelRequest'
+      responses:
+        '200':
+          description: Prompt version label updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Prompts
+      summary: Delete a prompt version
+      operationId: deletePromptVersion
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: version
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompt version deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/prompts/{name}/label/{label}:
+    get:
+      tags:
+        - Prompts
+      summary: Get prompt version by label
+      operationId: getPromptVersionByLabel
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: label
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [production, latest]
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Prompt version retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PromptVersionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Providers/API Keys
+  /api/agent-server/providers/models:
+    get:
+      tags:
+        - Providers
+      summary: Get provider models
+      operationId: getProviderModels
+      responses:
+        '200':
+          description: Provider models retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderModelsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/api-keys:
+    post:
+      tags:
+        - Providers
+      summary: Create a new API key
+      operationId: createAPIKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAPIKeyRequest'
+      responses:
+        '200':
+          description: API key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Providers
+      summary: List all API keys
+      operationId: listAPIKeys
+      parameters:
+        - name: provider
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [OpenAI, Anthropic, Gemini, xAI]
+        - name: enabled_only
+          in: query
+          required: false
+          schema:
+            type: boolean
+      responses:
+        '200':
+          description: API keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeysListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/api-keys/{id}:
+    put:
+      tags:
+        - Providers
+      summary: Update an API key
+      operationId: updateAPIKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAPIKeyRequest'
+      responses:
+        '200':
+          description: API key updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/APIKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Providers
+      summary: Delete an API key
+      operationId: deleteAPIKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: API key deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/provider-configs:
+    get:
+      tags:
+        - Providers
+      summary: List all provider configs
+      operationId: listProviderConfigs
+      responses:
+        '200':
+          description: Provider configs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderConfigsListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/provider-configs/{provider_type}:
+    put:
+      tags:
+        - Providers
+      summary: Create or update provider config
+      operationId: createOrUpdateProviderConfig
+      parameters:
+        - name: provider_type
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [OpenAI, Anthropic, Gemini, xAI]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateProviderConfigRequest'
+      responses:
+        '200':
+          description: Provider config saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProviderConfigResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Virtual Keys
+  /api/agent-server/virtual-keys:
+    post:
+      tags:
+        - VirtualKeys
+      summary: Create a new virtual key
+      operationId: createVirtualKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateVirtualKeyRequest'
+      responses:
+        '200':
+          description: Virtual key created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VirtualKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - VirtualKeys
+      summary: List all virtual keys
+      operationId: listVirtualKeys
+      responses:
+        '200':
+          description: Virtual keys retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VirtualKeysListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/virtual-keys/{id}:
+    put:
+      tags:
+        - VirtualKeys
+      summary: Update a virtual key
+      operationId: updateVirtualKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateVirtualKeyRequest'
+      responses:
+        '200':
+          description: Virtual key updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VirtualKeyResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - VirtualKeys
+      summary: Delete a virtual key
+      operationId: deleteVirtualKey
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Virtual key deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # MCP Servers
+  /api/agent-server/mcp-servers:
+    post:
+      tags:
+        - MCPServers
+      summary: Create a new MCP server
+      operationId: createMCPServer
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMCPServerRequest'
+      responses:
+        '200':
+          description: MCP server created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - MCPServers
+      summary: List all MCP servers
+      operationId: listMCPServers
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: MCP servers retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServersListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/mcp-servers/by-name:
+    get:
+      tags:
+        - MCPServers
+      summary: Get MCP server by name
+      operationId: getMCPServerByName
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: MCP server retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/mcp-servers/{id}:
+    get:
+      tags:
+        - MCPServers
+      summary: Get MCP server by ID
+      operationId: getMCPServerById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: MCP server retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - MCPServers
+      summary: Update an MCP server
+      operationId: updateMCPServer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMCPServerRequest'
+      responses:
+        '200':
+          description: MCP server updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MCPServerResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - MCPServers
+      summary: Delete an MCP server
+      operationId: deleteMCPServer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: MCP server deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/mcp-servers/{id}/inspect:
+    get:
+      tags:
+        - MCPServers
+      summary: Inspect MCP server tools
+      operationId: inspectMCPServer
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: MCP server tools retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InspectMCPResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Schemas
+  /api/agent-server/schemas:
+    post:
+      tags:
+        - Schemas
+      summary: Create a new schema
+      operationId: createSchema
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSchemaRequest'
+      responses:
+        '200':
+          description: Schema created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags:
+        - Schemas
+      summary: List all schemas
+      operationId: listSchemas
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Schemas retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemasListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/schemas/by-name:
+    get:
+      tags:
+        - Schemas
+      summary: Get schema by name
+      operationId: getSchemaByName
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: name
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Schema retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/schemas/{id}:
+    get:
+      tags:
+        - Schemas
+      summary: Get schema by ID
+      operationId: getSchemaById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Schema retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    put:
+      tags:
+        - Schemas
+      summary: Update a schema
+      operationId: updateSchema
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSchemaRequest'
+      responses:
+        '200':
+          description: Schema updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SchemaResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    delete:
+      tags:
+        - Schemas
+      summary: Delete a schema
+      operationId: deleteSchema
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Schema deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Conversations
+  /api/agent-server/conversations:
+    get:
+      tags:
+        - Conversations
+      summary: List conversations
+      operationId: listConversations
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversations retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationsListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/conversations/{conversation_id}:
+    get:
+      tags:
+        - Conversations
+      summary: Get conversation by ID
+      operationId: getConversation
+      parameters:
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Conversation retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/threads:
+    get:
+      tags:
+        - Conversations
+      summary: List threads in a conversation
+      operationId: listThreads
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: conversation_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Threads retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadsListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/threads/{thread_id}:
+    get:
+      tags:
+        - Conversations
+      summary: Get thread by ID
+      operationId: getThread
+      parameters:
+        - name: thread_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Thread retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ThreadResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/messages:
+    get:
+      tags:
+        - Conversations
+      summary: List messages in a thread
+      operationId: listMessages
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: thread_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Messages retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagesListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    post:
+      tags:
+        - Conversations
+      summary: Add messages to a conversation/thread
+      operationId: addMessages
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddMessageRequest'
+      responses:
+        '200':
+          description: Messages added successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/messages/{message_id}:
+    get:
+      tags:
+        - Conversations
+      summary: Get message by ID
+      operationId: getMessage
+      parameters:
+        - name: message_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Message retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/messages/summary:
+    get:
+      tags:
+        - Conversations
+      summary: Get all messages till a specific run
+      operationId: getMessagesSummary
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: previous_message_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Messages summary retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessagesListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/summary:
+    post:
+      tags:
+        - Conversations
+      summary: Save a summary
+      operationId: saveSummary
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: namespace
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummaryRequest'
+      responses:
+        '200':
+          description: Summary saved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuccessResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Converse
+  /api/agent-server/converse:
+    post:
+      tags:
+        - Converse
+      summary: Converse with an agent (streaming)
+      operationId: converse
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agent_name
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConverseRequest'
+      responses:
+        '200':
+          description: Streaming response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/converse2:
+    post:
+      tags:
+        - Converse
+      summary: Converse with an agent (durable, streaming)
+      operationId: durableConverse
+      parameters:
+        - name: project_id
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: agent_name
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ConverseRequest'
+      responses:
+        '200':
+          description: Streaming response
+          content:
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Gateway
+  /api/gateway/responses:
+    post:
+      tags:
+        - Gateway
+      summary: Gateway responses endpoint
+      operationId: gatewayResponses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Response or streaming response
+          content:
+            application/json:
+              schema:
+                type: object
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/gateway/anthropic/v1/messages:
+    post:
+      tags:
+        - Gateway
+      summary: Anthropic messages endpoint
+      operationId: anthropicMessages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Response or streaming response
+          content:
+            application/json:
+              schema:
+                type: object
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/gateway/gemini/v1beta/models/{model}:
+    post:
+      tags:
+        - Gateway
+      summary: Gemini model endpoint
+      operationId: geminiModel
+      parameters:
+        - name: model
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: key
+          in: query
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Response or streaming response
+          content:
+            application/json:
+              schema:
+                type: object
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/gateway/openai/responses:
+    post:
+      tags:
+        - Gateway
+      summary: OpenAI responses endpoint
+      operationId: openaiResponses
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Response or streaming response
+          content:
+            application/json:
+              schema:
+                type: object
+            text/event-stream:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  # Traces
+  /api/agent-server/traces:
+    get:
+      tags:
+        - Traces
+      summary: List traces with optional filters
+      operationId: listTraces
+      parameters:
+        - name: service_name
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: span_name
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: trace_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 0
+        - name: min_duration
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+        - name: max_duration
+          in: query
+          required: false
+          schema:
+            type: number
+            format: float
+        - name: has_errors
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: start_time
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Traces retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TracesListResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/traces/{trace_id}:
+    get:
+      tags:
+        - Traces
+      summary: Get a specific trace with all spans
+      operationId: getTrace
+      parameters:
+        - name: trace_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Trace retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TraceResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/traces/stats/services:
+    get:
+      tags:
+        - Traces
+      summary: Get service statistics
+      operationId: getServiceStats
+      parameters:
+        - name: start_time
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Service stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceStatsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/traces/stats/endpoints:
+    get:
+      tags:
+        - Traces
+      summary: Get endpoint statistics
+      operationId: getEndpointStats
+      parameters:
+        - name: service_name
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: start_time
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+        - name: end_time
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Endpoint stats retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndpointStatsResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/agent-server/traces/services:
+    get:
+      tags:
+        - Traces
+      summary: Get list of services
+      operationId: getServices
+      responses:
+        '200':
+          description: Services retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServicesListResponse'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+components:
+  schemas:
+    # Common Response Wrapper
+    StandardResponse:
+      type: object
+      properties:
+        error:
+          type: boolean
+        message:
+          type: string
+        data:
+          type: object
+        status:
+          type: integer
+        errorDetails:
+          type: object
+
+    SuccessResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              nullable: true
+
+    # Projects
+    CreateProjectRequest:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        default_key:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateProjectRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        default_key:
+          type: string
+          format: uuid
+          nullable: true
+
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        default_key:
+          type: string
+          format: uuid
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ProjectResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Project'
+
+    ProjectsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Project'
+
+    ProjectIdResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: string
+
+    # Agents
+    CreateAgentRequest:
+      type: object
+      required:
+        - name
+        - model_id
+        - prompt_id
+      properties:
+        name:
+          type: string
+        model_id:
+          type: string
+          format: uuid
+        prompt_id:
+          type: string
+          format: uuid
+        prompt_label:
+          type: string
+          enum: [production, latest]
+        schema_id:
+          type: string
+          format: uuid
+          nullable: true
+        enable_history:
+          type: boolean
+        summarizer_type:
+          type: string
+          enum: [llm, sliding_window, none]
+        llm_summarizer_token_threshold:
+          type: integer
+        llm_summarizer_keep_recent_count:
+          type: integer
+        llm_summarizer_prompt_id:
+          type: string
+          format: uuid
+        llm_summarizer_prompt_label:
+          type: string
+          enum: [production, latest]
+        llm_summarizer_model_id:
+          type: string
+          format: uuid
+        sliding_window_keep_count:
+          type: integer
+        mcp_servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentMCPServerReq'
+
+    UpdateAgentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        model_id:
+          type: string
+          format: uuid
+        prompt_id:
+          type: string
+          format: uuid
+        prompt_label:
+          type: string
+          enum: [production, latest]
+        schema_id:
+          type: string
+          format: uuid
+        enable_history:
+          type: boolean
+        summarizer_type:
+          type: string
+          enum: [llm, sliding_window, none]
+        llm_summarizer_token_threshold:
+          type: integer
+        llm_summarizer_keep_recent_count:
+          type: integer
+        llm_summarizer_prompt_id:
+          type: string
+          format: uuid
+        llm_summarizer_prompt_label:
+          type: string
+          enum: [production, latest]
+        llm_summarizer_model_id:
+          type: string
+          format: uuid
+        sliding_window_keep_count:
+          type: integer
+        mcp_servers:
+          type: array
+          items:
+            $ref: '#/components/schemas/AgentMCPServerReq'
+
+    AgentMCPServerReq:
+      type: object
+      required:
+        - mcp_server_id
+      properties:
+        mcp_server_id:
+          type: string
+          format: uuid
+        tool_filters:
+          type: array
+          items:
+            type: string
+
+    Agent:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        model_id:
+          type: string
+          format: uuid
+        prompt_id:
+          type: string
+          format: uuid
+        prompt_label:
+          type: string
+          nullable: true
+        schema_id:
+          type: string
+          format: uuid
+          nullable: true
+        enable_history:
+          type: boolean
+        summarizer_type:
+          type: string
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    AgentResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Agent'
+
+    AgentsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Agent'
+
+    # Models
+    CreateModelRequest:
+      type: object
+      required:
+        - name
+        - model_id
+        - provider_type
+      properties:
+        name:
+          type: string
+        model_id:
+          type: string
+        provider_type:
+          type: string
+          enum: [OpenAI, Anthropic, Gemini, xAI]
+        parameters:
+          type: object
+
+    UpdateModelRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        model_id:
+          type: string
+        provider_type:
+          type: string
+          enum: [OpenAI, Anthropic, Gemini, xAI]
+        parameters:
+          type: object
+
+    Model:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        model_id:
+          type: string
+        provider_type:
+          type: string
+        parameters:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    ModelResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Model'
+
+    ModelsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Model'
+
+    # Prompts
+    CreatePromptRequest:
+      type: object
+      required:
+        - name
+        - template
+        - commit_message
+      properties:
+        name:
+          type: string
+        template:
+          type: string
+        commit_message:
+          type: string
+
+    CreatePromptVersionRequest:
+      type: object
+      required:
+        - template
+        - commit_message
+      properties:
+        template:
+          type: string
+        commit_message:
+          type: string
+        label:
+          type: string
+          enum: [production, latest]
+
+    UpdatePromptVersionLabelRequest:
+      type: object
+      required:
+        - label
+      properties:
+        label:
+          type: string
+          enum: [production, latest]
+
+    Prompt:
+      type: object
+      properties:
+        name:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PromptVersion:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: integer
+        template:
+          type: string
+        label:
+          type: string
+          nullable: true
+        commit_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PromptResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Prompt'
+
+    PromptsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Prompt'
+
+    PromptVersionResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/PromptVersion'
+
+    PromptVersionsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PromptVersion'
+
+    # Providers
+    CreateAPIKeyRequest:
+      type: object
+      required:
+        - provider_type
+        - name
+        - api_key
+      properties:
+        provider_type:
+          type: string
+          enum: [OpenAI, Anthropic, Gemini, xAI]
+        name:
+          type: string
+        api_key:
+          type: string
+
+    UpdateAPIKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        api_key:
+          type: string
+        enabled:
+          type: boolean
+
+    APIKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        provider_type:
+          type: string
+        name:
+          type: string
+        enabled:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    APIKeyResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/APIKey'
+
+    APIKeysListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/APIKey'
+
+    CreateProviderConfigRequest:
+      type: object
+      properties:
+        base_url:
+          type: string
+        custom_headers:
+          type: object
+          additionalProperties:
+            type: string
+
+    ProviderConfig:
+      type: object
+      properties:
+        provider_type:
+          type: string
+        base_url:
+          type: string
+          nullable: true
+        custom_headers:
+          type: object
+          additionalProperties:
+            type: string
+
+    ProviderConfigResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/ProviderConfig'
+
+    ProviderConfigsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/ProviderConfig'
+
+    ProviderModelsResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+
+    # Virtual Keys
+    CreateVirtualKeyRequest:
+      type: object
+      required:
+        - name
+        - providers
+      properties:
+        name:
+          type: string
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/VirtualKeyProvider'
+
+    UpdateVirtualKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/VirtualKeyProvider'
+
+    VirtualKeyProvider:
+      type: object
+      required:
+        - provider_id
+        - model_names
+      properties:
+        provider_id:
+          type: string
+          format: uuid
+        model_names:
+          type: array
+          items:
+            type: string
+
+    VirtualKey:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        secret_key:
+          type: string
+        providers:
+          type: array
+          items:
+            $ref: '#/components/schemas/VirtualKeyProvider'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    VirtualKeyResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/VirtualKey'
+
+    VirtualKeysListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/VirtualKey'
+
+    # MCP Servers
+    CreateMCPServerRequest:
+      type: object
+      required:
+        - name
+        - endpoint
+      properties:
+        name:
+          type: string
+        endpoint:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdateMCPServerRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        endpoint:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+
+    MCPServer:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        endpoint:
+          type: string
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    MCPServerResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/MCPServer'
+
+    MCPServersListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/MCPServer'
+
+    MCPTool:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        inputSchema:
+          type: object
+
+    InspectMCPResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                tools:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MCPTool'
+
+    # Schemas
+    CreateSchemaRequest:
+      type: object
+      required:
+        - name
+        - schema
+      properties:
+        name:
+          type: string
+        schema:
+          type: object
+
+    UpdateSchemaRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        schema:
+          type: object
+
+    Schema:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        project_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        schema:
+          type: object
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    SchemaResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Schema'
+
+    SchemasListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Schema'
+
+    # Conversations
+    Conversation:
+      type: object
+      properties:
+        id:
+          type: string
+        namespace:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Thread:
+      type: object
+      properties:
+        id:
+          type: string
+        conversation_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        thread_id:
+          type: string
+        role:
+          type: string
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    AddMessageRequest:
+      type: object
+      required:
+        - namespace
+        - conversation_id
+        - thread_id
+        - messages
+      properties:
+        namespace:
+          type: string
+        conversation_id:
+          type: string
+        thread_id:
+          type: string
+        messages:
+          type: array
+          items:
+            type: object
+
+    SummaryRequest:
+      type: object
+      required:
+        - conversation_id
+        - thread_id
+        - summary
+      properties:
+        conversation_id:
+          type: string
+        thread_id:
+          type: string
+        summary:
+          type: string
+
+    ConversationResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Conversation'
+
+    ConversationsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Conversation'
+
+    ThreadResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Thread'
+
+    ThreadsListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Thread'
+
+    MessageResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Message'
+
+    MessagesListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/Message'
+
+    # Converse
+    ConverseRequest:
+      type: object
+      required:
+        - message
+        - namespace
+        - message_id
+        - session_id
+      properties:
+        message:
+          type: object
+        namespace:
+          type: string
+        message_id:
+          type: string
+        previous_message_id:
+          type: string
+        context:
+          type: object
+          additionalProperties: true
+        session_id:
+          type: string
+
+    # Traces
+    Trace:
+      type: object
+      properties:
+        trace_id:
+          type: string
+        spans:
+          type: array
+          items:
+            type: object
+
+    TraceResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              $ref: '#/components/schemas/Trace'
+
+    TracesListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+              properties:
+                traces:
+                  type: array
+                  items:
+                    type: object
+                total:
+                  type: integer
+                limit:
+                  type: integer
+                offset:
+                  type: integer
+
+    ServiceStatsResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+
+    EndpointStatsResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: object
+
+    ServicesListResponse:
+      allOf:
+        - $ref: '#/components/schemas/StandardResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardResponse'
+          example:
+            error: true
+            message: Invalid request
+            status: 400
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardResponse'
+          example:
+            error: true
+            message: Resource not found
+            status: 404
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardResponse'
+          example:
+            error: true
+            message: Resource conflict
+            status: 409
+
+    InternalServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardResponse'
+          example:
+            error: true
+            message: Internal server error
+            status: 500
+
