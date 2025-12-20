@@ -1,0 +1,295 @@
+---
+title: Structured Output
+description: Learn how to use structured output (JSON schema) with the Uno SDK to get consistent, validated responses from LLMs.
+---
+
+Structured output allows you to define a JSON schema that constrains the LLM's response format. This ensures consistent, validated outputs that are easier to parse and integrate into your applications.
+
+## Overview
+
+With structured output, you can specify the exact structure you want the model to return, including:
+- Required and optional fields
+- Data types for each field
+- Nested objects and arrays
+- Enumerations and constraints
+
+## Configuring Structured Output
+
+Structured output is configured using the `Text` parameter in your request. You provide a JSON schema that defines the expected output structure.
+
+```go
+import (
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/internal/utils"
+)
+
+// Define your JSON schema
+schema := map[string]any{
+    "type": "object",
+    "properties": map[string]any{
+        "name": map[string]any{
+            "type":        "string",
+            "description": "The person's name",
+        },
+        "age": map[string]any{
+            "type":        "integer",
+            "description": "The person's age",
+        },
+        "email": map[string]any{
+            "type":        "string",
+            "format":      "email",
+            "description": "The person's email address",
+        },
+    },
+    "required": []string{"name", "age"},
+}
+
+request := &responses.Request{
+    Input: responses.InputUnion{
+        OfString: utils.Ptr("Extract information about John Doe, age 30, email: john@example.com"),
+    },
+    Parameters: responses.Parameters{
+        Text: &responses.TextFormat{
+            Format: map[string]any{
+                "type":   "json_schema",
+                "name":   "structured_output",
+                "strict": false,
+                "schema": schema,
+            },
+        },
+    },
+}
+```
+
+---
+
+## Example: Extracting Structured Data
+
+Here's a complete example that extracts structured information from unstructured text:
+
+```go
+import (
+    "context"
+    "encoding/json"
+    "fmt"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/internal/utils"
+)
+
+func main() {
+    // ... client and model initialization ...
+
+    // Define schema for extracting contact information
+    contactSchema := map[string]any{
+        "type": "object",
+        "properties": map[string]any{
+            "contacts": map[string]any{
+                "type": "array",
+                "items": map[string]any{
+                    "type": "object",
+                    "properties": map[string]any{
+                        "name": map[string]any{
+                            "type": "string",
+                        },
+                        "phone": map[string]any{
+                            "type": "string",
+                        },
+                        "email": map[string]any{
+                            "type": "string",
+                        },
+                    },
+                    "required": []string{"name"},
+                },
+            },
+        },
+        "required": []string{"contacts"},
+    }
+
+    resp, err := model.NewResponses(context.Background(), &responses.Request{
+        Instructions: utils.Ptr("You are a data extraction assistant. Extract contact information from the given text."),
+        Input: responses.InputUnion{
+            OfString: utils.Ptr("Contact John at 555-1234 or john@example.com, and Sarah at 555-5678."),
+        },
+        Parameters: responses.Parameters{
+            Text: &responses.TextFormat{
+                Format: map[string]any{
+                    "type":   "json_schema",
+                    "name":   "structured_output",
+                    "strict": false,
+                    "schema": contactSchema,
+                },
+            },
+        },
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    // Parse the structured output
+    for _, output := range resp.Output {
+        if output.OfOutputMessage != nil {
+            for _, content := range output.OfOutputMessage.Content {
+                if content.OfOutputText != nil {
+                    var result map[string]any
+                    if err := json.Unmarshal([]byte(content.OfOutputText.Text), &result); err == nil {
+                        fmt.Printf("Extracted data: %+v\n", result)
+                    }
+                }
+            }
+        }
+    }
+}
+```
+
+---
+
+## Schema Format
+
+The schema follows the [JSON Schema](https://json-schema.org/) specification. Key components:
+
+### Basic Types
+
+```go
+// String
+"name": map[string]any{
+    "type": "string",
+}
+
+// Integer
+"age": map[string]any{
+    "type": "integer",
+}
+
+// Number (float)
+"price": map[string]any{
+    "type": "number",
+}
+
+// Boolean
+"active": map[string]any{
+    "type": "boolean",
+}
+
+// Array
+"tags": map[string]any{
+    "type": "array",
+    "items": map[string]any{
+        "type": "string",
+    },
+}
+```
+
+### Nested Objects
+
+```go
+schema := map[string]any{
+    "type": "object",
+    "properties": map[string]any{
+        "address": map[string]any{
+            "type": "object",
+            "properties": map[string]any{
+                "street": map[string]any{
+                    "type": "string",
+                },
+                "city": map[string]any{
+                    "type": "string",
+                },
+                "zip": map[string]any{
+                    "type": "string",
+                },
+            },
+        },
+    },
+}
+```
+
+### Enumerations
+
+```go
+"status": map[string]any{
+    "type": "string",
+    "enum": []string{"pending", "approved", "rejected"},
+}
+```
+
+---
+
+## Strict vs Non-Strict Mode
+
+The `strict` parameter controls how strictly the model adheres to the schema:
+
+- **`strict: false`** (default): The model can be more flexible and may include additional fields or slightly deviate from the schema if it helps generate better responses.
+- **`strict: true`**: The model must strictly follow the schema with no deviations.
+
+```go
+Text: &responses.TextFormat{
+    Format: map[string]any{
+        "type":   "json_schema",
+        "name":   "structured_output",
+        "strict": true,  // Enforce strict adherence
+        "schema": schema,
+    },
+}
+```
+
+---
+
+## Streaming with Structured Output
+
+Structured output also works with streaming responses. The model will stream the JSON structure incrementally:
+
+```go
+stream, err := model.NewStreamingResponses(ctx, &responses.Request{
+    Input: responses.InputUnion{
+        OfString: utils.Ptr("Extract information from: John Doe, 30 years old"),
+    },
+    Parameters: responses.Parameters{
+        Stream: utils.Ptr(true),
+        Text: &responses.TextFormat{
+            Format: map[string]any{
+                "type":   "json_schema",
+                "name":   "structured_output",
+                "strict": false,
+                "schema": schema,
+            },
+        },
+    },
+})
+if err != nil {
+    panic(err)
+}
+
+var fullText strings.Builder
+for chunk := range stream {
+    if chunk.OfOutputTextDelta != nil {
+        fullText.WriteString(chunk.OfOutputTextDelta.Delta)
+    }
+}
+
+// Parse the complete JSON after streaming
+var result map[string]any
+json.Unmarshal([]byte(fullText.String()), &result)
+```
+
+---
+
+## Best Practices
+
+1. **Be Specific**: Provide clear descriptions for each field to help the model understand what to extract.
+
+2. **Use Appropriate Types**: Choose the correct JSON Schema types (string, integer, number, boolean, array, object).
+
+3. **Mark Required Fields**: Use the `required` array to specify which fields must be present.
+
+4. **Handle Parsing Errors**: Always validate and parse the JSON output, as the model might occasionally return invalid JSON.
+
+5. **Start with Non-Strict**: Begin with `strict: false` and only enable strict mode if you need absolute adherence to the schema.
+
+---
+
+## Limitations
+
+- Not all providers support structured output equally. Some may have better support than others.
+- Complex nested schemas may be more challenging for models to follow accurately.
+- The model may occasionally return JSON that doesn't perfectly match the schema, especially in non-strict mode.
+

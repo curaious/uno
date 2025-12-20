@@ -1,0 +1,36 @@
+---
+title: Quickstart
+description: Get up and running with Uno LLM Gateway in minutes.
+---
+
+## Prerequisites
+
+- Golang - [v1.25.3](https://go.dev/doc/devel/release#go1.25.3).
+
+## Setting up the SDK
+
+```go
+package main
+
+import (
+    "github.com/praveen001/uno/pkg/gateway/sdk"
+)
+
+func main() {
+	client, err := sdk.NewClient(&sdk.ClientOptions{
+		LLMConfigs: adapters.NewInMemoryConfigStore([]*adapters.ProviderConfig{
+			{
+				ProviderName:  llm.ProviderNameOpenAI,
+				BaseURL:       "",
+				CustomHeaders: nil,
+				Keys: []*adapters.ProviderKey{
+					{
+						Name: "Key 1",
+						Key:  "",
+					},
+				},
+			},
+		}),
+	})
+}
+```

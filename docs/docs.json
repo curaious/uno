@@ -10,6 +10,36 @@
     },
     "navigation": {
         "tabs": [
+          {
+            "tab": "Uno SDK",
+            "icon": "wrapper",
+            "groups": [
+              {
+                "group": "SDK",
+                "icon": "code",
+                "pages": [
+                  "uno-sdk/setting-up"
+                ]
+              },
+              {
+                "group": "LLM Gateway",
+                "expanded": true,
+                "pages": [
+                  {
+                    "group": "Responses",
+                    "expanded": true,
+                    "pages": [
+                      "uno-sdk/responses/text-generation",
+                      "uno-sdk/responses/image-generation",
+                      "uno-sdk/responses/tool-calling",
+                      "uno-sdk/responses/reasoning",
+                      "uno-sdk/responses/structured-output"
+                    ]
+                  }
+                ]
+              },
+            ]
+          },
             {
                 "tab": "LLM Gateway",
                 "icon": "route",
@@ -31,28 +61,6 @@
                         "gateway/integrations/anthropic",
                         "gateway/integrations/gemini"
                       ]
-                    },
-                    {
-                        "group": "SDK",
-                        "icon": "code",
-                        "pages": [
-                            {
-                                "group": "Golang SDK",
-                                "expanded": true,
-                                "pages": [
-                                    "gateway/sdk/go/gateway-mode-vs-direct-mode",
-                                    {
-                                      "group": "Responses",
-                                      "expanded": true,
-                                      "pages": [
-                                        "gateway/sdk/go/text-generation",
-                                        "gateway/sdk/go/tool-calling",
-                                        "gateway/sdk/go/reasoning"
-                                      ]
-                                    }
-                                ]
-                            }
-                        ]
                     }
                 ]
             },
