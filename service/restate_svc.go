@@ -107,8 +107,10 @@ func init() {
 
 	// Initialize Redis
 	redisClient = redis.NewClient(&redis.Options{
-		Addr: fmt.Sprintf("%s:%s", "127.0.0.1", "6379"),
-		DB:   10,
+		Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
+		DB:       10,
+		Username: conf.REDIS_USERNAME,
+		Password: conf.REDIS_PASSWORD,
 	})
 
 	if err := redisClient.Ping(context.Background()).Err(); err != nil {

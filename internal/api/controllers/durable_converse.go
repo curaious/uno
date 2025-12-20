@@ -10,6 +10,7 @@ import (
 	json "github.com/bytedance/sonic"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
+	"github.com/praveen001/uno/internal/config"
 	"github.com/praveen001/uno/internal/perrors"
 	"github.com/praveen001/uno/internal/services"
 	"github.com/praveen001/uno/service"
@@ -25,6 +26,7 @@ import (
 )
 
 func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
+	conf := config.ReadConfig()
 	r.POST("/api/agent-server/converse2", func(reqCtx *fasthttp.RequestCtx) {
 		baseCtx := requestContext(reqCtx)
 
@@ -87,8 +89,10 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 		}
 
 		redisClient := redis.NewClient(&redis.Options{
-			Addr: fmt.Sprintf("%s:%s", "127.0.0.1", "6379"),
-			DB:   10,
+			Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
+			DB:       10,
+			Username: conf.REDIS_USERNAME,
+			Password: conf.REDIS_PASSWORD,
 		})
 
 		if err := redisClient.Ping(context.Background()).Err(); err != nil {

@@ -13,11 +13,10 @@ type Config struct {
 	DB_NAME     string
 	DISABLE_TLS string
 
-	LANGFUSE_USERNAME string
-	LANGFUSE_PASSWORD string
-	LANGFUSE_ENDPOINT string
-
-	OPENAI_API_KEY string
+	REDIS_HOST     string
+	REDIS_PORT     string
+	REDIS_USERNAME string
+	REDIS_PASSWORD string
 
 	// ClickHouse configuration for traces
 	CLICKHOUSE_HOST     string
@@ -48,11 +47,10 @@ func ReadConfig() *Config {
 		DB_NAME:     os.Getenv("DB_NAME"),
 		DISABLE_TLS: os.Getenv("DISABLE_TLS"),
 
-		LANGFUSE_USERNAME: os.Getenv("LANGFUSE_USERNAME"),
-		LANGFUSE_PASSWORD: os.Getenv("LANGFUSE_PASSWORD"),
-		LANGFUSE_ENDPOINT: os.Getenv("LANGFUSE_ENDPOINT"),
-
-		OPENAI_API_KEY: os.Getenv("OPENAI_API_KEY"),
+		REDIS_HOST:     os.Getenv("REDIS_HOST"),
+		REDIS_PORT:     os.Getenv("REDIS_PORT"),
+		REDIS_USERNAME: os.Getenv("REDIS_USERNAME"),
+		REDIS_PASSWORD: os.Getenv("REDIS_PASSWORD"),
 
 		CLICKHOUSE_HOST:     getEnvOrDefault("CLICKHOUSE_HOST", "localhost"),
 		CLICKHOUSE_PORT:     clickhousePort,
