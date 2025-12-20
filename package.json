@@ -9,7 +9,8 @@
     "bin/",
     "deployments/docker-compose.yaml",
     "deployments/clickhouse-init.sql",
-    "deployments/otel-collector-config.yaml"
+    "deployments/otel-collector-config.yaml",
+    "deployments/env_vars"
   ],
   "repository": {
     "type": "git",
