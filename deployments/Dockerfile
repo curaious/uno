@@ -20,7 +20,7 @@ RUN npm run build
 # =============================================================================
 # Stage 2: Build Backend
 # =============================================================================
-FROM --platform=$BUILDPLATFORM golang:1.23-alpine AS backend-builder
+FROM --platform=$BUILDPLATFORM golang:1.25.3-alpine AS backend-builder
 
 ARG TARGETOS
 ARG TARGETARCH
