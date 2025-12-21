@@ -5,21 +5,21 @@ import (
 	"fmt"
 	"log"
 
+	json "github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway/sdk"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
-	"github.com/praveen001/uno/pkg/sdk/adapters"
+	"github.com/praveen001/uno/pkg/sdk"
 )
 
 func main() {
-	client, err := sdk.NewClient(&sdk.ClientOptions{
-		LLMConfigs: adapters.NewInMemoryConfigStore([]*adapters.ProviderConfig{
+	client, err := sdk.New(&sdk.ClientOptions{
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
 			{
 				ProviderName:  llm.ProviderNameOpenAI,
 				BaseURL:       "",
 				CustomHeaders: nil,
-				Keys: []*adapters.ProviderKey{
+				Keys: []*sdk.ProviderKey{
 					{
 						Name: "Key 1",
 						Key:  "",
@@ -59,6 +59,7 @@ func main() {
 		log.Fatal(err)
 	}
 
+	var fnCalls []*responses.FunctionCallMessage
 	for chunk := range stream {
 		switch chunk.ChunkType() {
 		case "response.output_item.done":
@@ -69,10 +70,12 @@ func main() {
 					Name:      *chunk.OfOutputItemDone.Item.Name,
 					Arguments: *chunk.OfOutputItemDone.Item.Arguments,
 				}
-
-				// Handle function call
-				fmt.Println(fnCall)
+				fnCalls = append(fnCalls, fnCall)
 			}
 		}
 	}
+
+	// Handle function calls
+	t, _ := json.Marshal(fnCalls)
+	fmt.Println(string(t))
 }

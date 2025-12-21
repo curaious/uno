@@ -6,20 +6,19 @@ import (
 	"log"
 
 	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway/sdk"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
-	"github.com/praveen001/uno/pkg/sdk/adapters"
+	"github.com/praveen001/uno/pkg/sdk"
 )
 
 func main() {
-	client, err := sdk.NewClient(&sdk.ClientOptions{
-		LLMConfigs: adapters.NewInMemoryConfigStore([]*adapters.ProviderConfig{
+	client, err := sdk.New(&sdk.ClientOptions{
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
 			{
 				ProviderName:  llm.ProviderNameOpenAI,
 				BaseURL:       "",
 				CustomHeaders: nil,
-				Keys: []*adapters.ProviderKey{
+				Keys: []*sdk.ProviderKey{
 					{
 						Name: "Key 1",
 						Key:  "",
@@ -59,19 +58,13 @@ func main() {
 		log.Fatal(err)
 	}
 
+	reasoningTxt := ""
 	for chunk := range stream {
 		switch chunk.ChunkType() {
-		case "response.output_item.done":
-			if chunk.OfOutputItemDone.Item.Type == "reasoning" {
-				reasoning := &responses.ReasoningMessage{
-					Type:             "",
-					ID:               chunk.OfOutputItemDone.Item.Id,
-					Summary:          chunk.OfOutputItemDone.Item.Summary,
-					EncryptedContent: chunk.OfOutputItemDone.Item.EncryptedContent,
-				}
-
-				fmt.Println(reasoning.Summary)
-			}
+		case "response.reasoning_summary_text.delta":
+			reasoningTxt += chunk.OfReasoningSummaryTextDelta.Delta
 		}
 	}
+
+	fmt.Println(reasoningTxt)
 }

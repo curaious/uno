@@ -8,7 +8,7 @@ import (
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
-// InternalLLMGateway uses the internal LLMGateway for server-side use.
+// InternalLLMGateway uses the internal LLMGatewayAdapter for server-side use.
 // This is used within the agent-server where we have direct access to services.
 // It handles virtual key resolution and provider configuration from the database.
 type InternalLLMGateway struct {

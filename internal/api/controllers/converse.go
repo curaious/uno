@@ -25,7 +25,6 @@ import (
 	"github.com/praveen001/uno/pkg/agent-framework/summariser"
 	"github.com/praveen001/uno/pkg/agent-framework/tools"
 	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/gateway/client"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/valyala/fasthttp"
@@ -178,7 +177,7 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 		}
 
 		// Build LLM client using internal provider (server-side with virtual key resolution)
-		llmClient := client.NewLLMClient(
+		llmClient := gateway.NewLLMClient(
 			adapters.NewInternalLLMGateway(llmGateway, virtualKey),
 			providerType,
 			agentConfig.ModelName,
@@ -346,7 +345,7 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 						summarizerModelParams = params
 					}
 				}
-				summarizerLLM := client.NewLLMClient(
+				summarizerLLM := gateway.NewLLMClient(
 					adapters.NewInternalLLMGateway(llmGateway, virtualKey),
 					summarizerProviderType,
 					*agentConfig.SummarizerModelModelID,

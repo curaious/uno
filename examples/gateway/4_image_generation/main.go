@@ -7,6 +7,7 @@ import (
 
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/constants"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/praveen001/uno/pkg/sdk"
 )
@@ -40,9 +41,31 @@ func main() {
 	stream, err := model.NewStreamingResponses(
 		context.Background(),
 		&responses.Request{
-			Instructions: utils.Ptr("You are helpful assistant. You greet user with a light-joke"),
+			Instructions: utils.Ptr("Describe this image"),
 			Input: responses.InputUnion{
-				OfString: utils.Ptr("Hello!"),
+				OfInputMessageList: responses.InputMessageList{
+					{
+						OfEasyInput: &responses.EasyMessage{
+							Role: constants.RoleUser,
+							Content: responses.EasyInputContentUnion{
+								OfString: utils.Ptr("Describe this image"),
+							},
+						},
+					},
+					{
+						OfInputMessage: &responses.InputMessage{
+							Role: constants.RoleUser,
+							Content: responses.InputContent{
+								{
+									OfInputImage: &responses.InputImageContent{
+										ImageURL: utils.Ptr("https://picsum.photos/200/300"),
+										Detail:   "auto",
+									},
+								},
+							},
+						},
+					},
+				},
 			},
 		},
 	)

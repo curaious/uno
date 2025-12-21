@@ -3,12 +3,11 @@ package tools
 import (
 	"context"
 
-	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
 type ImageGenerationTool struct {
-	*core.BaseTool
+	*responses.ToolUnion
 }
 
 func NewImageGenerationTool() *ImageGenerationTool {
@@ -19,6 +18,6 @@ func (t *ImageGenerationTool) Execute(ctx context.Context, params *responses.Fun
 	return nil, nil
 }
 
-func (t *ImageGenerationTool) AsFunctionTool(ctx context.Context) *responses.ToolUnion {
+func (t *ImageGenerationTool) Tool(ctx context.Context) *responses.ToolUnion {
 	return &responses.ToolUnion{OfImageGeneration: &responses.ImageGenerationTool{}}
 }

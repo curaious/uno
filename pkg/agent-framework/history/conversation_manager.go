@@ -73,6 +73,12 @@ func WithSummarizer(summarizer core.HistorySummarizer) ConversationManagerOption
 	}
 }
 
+func WithPersistence(manager ConversationPersistenceManager) ConversationManagerOptions {
+	return func(cm *CommonConversationManager) {
+		cm.ConversationPersistenceManager = manager
+	}
+}
+
 func (cm *CommonConversationManager) AddMessages(ctx context.Context, messages []responses.InputMessageUnion, usage *responses.Usage) {
 	cm.newMessages = append(cm.newMessages, messages...)
 

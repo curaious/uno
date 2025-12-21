@@ -12,17 +12,16 @@ import (
 	"github.com/praveen001/uno/pkg/agent-framework/history"
 	"github.com/praveen001/uno/pkg/agent-framework/prompts"
 	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/gateway/client"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
 type SDK struct {
-	endpoint       string
-	projectId      uuid.UUID
-	virtualKey     string
-	directLLMCalls bool
-	llmConfigs     gateway.ConfigStore
+	endpoint   string
+	projectId  uuid.UUID
+	virtualKey string
+	directMode bool
+	llmConfigs gateway.ConfigStore
 }
 
 type ClientOptions struct {
@@ -40,13 +39,29 @@ type ClientOptions struct {
 }
 
 func New(opts *ClientOptions) (*SDK, error) {
-	if opts.LLMConfigs != nil {
+	// If endpoint is not provided, the SDK will operate in direct mode
+	if opts.Endpoint == "" {
+		// For direct mode, LLM config is necessary
+		if opts.LLMConfigs == nil {
+			return nil, fmt.Errorf("no LLM config store")
+		}
+
 		return &SDK{
-			llmConfigs:     opts.LLMConfigs,
-			projectId:      uuid.New(),
-			directLLMCalls: true,
+			llmConfigs: opts.LLMConfigs,
+			projectId:  uuid.New(),
+			directMode: true,
 		}, nil
 	}
+
+	// If project name is not provided, the SDK will operate as LLM gateway only mode
+	if opts.ProjectName == "" {
+		return &SDK{
+			endpoint:   opts.Endpoint,
+			virtualKey: opts.VirtualKey,
+		}, nil
+	}
+
+	// If both endpoint and project name is provided, the SDK will operate as both LLM gateway, and agent server
 
 	// Convert project name to ID
 	url := fmt.Sprintf("%s/api/agent-server/projects", opts.Endpoint)
@@ -78,7 +93,7 @@ func New(opts *ClientOptions) (*SDK, error) {
 
 func (c *SDK) NewConversationManager(namespace, msgId, previousMsgId string, opts ...history.ConversationManagerOptions) core.ChatHistory {
 	return history.NewConversationManager(
-		adapters.NewExternalConversationPersistence(c.endpoint),
+		c.getConversationPersistence(),
 		c.projectId,
 		namespace,
 		msgId,
@@ -103,19 +118,27 @@ type LLMOptions struct {
 
 // NewLLM creates a new LLMClient that provides access to multiple LLM providers.
 func (c *SDK) NewLLM(opts LLMOptions) llm.Provider {
-	return client.NewLLMClient(
+	return gateway.NewLLMClient(
 		c.getGatewayAdapter(),
 		opts.Provider,
 		opts.Model,
 	)
 }
 
-func (c *SDK) getGatewayAdapter() client.LLMGateway {
-	if c.directLLMCalls {
+func (c *SDK) getGatewayAdapter() gateway.LLMGatewayAdapter {
+	if c.directMode {
 		return adapters.NewLocalLLMGateway(gateway.NewLLMGateway(c.llmConfigs))
 	}
 
 	return adapters.NewExternalLLMGateway(c.endpoint, c.virtualKey)
+}
+
+func (c *SDK) getConversationPersistence() history.ConversationPersistenceManager {
+	if c.directMode {
+		return nil
+	}
+
+	return adapters.NewExternalConversationPersistence(c.endpoint)
 }
 
 func (c *SDK) NewAgent(options *agents.AgentOptions) *agents.Agent {

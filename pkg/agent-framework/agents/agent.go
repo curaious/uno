@@ -107,7 +107,7 @@ func (e *Agent) Execute(ctx context.Context, msgs []responses.InputMessageUnion,
 
 	tools := []responses.ToolUnion{}
 	for _, tool := range e.tools {
-		if t := tool.AsFunctionTool(ctx); t != nil {
+		if t := tool.Tool(ctx); t != nil {
 			tools = append(tools, *t)
 		}
 	}
@@ -176,7 +176,7 @@ func (e *Agent) Execute(ctx context.Context, msgs []responses.InputMessageUnion,
 			}
 
 			for _, tool := range e.tools {
-				if msg.OfFunctionCall.Name == tool.AsFunctionTool(ctx).OfFunction.Name {
+				if msg.OfFunctionCall.Name == tool.Tool(ctx).OfFunction.Name {
 					toolResult, err := tool.Execute(ctx, msg.OfFunctionCall)
 					if err != nil {
 						slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))

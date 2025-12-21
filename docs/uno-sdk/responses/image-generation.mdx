@@ -29,8 +29,8 @@ resp, err := model.NewResponses(
                         Content: responses.InputContent{
                             {
                                 OfInputImage: &responses.InputImageContent{
-									// or http://images.your-cdn.com/img1.jpg
-                                    ImageURL: utils.Ptr("data:image/png;base64,ad12fas123dfa123s1dfas23112dfasd"),
+									// or https://picsum.photos/200/300
+                                    ImageURL: utils.Ptr("data:image/png;base64,yourbase64image"),
                                     Detail:   "auto",
                                 },
                             },
@@ -56,9 +56,7 @@ resp, err := model.NewResponses(
         },
         Tools: []responses.ToolUnion{
             {
-                OfImageGeneration: &responses.ImageGenerationTool{
-                    Type: "image_generation",
-                },
+                OfImageGeneration: &responses.ImageGenerationTool{},
             },
         },
     },
@@ -90,9 +88,7 @@ func main() {
         },
         Tools: []responses.ToolUnion{
             {
-                OfImageGeneration: &responses.ImageGenerationTool{
-                    Type: "image_generation",
-                },
+                OfImageGeneration: &responses.ImageGenerationTool{},
             },
         },
     })

@@ -135,10 +135,14 @@ func NewMcpTool(t mcp.Tool, cli *client.Client, Meta *mcp.Meta) *McpTool {
 
 	return &McpTool{
 		BaseTool: &core.BaseTool{
-			Name:         t.Name,
-			Description:  t.Description,
-			InputSchema:  inputSchema,
-			OutputSchema: outputSchema,
+			ToolUnion: &responses.ToolUnion{
+				OfFunction: &responses.FunctionTool{
+					Name:        t.Name,
+					Description: utils.Ptr(t.Description),
+					Parameters:  inputSchema,
+					Strict:      utils.Ptr(false),
+				},
+			},
 		},
 		Client: cli,
 		Meta:   Meta,

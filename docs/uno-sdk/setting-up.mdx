@@ -19,17 +19,17 @@ go get -u github.com/praveen001/uno
 package main
 
 import (
-    "github.com/praveen001/uno/pkg/gateway/sdk"
+    "github.com/praveen001/uno/pkg/sdk"
 )
 
 func main() {
-	client, err := sdk.NewClient(&sdk.ClientOptions{
-		LLMConfigs: adapters.NewInMemoryConfigStore([]*adapters.ProviderConfig{
+	client, err := sdk.New(&sdk.ClientOptions{
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
 			{
 				ProviderName:  llm.ProviderNameOpenAI,
 				BaseURL:       "",
 				CustomHeaders: nil,
-				Keys: []*adapters.ProviderKey{
+				Keys: []*sdk.ProviderKey{
 					{
 						Name: "Key 1",
 						Key:  "",

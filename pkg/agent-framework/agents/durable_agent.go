@@ -117,7 +117,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 
 	tools := []responses.ToolUnion{}
 	for _, tool := range e.tools {
-		if t := tool.AsFunctionTool(ctx); t != nil {
+		if t := tool.Tool(ctx); t != nil {
 			tools = append(tools, *t)
 		}
 	}
@@ -209,7 +209,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 
 			for _, tool := range e.tools {
 				toolResultAny, err := e.executor.Run(ctx, fmt.Sprintf("tool-%s-%s", msg.OfFunctionCall.ID, msg.OfFunctionCall.Name), func(ctx context.Context) (any, error) {
-					if msg.OfFunctionCall.Name == tool.AsFunctionTool(ctx).OfFunction.Name {
+					if msg.OfFunctionCall.Name == tool.Tool(ctx).OfFunction.Name {
 						toolResult, err := tool.Execute(ctx, msg.OfFunctionCall)
 						if err != nil {
 							span.RecordError(err)

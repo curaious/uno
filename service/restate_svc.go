@@ -25,7 +25,6 @@ import (
 	"github.com/praveen001/uno/pkg/agent-framework/summariser"
 	"github.com/praveen001/uno/pkg/agent-framework/tools"
 	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/gateway/client"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/redis/go-redis/v9"
@@ -211,7 +210,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	}
 
 	// Build LLM client
-	llmClient := client.NewLLMClient(
+	llmClient := gateway.NewLLMClient(
 		adapters.NewInternalLLMGateway(llmGateway, virtualKey),
 		providerType,
 		agentConfig.ModelName,
@@ -480,7 +479,7 @@ func buildSummarizer(agentConfig *agent.AgentWithDetails, projectID uuid.UUID, v
 			json.Unmarshal(*agentConfig.SummarizerModelParameters, &summarizerModelParams)
 		}
 
-		summarizerLLM := client.NewLLMClient(
+		summarizerLLM := gateway.NewLLMClient(
 			adapters.NewInternalLLMGateway(llmGateway, virtualKey),
 			summarizerProviderType,
 			*agentConfig.SummarizerModelModelID,
