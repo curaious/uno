@@ -1,0 +1,338 @@
+---
+title: Prompts
+description: Learn how to use prompts and prompt templates with the Uno SDK.
+---
+
+The Uno SDK provides prompt management capabilities that allow you to store, version, and dynamically resolve prompts using Go templates. Prompts can be fetched from the agent server, Langfuse, or local files.
+
+## Overview
+
+Prompt management in the Uno SDK enables:
+- **Centralized Storage**: Store prompts in the agent server with versioning
+- **Template Resolution**: Use Go templates to dynamically generate prompts
+- **Version Control**: Access prompts by name and label (e.g., "production", "latest")
+- **Multiple Backends**: Support for agent server, Langfuse, or file-based prompts
+
+## Creating a Prompt Manager
+
+Use `NewPromptManager` to create a prompt manager instance:
+
+```go
+import (
+    "text/template"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+)
+
+client, err := sdk.New(&sdk.ClientOptions{
+    Endpoint:    "http://localhost:6060",
+    ProjectName: "my-project",
+    VirtualKey:  "sk-amg-your-virtual-key",
+})
+if err != nil {
+    panic(err)
+}
+
+// Create a prompt manager
+promptName := "assistant-prompt"  // Name of the prompt in the server
+label := "production"             // Label: "production" or "latest"
+
+// Optional: Custom template resolver
+resolver := func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
+    // Custom logic to resolve template variables
+    data := map[string]interface{}{
+        "Context": "some context data",
+    }
+    var buf bytes.Buffer
+    if err := tmpl.Execute(&buf, data); err != nil {
+        return "", err
+    }
+    return buf.String(), nil
+}
+
+promptProvider := client.NewPromptManager(promptName, label, resolver)
+```
+
+---
+
+## Basic Usage
+
+### Using Prompts with Agents
+
+Prompts are typically used as instruction providers for agents:
+
+```go
+import (
+    "context"
+    "github.com/praveen001/uno/pkg/agent-framework/agents"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    // ... client initialization ...
+
+    // Create prompt manager
+    promptProvider := client.NewPromptManager("my-prompt", "production", nil)
+
+    // Use with an agent
+    agent := client.NewAgent(&agents.AgentOptions{
+        Name:                "My Agent",
+        LLM:                 model,
+        InstructionProvider: promptProvider,  // Use prompt as instructions
+    })
+
+    resp, err := agent.Execute(context.Background(), messages, callback)
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+---
+
+## Prompt Labels
+
+Prompts support labels for version management:
+
+- **`"production"`**: The production version of the prompt
+- **`"latest"`**: The latest version of the prompt
+
+```go
+// Use production prompt
+productionPrompt := client.NewPromptManager("assistant-prompt", "production", nil)
+
+// Use latest prompt (for testing)
+latestPrompt := client.NewPromptManager("assistant-prompt", "latest", nil)
+```
+
+---
+
+## Template Resolution
+
+Prompts can contain Go template syntax that gets resolved at runtime. The SDK automatically converts simple template syntax to Go templates.
+
+### Simple Template Variables
+
+Prompts can use template variables that are resolved when the prompt is fetched:
+
+```go
+// Prompt template stored in server:
+// "You are a helpful assistant. User context: {{Context}}"
+
+resolver := func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
+    data := map[string]interface{}{
+        "Context": "User is working on a coding project",
+    }
+    var buf bytes.Buffer
+    if err := tmpl.Execute(&buf, data); err != nil {
+        return "", err
+    }
+    return buf.String(), nil
+}
+
+promptProvider := client.NewPromptManager("assistant-prompt", "production", resolver)
+```
+
+### Accessing Messages in Templates
+
+You can access the conversation messages in your template resolver:
+
+```go
+resolver := func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
+    // Extract information from messages
+    userMessages := []string{}
+    for _, msg := range msgs {
+        if msg.OfEasyInput != nil && msg.OfEasyInput.Role == "user" {
+            if msg.OfEasyInput.Content.OfString != nil {
+                userMessages = append(userMessages, *msg.OfEasyInput.Content.OfString)
+            }
+        }
+    }
+
+    data := map[string]interface{}{
+        "MessageCount": len(msgs),
+        "UserMessages": userMessages,
+    }
+
+    var buf bytes.Buffer
+    if err := tmpl.Execute(&buf, data); err != nil {
+        return "", err
+    }
+    return buf.String(), nil
+}
+```
+
+---
+
+## Complete Example
+
+Here's a complete example showing prompt usage with an agent:
+
+```go
+import (
+    "bytes"
+    "context"
+    "text/template"
+    "github.com/praveen001/uno/pkg/agent-framework/agents"
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    client, _ := sdk.New(&sdk.ClientOptions{
+        Endpoint:    "http://localhost:6060",
+        ProjectName: "my-project",
+        VirtualKey:  "sk-amg-key",
+    })
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o",
+    })
+
+    // Create a template resolver
+    resolver := func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
+        data := map[string]interface{}{
+            "UserRole": "developer",
+            "Task":     "code review",
+        }
+        var buf bytes.Buffer
+        if err := tmpl.Execute(&buf, data); err != nil {
+            return "", err
+        }
+        return buf.String(), nil
+    }
+
+    // Create prompt manager
+    promptProvider := client.NewPromptManager("code-review-assistant", "production", resolver)
+
+    // Create agent with prompt
+    agent := client.NewAgent(&agents.AgentOptions{
+        Name:                "Code Review Assistant",
+        LLM:                 model,
+        InstructionProvider: promptProvider,
+    })
+
+    // Execute with the agent
+    resp, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("Review this code: func main() { ... }"),
+    }, core.NilCallback)
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+---
+
+## Prompt Template Syntax
+
+The SDK supports Go template syntax. Common patterns:
+
+### Variables
+
+```go
+// In prompt: "Hello {{Name}}"
+data := map[string]interface{}{
+    "Name": "Alice",
+}
+// Result: "Hello Alice"
+```
+
+### Conditionals
+
+```go
+// In prompt: "{{if .IsAdmin}}Admin access granted{{else}}Regular user{{end}}"
+data := map[string]interface{}{
+    "IsAdmin": true,
+}
+// Result: "Admin access granted"
+```
+
+### Loops
+
+```go
+// In prompt: "{{range .Items}}- {{.}}\n{{end}}"
+data := map[string]interface{}{
+    "Items": []string{"item1", "item2", "item3"},
+}
+// Result: "- item1\n- item2\n- item3\n"
+```
+
+---
+
+## Prompt Storage Backends
+
+The SDK supports multiple prompt storage backends:
+
+### Agent Server (Default)
+
+Prompts are stored and versioned in the agent server:
+
+```go
+// Automatically uses agent server when using SDK client
+promptProvider := client.NewPromptManager("prompt-name", "production", nil)
+```
+
+### File-Based Prompts
+
+For local development, you can use file-based prompts:
+
+```go
+import "github.com/praveen001/uno/pkg/sdk/adapters"
+
+filePersistence := adapters.NewFilePromptPersistence()
+promptManager := prompts.NewPromptManager(
+    filePersistence,
+    "path/to/prompt.txt",  // File path acts as name
+    "latest",
+    nil,
+)
+```
+
+### Langfuse Integration
+
+Prompts can be fetched from Langfuse:
+
+```go
+import "github.com/praveen001/uno/pkg/sdk/adapters"
+
+langfusePersistence := adapters.NewLangfusePromptProvider(
+    "https://cloud.langfuse.com",
+    "your-username",
+    "your-password",
+)
+promptManager := prompts.NewPromptManager(
+    langfusePersistence,
+    "prompt-name",
+    "production",
+    nil,
+)
+```
+
+---
+
+## Best Practices
+
+1. **Use Meaningful Names**: Choose clear, descriptive names for your prompts.
+
+2. **Version Control**: Use labels ("production", "latest") to manage prompt versions.
+
+3. **Template Safety**: Validate template data to avoid errors during resolution.
+
+4. **Error Handling**: Always handle errors when resolving templates.
+
+5. **Cache Prompts**: Consider caching resolved prompts if they don't change frequently.
+
+6. **Test Templates**: Test your template resolvers with various inputs before deploying.
+
+---
+
+## Limitations
+
+- Prompts are fetched from the server on each request (consider caching for performance).
+- Template resolution happens synchronously and may add latency.
+- Complex templates with many variables may be harder to maintain.
+

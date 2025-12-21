@@ -23,7 +23,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	agent := agents.NewAgent(&agents.AgentOptions{
+	agent := client.NewAgent(&agents.AgentOptions{
 		Name:        "Hello world agent",
 		Instruction: "You are helpful assistant. You greet user with a light-joke",
 		LLM: client.NewLLM(sdk.LLMOptions{

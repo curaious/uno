@@ -1,45 +1,75 @@
 ---
 title: Image Generation
-description: Learn how to use image generation with the Uno SDK to generate images from text prompts.
 ---
 
-The Uno SDK supports both image processing and image generation through LLMs that have the image capabilities. You can request images by including the image generation tool in your request, and the model will return generated images as base64-encoded data.
+If the downstream LLM provider supports image processing (vision) and generation capabilities, then Uno SDK also supports it.
 
-## Overview
+## Image Processing
 
-Image generation allows you to create images from text descriptions. The model generates images and returns them as part of the response, which you can then decode and save or display.
+Models that supports image processing or vision can understand images as input. You can attach images in either as a URL or as a base64 encoded string like this:
 
-## Enabling Image Generation
+```go
+resp, err := model.NewResponses(
+    context.Background(),
+    &responses.Request{
+        Instructions: utils.Ptr("Describe this image"),
+        Input: responses.InputUnion{
+            OfInputMessageList: responses.InputMessageList{
+                {
+                    OfEasyInput: &responses.EasyMessage{
+                        Role: constants.RoleUser,
+                        Content: responses.EasyInputContentUnion{
+                            OfString: utils.Ptr("Describe this image"),
+                        },
+                    },
+                },
+                {
+                    OfInputMessage: &responses.InputMessage{
+                        Role: constants.RoleUser,
+                        Content: responses.InputContent{
+                            {
+                                OfInputImage: &responses.InputImageContent{
+									// or http://images.your-cdn.com/img1.jpg
+                                    ImageURL: utils.Ptr("data:image/png;base64,ad12fas123dfa123s1dfas23112dfasd"),
+                                    Detail:   "auto",
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+        },
+    },
+)
+```
+
+## Image Generation
 
 To enable image generation, include the `ImageGenerationTool` in your request's `Tools` array:
 
 ```go
-import (
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/internal/utils"
-)
-
-request := &responses.Request{
-    Input: responses.InputUnion{
-        OfString: utils.Ptr("Generate a beautiful sunset over mountains"),
-    },
-    Tools: []responses.ToolUnion{
-        {
-            OfImageGeneration: &responses.ImageGenerationTool{
-                Type: "image_generation",
+resp, err := model.NewResponses(
+    context.Background(),
+    &responses.Request{
+        Input: responses.InputUnion{
+            OfString: utils.Ptr("Generate a beautiful sunset over mountains"),
+        },
+        Tools: []responses.ToolUnion{
+            {
+                OfImageGeneration: &responses.ImageGenerationTool{
+                    Type: "image_generation",
+                },
             },
         },
     },
-}
+)
 ```
 
 ---
 
-## Handling Image Generation Responses
+### Image Generation Responses
 
 When the model generates an image, it returns an `ImageGenerationCallMessage` in the response output. This message contains the generated image as base64-encoded data.
-
-### Example: Unary Image Generation
 
 ```go
 import (
@@ -100,34 +130,13 @@ func main() {
 }
 ```
 
----
-
-## Image Generation Message Structure
-
-The `ImageGenerationCallMessage` contains the following fields:
-
-| Field | Type | Description |
-| :--- | :--- | :--- |
-| **Type** | `string` | Always `"image_generation_call"` |
-| **ID** | `string` | Unique identifier for the image (prefixed with `"ig_"`) |
-| **Status** | `string` | Status of generation (e.g., `"generating"`, `"completed"`) |
-| **Background** | `string` | Background type (e.g., `"opaque"`) |
-| **OutputFormat** | `string` | Image format (e.g., `"png"`, `"jpeg"`) |
-| **Quality** | `string` | Image quality (e.g., `"medium"`, `"high"`) |
-| **Size** | `string` | Image dimensions (e.g., `"1024x1024"`) |
-| **Result** | `string` | Base64-encoded image data |
-
----
-
-## Streaming Image Generation
+### Streaming Image Generation
 
 When streaming, image generation progress is reported through different chunk types:
 
 - `image_generation_call.in_progress`: Generation has started
 - `image_generation_call.generating`: Image is being generated
-- `image_generation_call.partial_image`: Partial image data (if supported)
-
-### Example: Streaming Image Generation
+- `image_generation_call.partial_image`: Partial image data
 
 ```go
 import (
@@ -188,122 +197,26 @@ func main() {
             item := chunk.OfOutputItemDone.Item
             if item.Type == "image_generation_call" {
                 // The image generation is complete
-                // The full result will be in the final response
+				// Final image is available in chunk.OfOutputItemDone.Result
             }
         }
     }
-
-    // After streaming completes, check the final response for the image
-    // Note: You may need to collect chunks or check a final response object
-    // depending on your SDK implementation
 }
 ```
 
----
 
-## Saving Generated Images
 
-Here's a helper function to save generated images:
+## Image Generation Message Structure
 
-```go
-import (
-    "encoding/base64"
-    "fmt"
-    "os"
-    "github.com/praveen001/uno/pkg/llm/responses"
-)
+The `ImageGenerationCallMessage` contains the following fields:
 
-func saveGeneratedImage(imgCall *responses.ImageGenerationCallMessage, filename string) error {
-    if imgCall.Result == "" {
-        return fmt.Errorf("no image data in result")
-    }
-    
-    // Decode base64 image
-    imageData, err := base64.StdEncoding.DecodeString(imgCall.Result)
-    if err != nil {
-        return fmt.Errorf("failed to decode base64: %w", err)
-    }
-    
-    // Determine file extension from output format
-    ext := imgCall.OutputFormat
-    if ext == "" {
-        ext = "png" // default
-    }
-    
-    fullFilename := fmt.Sprintf("%s.%s", filename, ext)
-    
-    // Write to file
-    if err := os.WriteFile(fullFilename, imageData, 0644); err != nil {
-        return fmt.Errorf("failed to write file: %w", err)
-    }
-    
-    fmt.Printf("Image saved to %s (size: %s, format: %s)\n", 
-        fullFilename, imgCall.Size, imgCall.OutputFormat)
-    
-    return nil
-}
-
-// Usage
-for _, output := range resp.Output {
-    if output.OfImageGenerationCall != nil {
-        if err := saveGeneratedImage(output.OfImageGenerationCall, "my_image"); err != nil {
-            panic(err)
-        }
-    }
-}
-```
-
----
-
-## Image Generation Parameters
-
-The model controls image generation parameters like size, quality, and format. These are typically set by the model based on its capabilities, but you can influence them through your prompt:
-
-```go
-request := &responses.Request{
-    Input: responses.InputUnion{
-        OfString: utils.Ptr("Generate a high-quality 1024x1024 PNG image of a mountain landscape"),
-    },
-    Tools: []responses.ToolUnion{
-        {
-            OfImageGeneration: &responses.ImageGenerationTool{
-                Type: "image_generation",
-            },
-        },
-    },
-}
-```
-
----
-
-## Best Practices
-
-1. **Be Descriptive**: Provide detailed descriptions in your prompts to get better results.
-
-2. **Handle Errors**: Always check the `Status` field to ensure generation completed successfully.
-
-3. **Validate Base64**: Verify that the `Result` field contains valid base64 data before decoding.
-
-4. **Check Format**: Use the `OutputFormat` field to determine the correct file extension when saving.
-
-5. **Streaming Considerations**: When streaming, wait for completion before accessing the full image data.
-
----
-
-## Limitations
-
-- Image generation support varies by provider and model. Not all models support image generation.
-- Generated images are returned as base64-encoded strings, which can be memory-intensive for large images.
-- Image quality, size, and format are typically controlled by the model and may not be directly configurable.
-- Some providers may have rate limits or usage restrictions on image generation.
-
----
-
-## Provider Compatibility
-
-Image generation is supported by models that have this capability. Check your provider's documentation for:
-- Which models support image generation
-- Supported image formats and sizes
-- Quality options available
-- Rate limits and pricing
-
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **Type** | `string` | Always `"image_generation_call"` |
+| **ID** | `string` | Unique identifier for the image (prefixed with `"ig_"`) |
+| **Status** | `string` | Status of generation (e.g., `"generating"`, `"completed"`) |
+| **Background** | `string` | Background type (e.g., `"opaque"`) |
+| **OutputFormat** | `string` | Image format (e.g., `"png"`, `"jpeg"`) |
+| **Quality** | `string` | Image quality (e.g., `"medium"`, `"high"`) |
+| **Size** | `string` | Image dimensions (e.g., `"1024x1024"`) |
+| **Result** | `string` | Base64-encoded image data |

@@ -1,20 +1,14 @@
 ---
 title: Tool Calling
-description: Learn how to use function calling and tools with the Uno SDK.
 ---
 
-Tool calling (also known as function calling) allows LLMs to interact with external systems by requesting the execution of specific functions. The Uno SDK provides a unified interface for defining tools and handling tool call requests from various LLM providers.
+Tool calling or function calling allows LLMs to interact with external systems by requesting the execution of specific functions. The Uno SDK provides a unified interface for defining tools and handling tool call requests from various LLM providers.
 
 ## Defining Tools
 
 Tools are defined as part of the `responses.Request` struct using the `Tools` field.
 
 ```go
-import (
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/internal/utils"
-)
-
 // Define a function tool
 getWeatherTool := responses.ToolUnion{
     OfFunction: &responses.FunctionTool{
@@ -53,27 +47,11 @@ resp, err := model.NewResponses(ctx, &responses.Request{
 })
 ```
 
----
+### Handling Tool Calls
 
-## Handling Tool Calls
-
-The model can return tool calls in both unary and streaming requests.
-
-### Example: Handling Unary Tool Calls
-
-In a unary request, the model returns the full response at once. You can iterate through the `Output` list to find any requested tool calls.
+You can iterate through the `Output` list to find any requested tool calls.
 
 ```go
-resp, err := model.NewResponses(ctx, &responses.Request{
-    Input: responses.InputUnion{
-        OfString: utils.Ptr("What's the weather like in Paris?"),
-    },
-    Tools: []responses.ToolUnion{getWeatherTool},
-})
-if err != nil {
-    panic(err)
-}
-
 for _, output := range resp.Output {
     // Check if the output item is a function call
     if output.OfFunctionCall != nil {
@@ -86,7 +64,7 @@ for _, output := range resp.Output {
 }
 ```
 
-### Example: Handling Streaming Tool Calls
+### Streaming Tool Calls
 
 The following example demonstrates how to detect and process a tool call request from a streaming response.
 
@@ -113,21 +91,18 @@ for chunk := range stream {
             fmt.Printf("Model requested tool: %s\n", *item.Name)
             fmt.Printf("Arguments: %s\n", *item.Arguments)
             
-            // Here you would execute your local function and 
-            // send the results back in a subsequent request.
+            // Execute your local logic here...
         }
     }
 }
 ```
 
----
-
 ## Returning Tool Results
 
-After executing the requested tool locally, you can send the results back to the model to continue the conversation. Use the `OfFunctionCallOutput` message type in the `InputMessageList`.
+After executing the requested tool, you can send the results back to the model to continue the conversation. Use the `OfFunctionCallOutput` message type in the `InputMessageList`.
 
 ```go
-requestWithResults := &responses.Request{
+resp, err := model.NewResponses(ctx, &responses.Request{
     Input: responses.InputUnion{
         OfInputMessageList: responses.InputMessageList{
             // ... original user message ...
@@ -142,6 +117,6 @@ requestWithResults := &responses.Request{
             },
         },
     },
-}
+})
 ```
 

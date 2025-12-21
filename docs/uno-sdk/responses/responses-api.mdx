@@ -1,0 +1,16 @@
+---
+title: Responses API
+---
+
+## Request Configuration
+
+The `responses.Request` struct allows you to fine-tune your LLM calls with several parameters:
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| **Instructions** | `*string` | System-level instructions (System Prompt). |
+| **Input** | `InputUnion` | The user prompt (string or list of messages). |
+| **Temperature** | `*float64` | Sampling temperature (0.0 to 2.0). |
+| **MaxOutputTokens** | `*int` | Limit on the number of tokens generated. |
+| **TopP** | `*float64` | Nucleus sampling parameter. |
+| **Tools** | `[]ToolUnion` | Definitions for function calling. |

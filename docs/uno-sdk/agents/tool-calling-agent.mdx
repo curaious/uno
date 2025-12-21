@@ -1,0 +1,86 @@
+---
+title: Tool Calling Agent
+---
+
+Tool calling agents can execute custom functions to interact with external systems, databases, APIs, or perform computations. The agent decides when to call tools based on the user's request and uses the results to provide better responses.
+
+## Creating a Custom Tool
+
+To create a tool, you need to implement the `core.Tool` interface:
+
+```go
+type CustomTool struct {
+    *core.BaseTool
+}
+
+func NewCustomTool() *CustomTool {
+    return &CustomTool{
+        BaseTool: &core.BaseTool{
+            Name:        "get_user_name",
+            Description: "Returns the user's name",
+            InputSchema: map[string]any{
+                "type": "object",
+                "properties": map[string]any{
+                    "user_id": map[string]any{
+                        "type":        "string",
+                        "description": "The user ID to look up",
+                    },
+                },
+                "required": []string{"user_id"},
+            },
+        },
+    }
+}
+
+func (t *CustomTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+    // Parse arguments
+    args := map[string]interface{}{}
+    if err := json.Unmarshal([]byte(params.Arguments), &args); err != nil {
+        return nil, err
+    }
+
+    userID := args["user_id"].(string)
+    
+    // Your custom logic here
+    userName := lookupUserName(userID)  // Example function
+    
+    // Return the result
+    return &responses.FunctionCallOutputMessage{
+        ID:     params.ID,
+        CallID: params.CallID,
+        Output: responses.FunctionCallOutputContentUnion{
+            OfString: utils.Ptr(userName),
+        },
+    }, nil
+}
+```
+
+---
+
+## Basic Example
+
+Here's a simple example of an agent with a custom tool:
+
+```go
+func main() {
+    // Create agent with tool
+    agent := client.NewAgent(&agents.AgentOptions{
+        Name:        "Assistant",
+        Instruction: "You are a helpful assistant. Use the get_user_name tool to get the user's name and greet them.",
+        LLM:         client.NewLLM(sdk.LLMOptions{
+            Provider: llm.ProviderNameOpenAI,
+            Model:    "gpt-4o-mini",
+        }),
+        Tools: []core.Tool{
+            NewGetUserNameTool(),
+        },
+    })
+
+    resp, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("Hello! Can you get my name for user_id '123'?"),
+    }, core.NilCallback)
+    if err != nil {
+        log.Fatal(err)
+    }
+}
+```

@@ -7,6 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/services/project"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/history"
 	"github.com/praveen001/uno/pkg/agent-framework/prompts"
@@ -115,4 +116,8 @@ func (c *SDK) getGatewayAdapter() client.LLMGateway {
 	}
 
 	return adapters.NewExternalLLMGateway(c.endpoint, c.virtualKey)
+}
+
+func (c *SDK) NewAgent(options *agents.AgentOptions) *agents.Agent {
+	return agents.NewAgent(options)
 }

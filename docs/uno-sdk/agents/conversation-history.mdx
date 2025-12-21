@@ -1,0 +1,367 @@
+---
+title: Conversation History
+description: Learn how to create agents with conversation history to maintain context across multiple interactions.
+---
+
+Agents with conversation history can remember previous interactions and maintain context across multiple turns. This enables natural, context-aware conversations where the agent can reference earlier messages and build upon previous exchanges.
+
+## Overview
+
+When you provide a conversation history manager to an agent, it:
+- **Loads Previous Messages**: Automatically loads conversation history based on message IDs
+- **Maintains Context**: Includes previous messages in each LLM call
+- **Saves Automatically**: Saves new messages after each execution
+- **Supports Threading**: Organizes messages into conversations and threads
+
+## Basic Example
+
+Here's a simple example of an agent with conversation history:
+
+```go
+import (
+    "context"
+    "fmt"
+    "log"
+    "github.com/google/uuid"
+    "github.com/praveen001/uno/pkg/agent-framework/agents"
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        Endpoint:    "http://localhost:6060",
+        ProjectName: "my-project",
+        VirtualKey:  "sk-amg-your-virtual-key",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Create conversation manager
+    namespace := "user-session-123"
+    messageID := uuid.NewString()
+    history := client.NewConversationManager(namespace, messageID, "")
+
+    // Create agent with history
+    agent := client.NewAgent(&agents.AgentOptions{
+        Name:        "Chat Assistant",
+        Instruction: "You are a helpful assistant.",
+        LLM:         model,
+        History:     history,  // Enable conversation history
+    })
+
+    // First interaction
+    resp1, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("My name is Alice"),
+    }, core.NilCallback)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    fmt.Println("Response 1:", resp1[0].OfOutputMessage.Content[0].OfOutputText.Text)
+
+    // Second interaction - agent remembers the previous conversation
+    messageID2 := uuid.NewString()
+    history2 := client.NewConversationManager(namespace, messageID2, messageID)
+    
+    agent2 := client.NewAgent(&agents.AgentOptions{
+        Name:        "Chat Assistant",
+        Instruction: "You are a helpful assistant.",
+        LLM:         model,
+        History:     history2,
+    })
+
+    resp2, err := agent2.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("What's my name?"),
+    }, core.NilCallback)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // The agent remembers that the user's name is Alice
+    fmt.Println("Response 2:", resp2[0].OfOutputMessage.Content[0].OfOutputText.Text)
+}
+```
+
+---
+
+## Multi-Turn Conversation
+
+Here's a more complete example showing a multi-turn conversation:
+
+```go
+import (
+    "context"
+    "fmt"
+    "log"
+    "github.com/google/uuid"
+    "github.com/praveen001/uno/pkg/agent-framework/agents"
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        Endpoint:    "http://localhost:6060",
+        ProjectName: "my-project",
+        VirtualKey:  "sk-amg-your-virtual-key",
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    namespace := "chat-123"
+    var previousMessageID string
+
+    // Turn 1: User introduces themselves
+    msgID1 := uuid.NewString()
+    history1 := client.NewConversationManager(namespace, msgID1, "")
+    
+    agent1 := client.NewAgent(&agents.AgentOptions{
+        Name:        "Assistant",
+        Instruction: "You are a helpful assistant that remembers user preferences.",
+        LLM:         model,
+        History:     history1,
+    })
+
+    resp1, _ := agent1.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("I love pizza and my favorite color is blue"),
+    }, core.NilCallback)
+    
+    previousMessageID = msgID1
+    fmt.Println("Turn 1:", resp1[0].OfOutputMessage.Content[0].OfOutputText.Text)
+
+    // Turn 2: Ask about preferences
+    msgID2 := uuid.NewString()
+    history2 := client.NewConversationManager(namespace, msgID2, previousMessageID)
+    
+    agent2 := client.NewAgent(&agents.AgentOptions{
+        Name:        "Assistant",
+        Instruction: "You are a helpful assistant that remembers user preferences.",
+        LLM:         model,
+        History:     history2,
+    })
+
+    resp2, _ := agent2.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("What's my favorite food?"),
+    }, core.NilCallback)
+    
+    previousMessageID = msgID2
+    fmt.Println("Turn 2:", resp2[0].OfOutputMessage.Content[0].OfOutputText.Text)
+
+    // Turn 3: Ask about color
+    msgID3 := uuid.NewString()
+    history3 := client.NewConversationManager(namespace, msgID3, previousMessageID)
+    
+    agent3 := client.NewAgent(&agents.AgentOptions{
+        Name:        "Assistant",
+        Instruction: "You are a helpful assistant that remembers user preferences.",
+        LLM:         model,
+        History:     history3,
+    })
+
+    resp3, _ := agent3.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("What's my favorite color?"),
+    }, core.NilCallback)
+    
+    fmt.Println("Turn 3:", resp3[0].OfOutputMessage.Content[0].OfOutputText.Text)
+}
+```
+
+---
+
+## Using the Same Agent Instance
+
+You can reuse the same agent instance across multiple turns by updating the conversation manager:
+
+```go
+namespace := "session-123"
+var previousMessageID string
+
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOpenAI,
+    Model:    "gpt-4o-mini",
+})
+
+// Create initial conversation manager
+msgID := uuid.NewString()
+history := client.NewConversationManager(namespace, msgID, "")
+
+agent := client.NewAgent(&agents.AgentOptions{
+    Name:        "Assistant",
+    Instruction: "You are a helpful assistant.",
+    LLM:         model,
+    History:     history,
+})
+
+// First turn
+resp1, _ := agent.Execute(context.Background(), []responses.InputMessageUnion{
+    responses.UserMessage("Hello!"),
+}, core.NilCallback)
+
+previousMessageID = msgID
+
+// Second turn - create new history with previous message ID
+msgID2 := uuid.NewString()
+history2 := client.NewConversationManager(namespace, msgID2, previousMessageID)
+
+// Update agent with new history
+agent = client.NewAgent(&agents.AgentOptions{
+    Name:        "Assistant",
+    Instruction: "You are a helpful assistant.",
+    LLM:         model,
+    History:     history2,
+})
+
+resp2, _ := agent.Execute(context.Background(), []responses.InputMessageUnion{
+    responses.UserMessage("What did I say before?"),
+}, core.NilCallback)
+```
+
+---
+
+## Streaming with Conversation History
+
+Conversation history works seamlessly with streaming responses:
+
+```go
+import (
+    "context"
+    "fmt"
+    "github.com/google/uuid"
+    "github.com/praveen001/uno/pkg/agent-framework/agents"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    // ... client and model initialization ...
+
+    history := client.NewConversationManager("session-123", uuid.NewString(), "")
+
+    agent := client.NewAgent(&agents.AgentOptions{
+        Name:        "Assistant",
+        Instruction: "You are a helpful assistant.",
+        LLM:         model,
+        History:     history,
+    })
+
+    // Streaming callback
+    callback := func(chunk *responses.ResponseChunk) {
+        if chunk.OfOutputTextDelta != nil {
+            fmt.Print(chunk.OfOutputTextDelta.Delta)
+        }
+    }
+
+    resp, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("Tell me a story"),
+    }, callback)
+    if err != nil {
+        panic(err)
+    }
+}
+```
+
+---
+
+## Conversation Summarization
+
+For long conversations, you can enable automatic summarization to manage token limits:
+
+```go
+import (
+    "github.com/google/uuid"
+    "github.com/praveen001/uno/pkg/agent-framework/agents"
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/agent-framework/history"
+    "github.com/praveen001/uno/pkg/agent-framework/summariser"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+// Create a sliding window summarizer
+summarizer := summariser.NewSlidingWindowHistorySummarizer(&summariser.SlidingWindowHistorySummarizerOptions{
+    KeepCount: 10,  // Keep only the last 10 runs
+})
+
+history := client.NewConversationManager(
+    "session-123",
+    uuid.NewString(),
+    "",
+    history.WithSummarizer(summarizer),  // Enable summarization
+)
+
+agent := client.NewAgent(&agents.AgentOptions{
+    Name:        "Assistant",
+    Instruction: "You are a helpful assistant.",
+    LLM:         model,
+    History:     history,
+})
+```
+
+---
+
+## Namespace Organization
+
+Use namespaces to organize conversations by user, session, or any logical grouping:
+
+```go
+// Different users have separate conversation histories
+user1History := client.NewConversationManager("user-alice", msgID, prevMsgID)
+user2History := client.NewConversationManager("user-bob", msgID, prevMsgID)
+
+// Different sessions for the same user
+session1History := client.NewConversationManager("user-alice-session-1", msgID, prevMsgID)
+session2History := client.NewConversationManager("user-alice-session-2", msgID, prevMsgID)
+```
+
+---
+
+## Best Practices
+
+1. **Track Message IDs**: Keep track of message IDs to enable conversation continuation.
+
+2. **Use Meaningful Namespaces**: Use namespaces that logically group conversations (e.g., user IDs, session IDs).
+
+3. **Handle Errors**: Always handle errors when loading or saving conversation history.
+
+4. **Enable Summarization**: For long conversations, enable summarization to manage token limits.
+
+5. **Consistent Agent Configuration**: Use the same agent configuration (name, instruction) across turns for consistency.
+
+---
+
+## How It Works
+
+1. **Message Loading**: When you create a conversation manager with a `previousMessageID`, it automatically loads all messages up to that point.
+
+2. **Context Building**: The agent includes loaded messages in the LLM request, providing context for the current interaction.
+
+3. **Automatic Saving**: After execution, the agent automatically saves the new messages to the conversation history.
+
+4. **Threading**: Messages are organized into conversations and threads automatically by the system.
+
+---
+
+## Limitations
+
+- Conversation history requires an active connection to the agent server.
+- Large conversation histories may require summarization to stay within model context limits.
+- Message IDs must be unique within a namespace.
+- Each turn requires creating a new conversation manager with the previous message ID.

@@ -1,6 +1,5 @@
 ---
 title: Structured Output
-description: Learn how to use structured output (JSON schema) with the Uno SDK to get consistent, validated responses from LLMs.
 ---
 
 Structured output allows you to define a JSON schema that constrains the LLM's response format. This ensures consistent, validated outputs that are easier to parse and integrate into your applications.
@@ -270,26 +269,3 @@ for chunk := range stream {
 var result map[string]any
 json.Unmarshal([]byte(fullText.String()), &result)
 ```
-
----
-
-## Best Practices
-
-1. **Be Specific**: Provide clear descriptions for each field to help the model understand what to extract.
-
-2. **Use Appropriate Types**: Choose the correct JSON Schema types (string, integer, number, boolean, array, object).
-
-3. **Mark Required Fields**: Use the `required` array to specify which fields must be present.
-
-4. **Handle Parsing Errors**: Always validate and parse the JSON output, as the model might occasionally return invalid JSON.
-
-5. **Start with Non-Strict**: Begin with `strict: false` and only enable strict mode if you need absolute adherence to the schema.
-
----
-
-## Limitations
-
-- Not all providers support structured output equally. Some may have better support than others.
-- Complex nested schemas may be more challenging for models to follow accurately.
-- The model may occasionally return JSON that doesn't perfectly match the schema, especially in non-strict mode.
-

@@ -12,7 +12,7 @@
         "tabs": [
           {
             "tab": "Uno SDK",
-            "icon": "wrapper",
+            "icon": "tools",
             "groups": [
               {
                 "group": "SDK",
@@ -29,6 +29,7 @@
                     "group": "Responses",
                     "expanded": true,
                     "pages": [
+                      "uno-sdk/responses/responses-api",
                       "uno-sdk/responses/text-generation",
                       "uno-sdk/responses/image-generation",
                       "uno-sdk/responses/tool-calling",
@@ -38,6 +39,15 @@
                   }
                 ]
               },
+              {
+                "group": "Agents",
+                "expanded": true,
+                "pages": [
+                  "uno-sdk/agents/simple-agent",
+                  "uno-sdk/agents/tool-calling-agent",
+                  "uno-sdk/agents/conversation-history"
+                ]
+              }
             ]
           },
             {
