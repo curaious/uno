@@ -2,23 +2,71 @@
 title: Conversation History
 ---
 
-Agents with conversation history can remember previous interactions and maintain context across multiple turns. This enables natural, context-aware conversations where the agent can reference earlier messages and build upon previous exchanges.
+Conversation history enables agents to maintain context across multiple interactions. By preserving previous messages, agents can reference earlier exchanges and build upon prior context, facilitating natural, context-aware conversations.
 
 ## Overview
 
-When you provide a conversation history manager to an agent, it:
-- **Loads Previous Messages**: Automatically loads conversation history based on the previous message ID
-- **Saves Automatically**: Saves new messages after each execution
-- **Supports Threading**: Organizes messages into conversations and threads
+When a conversation history manager is provided to an agent, it performs the following operations:
+- **Loads Previous Messages**: Automatically retrieves conversation history based on the previous message ID
+- **Saves Automatically**: Persists new messages after each execution
 
-## Basic Example
+## Enabling Conversation History
 
-Here's a simple example of an agent with conversation history:
+To enable conversation history, create an instance of `ConversationManager` with the following parameters:
+- `namespace` - Identifies the conversation namespace for isolation
+- `previousMessageId` - The message ID of the previous message used to fetch all preceding messages. For new conversations, this should be an empty string
+
+Pass the created instance to the agent's `History` field.
+
+### Example
+```go
+cm := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd9472260b")
+agent := agents.NewAgent(&agents.AgentOptions{
+    Name:        "Hello world agent",
+    LLM:         model,
+    History:     cm,
+})
+```
+
+---
+
+## Persistence
+
+The conversation manager supports three persistence configurations for storing conversation history:
+
+### 1. No Persistence
+
+When the SDK client is initialized without `endpoint` and `projectName`, messages are not persisted by default. History remains available in-memory for the lifetime of the `ConversationManager` instance. As long as you use the same instance, the conversation history will be retained.
+
+### 2. Uno Gateway Persistence
+
+When the SDK client is initialized with `endpoint` and `projectName`, the conversation manager automatically persists messages to the Uno Gateway server.
+
+### 3. Custom Persistence
+
+To implement custom persistence, implement the `ConversationPersistenceManager` interface:
+
+```go
+type ConversationPersistenceManager interface {
+	LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error)
+	SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error
+	SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error
+}
+```
+
+Then pass your implementation to the conversation manager:
+
+```go
+cm := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd9472260b", history.WithPersistence(yourImpl))
+```
+
+## Complete Example
+
+The following example demonstrates an agent with conversation history:
 
 ```go
 // Create conversation manager
-messageID := uuid.NewString()
-history := client.NewConversationManager("user-session-123", uuid.NewString(), "")
+history := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd9472260b")
 
 // Create agent with history
 agent := client.NewAgent(&agents.AgentOptions{
