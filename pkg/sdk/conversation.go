@@ -6,18 +6,16 @@ import (
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
-func (c *SDK) NewConversationManager(namespace, msgId, previousMsgId string, opts ...history.ConversationManagerOptions) core.ChatHistory {
+func (c *SDK) NewConversationManager(namespace, previousMsgId string, opts ...history.ConversationManagerOptions) core.ChatHistory {
 	return history.NewConversationManager(
 		c.getConversationPersistence(),
-		c.projectId,
 		namespace,
-		msgId,
 		previousMsgId,
 		opts...,
 	)
 }
 
-func (c *SDK) getConversationPersistence() history.ConversationPersistenceManager {
+func (c *SDK) getConversationPersistence() history.ConversationPersistenceAdapter {
 	if c.endpoint == "" {
 		return nil
 	}

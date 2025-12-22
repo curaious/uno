@@ -9,7 +9,7 @@ import (
 )
 
 // LLMGatewayAdapter is the interface for making LLM calls.
-// Similar to ConversationPersistenceManager, it can be implemented by:
+// Similar to ConversationPersistenceAdapter, it can be implemented by:
 // - InternalLLMProvider: uses the internal gateway (for server-side)
 // - ExternalLLMProvider: calls agent-server via HTTP (for SDK consumers)
 type LLMGatewayAdapter interface {

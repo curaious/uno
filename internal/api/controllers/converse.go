@@ -283,7 +283,9 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 			},
 		)
 
-		conversationManagerOpts := []history.ConversationManagerOptions{}
+		conversationManagerOpts := []history.ConversationManagerOptions{
+			history.WithMessageID(reqPayload.MessageID),
+		}
 
 		var summarizer core.HistorySummarizer
 		if agentConfig.EnableHistory && agentConfig.SummarizerType != nil && *agentConfig.SummarizerType != "none" {
@@ -405,9 +407,7 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 		if agentConfig.EnableHistory {
 			agentOpts.History = history.NewConversationManager(
 				adapters.NewInternalConversationPersistence(svc.Conversation, projectID),
-				projectID,
 				reqPayload.Namespace,
-				reqPayload.MessageID,
 				reqPayload.PreviousMessageID,
 				conversationManagerOpts...,
 			)

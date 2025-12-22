@@ -239,7 +239,9 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	)
 
 	// Build conversation manager options
-	conversationManagerOpts := []history.ConversationManagerOptions{}
+	conversationManagerOpts := []history.ConversationManagerOptions{
+		history.WithMessageID(input.MessageID),
+	}
 
 	// Setup summarizer if enabled
 	var summarizer core.HistorySummarizer
@@ -283,9 +285,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	if agentConfig.EnableHistory {
 		agentOpts.History = history.NewConversationManager(
 			adapters.NewInternalConversationPersistence(svc.Conversation, projectID),
-			projectID,
 			input.Namespace,
-			input.MessageID,
 			input.PreviousMessageID,
 			conversationManagerOpts...,
 		)

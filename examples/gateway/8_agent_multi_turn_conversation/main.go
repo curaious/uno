@@ -6,7 +6,6 @@ import (
 	"log"
 
 	"github.com/bytedance/sonic"
-	"github.com/google/uuid"
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/llm"
@@ -39,7 +38,7 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	history := client.NewConversationManager("default", uuid.NewString(), "")
+	history := client.NewConversationManager("default", "")
 	agent := agents.NewAgent(&agents.AgentOptions{
 		Name:        "Hello world agent",
 		Instruction: "You are helpful assistant.",
@@ -48,7 +47,7 @@ func main() {
 	})
 
 	out, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
-		responses.UserMessage("Hello!"),
+		responses.UserMessage("Hello! My name is Alice"),
 	}, core.NilCallback)
 	if err != nil {
 		log.Fatal(err)
@@ -67,7 +66,7 @@ func main() {
 	})
 
 	out, err = agent2.Execute(context.Background(), []responses.InputMessageUnion{
-		responses.UserMessage("what was my previous message?"),
+		responses.UserMessage("What's my name?"),
 	}, core.NilCallback)
 	if err != nil {
 		log.Fatal(err)

@@ -16,14 +16,14 @@ import (
 
 var convTracer = otel.Tracer("ConversationManager")
 
-type ConversationPersistenceManager interface {
+type ConversationPersistenceAdapter interface {
 	LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error)
 	SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error
 	SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error
 }
 
 type CommonConversationManager struct {
-	ConversationPersistenceManager
+	ConversationPersistenceAdapter
 
 	namespace      string
 	conversationId string
@@ -41,11 +41,11 @@ type CommonConversationManager struct {
 	summaries  *core.SummaryResult
 }
 
-func NewConversationManager(p ConversationPersistenceManager, projectID uuid.UUID, namespace, msgId, previousMsgId string, opts ...ConversationManagerOptions) *CommonConversationManager {
+func NewConversationManager(p ConversationPersistenceAdapter, namespace, previousMsgId string, opts ...ConversationManagerOptions) *CommonConversationManager {
 	cm := &CommonConversationManager{
-		ConversationPersistenceManager: p,
+		ConversationPersistenceAdapter: p,
 		namespace:                      namespace,
-		msgId:                          msgId,
+		msgId:                          uuid.NewString(),
 		previousMsgId:                  previousMsgId,
 		msgIdToRunId:                   make(map[string]string),
 	}
@@ -65,15 +65,21 @@ func WithConversationID(conversationId string) ConversationManagerOptions {
 	}
 }
 
+func WithMessageID(msgId string) ConversationManagerOptions {
+	return func(cm *CommonConversationManager) {
+		cm.msgId = msgId
+	}
+}
+
 func WithSummarizer(summarizer core.HistorySummarizer) ConversationManagerOptions {
 	return func(cm *CommonConversationManager) {
 		cm.summarizer = summarizer
 	}
 }
 
-func WithPersistence(manager ConversationPersistenceManager) ConversationManagerOptions {
+func WithPersistence(customAdapter ConversationPersistenceAdapter) ConversationManagerOptions {
 	return func(cm *CommonConversationManager) {
-		cm.ConversationPersistenceManager = manager
+		cm.ConversationPersistenceAdapter = customAdapter
 	}
 }
 
@@ -116,7 +122,7 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 		attribute.String("previous_msg_id", cm.previousMsgId),
 	)
 
-	if cm.ConversationPersistenceManager == nil {
+	if cm.ConversationPersistenceAdapter == nil {
 		span.SetAttributes(attribute.Bool("persistence_nil", true))
 		return []responses.InputMessageUnion{}, nil
 	}
@@ -126,7 +132,7 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 		return cm.oldMessages, nil
 	}
 
-	convMessages, err := cm.ConversationPersistenceManager.LoadMessages(ctx, cm.namespace, cm.previousMsgId)
+	convMessages, err := cm.ConversationPersistenceAdapter.LoadMessages(ctx, cm.namespace, cm.previousMsgId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -171,7 +177,7 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 		attribute.Bool("has_summary", cm.summaries != nil),
 	)
 
-	if cm.ConversationPersistenceManager == nil {
+	if cm.ConversationPersistenceAdapter == nil {
 		span.SetAttributes(attribute.Bool("persistence_nil", true))
 		return nil
 	}
@@ -191,7 +197,7 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 			sum.SummaryMessage = *cm.summaries.Summary
 		}
 
-		err := cm.ConversationPersistenceManager.SaveSummary(ctx, cm.namespace, sum)
+		err := cm.ConversationPersistenceAdapter.SaveSummary(ctx, cm.namespace, sum)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -201,7 +207,7 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 		cm.summaries = nil
 	}
 
-	err := cm.ConversationPersistenceManager.SaveMessages(ctx, cm.namespace, cm.msgId, cm.previousMsgId, cm.conversationId, cm.newMessages, meta)
+	err := cm.ConversationPersistenceAdapter.SaveMessages(ctx, cm.namespace, cm.msgId, cm.previousMsgId, cm.conversationId, cm.newMessages, meta)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

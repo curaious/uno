@@ -5,7 +5,6 @@ import (
 	"log/slog"
 
 	"github.com/bytedance/sonic"
-	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/history"
@@ -77,7 +76,7 @@ func (e *Agent) Execute(ctx context.Context, msgs []responses.InputMessageUnion,
 	// If history is not enabled, set a default history without persistence.
 	// This is required for the agent loop to work.
 	if e.history == nil {
-		e.history = history.NewConversationManager(nil, uuid.New(), "none", uuid.NewString(), "")
+		e.history = history.NewConversationManager(nil, "none", "")
 	}
 
 	finalOutput := []responses.OutputMessageUnion{}

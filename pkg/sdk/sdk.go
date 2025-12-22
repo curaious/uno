@@ -31,7 +31,7 @@ type ServerConfig struct {
 }
 
 type ClientOptions struct {
-	ServerConfig *ServerConfig
+	ServerConfig ServerConfig
 
 	// Set this if you are using the SDK without the LLM Gateway server.
 	// If `LLMConfigs` is set, then `ApiKey` will be ignored.
@@ -39,13 +39,13 @@ type ClientOptions struct {
 }
 
 func New(opts *ClientOptions) (*SDK, error) {
-	if opts.LLMConfigs == nil && (opts.ServerConfig == nil || opts.ServerConfig.Endpoint == "") {
+	if opts.LLMConfigs == nil && opts.ServerConfig.Endpoint == "" {
 		return nil, fmt.Errorf("must provide either ServerConfig.Endpoint or LLMConfigs")
 	}
 
 	sdk := &SDK{
 		llmConfigs: opts.LLMConfigs,
-		directMode: opts.LLMConfigs == nil,
+		directMode: opts.LLMConfigs != nil,
 		endpoint:   opts.ServerConfig.Endpoint,
 		virtualKey: opts.ServerConfig.VirtualKey,
 	}
