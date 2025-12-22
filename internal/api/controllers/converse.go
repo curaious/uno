@@ -404,7 +404,7 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 
 		if agentConfig.EnableHistory {
 			agentOpts.History = history.NewConversationManager(
-				adapters.NewInternalConversationPersistence(svc.Conversation),
+				adapters.NewInternalConversationPersistence(svc.Conversation, projectID),
 				projectID,
 				reqPayload.Namespace,
 				reqPayload.MessageID,

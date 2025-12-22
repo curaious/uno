@@ -19,50 +19,43 @@ type SDK struct {
 	llmConfigs gateway.ConfigStore
 }
 
-type ClientOptions struct {
-	// Endpoint of the LLM Gateway server.
+type ServerConfig struct {
+	// Endpoint of the Uno Server
 	Endpoint string
 
-	// Set with the virtual key obtained from the LLM gateway server.
+	// For LLM calls
 	VirtualKey string
+
+	// For conversations
+	ProjectName string
+}
+
+type ClientOptions struct {
+	ServerConfig *ServerConfig
 
 	// Set this if you are using the SDK without the LLM Gateway server.
 	// If `LLMConfigs` is set, then `ApiKey` will be ignored.
 	LLMConfigs gateway.ConfigStore
-
-	ProjectName string
 }
 
 func New(opts *ClientOptions) (*SDK, error) {
-	// If endpoint is not provided, the SDK will operate in direct mode
-	if opts.Endpoint == "" {
-		// For direct mode, LLM config is necessary
-		if opts.LLMConfigs == nil {
-			return nil, fmt.Errorf("no LLM config store")
-		}
-
-		return &SDK{
-			llmConfigs: opts.LLMConfigs,
-			projectId:  uuid.New(),
-			directMode: true,
-		}, nil
+	if opts.LLMConfigs == nil && (opts.ServerConfig == nil || opts.ServerConfig.Endpoint == "") {
+		return nil, fmt.Errorf("must provide either ServerConfig.Endpoint or LLMConfigs")
 	}
 
-	// If project name is not provided, the SDK will operate as LLM gateway only mode
-	if opts.ProjectName == "" {
-		return &SDK{
-			endpoint:   opts.Endpoint,
-			virtualKey: opts.VirtualKey,
-		}, nil
+	sdk := &SDK{
+		llmConfigs: opts.LLMConfigs,
+		directMode: opts.LLMConfigs == nil,
+		endpoint:   opts.ServerConfig.Endpoint,
+		virtualKey: opts.ServerConfig.VirtualKey,
 	}
 
-	// If both endpoint and project name is provided, the SDK will operate as both LLM gateway, and agent server
+	if opts.ServerConfig.ProjectName == "" {
+		return sdk, nil
+	}
 
 	// Convert project name to ID
-	url := fmt.Sprintf("%s/api/agent-server/projects", opts.Endpoint)
-
-	// Load the list of projects from the LLM gateway
-	resp, err := http.DefaultClient.Get(url)
+	resp, err := http.DefaultClient.Get(fmt.Sprintf("%s/api/agent-server/projects", opts.ServerConfig.Endpoint))
 	if err != nil {
 		return nil, err
 	}
@@ -74,14 +67,11 @@ func New(opts *ClientOptions) (*SDK, error) {
 	}
 
 	for _, proj := range projectsRes.Data {
-		if proj.Name == opts.ProjectName {
-			return &SDK{
-				endpoint:   opts.Endpoint,
-				projectId:  proj.ID,
-				virtualKey: opts.VirtualKey,
-			}, nil
+		if proj.Name == opts.ServerConfig.ProjectName {
+			sdk.projectId = proj.ID
+			return sdk, nil
 		}
 	}
 
-	return nil, fmt.Errorf("project %s not found", opts.ProjectName)
+	return nil, fmt.Errorf("project %s not found", opts.ServerConfig.ProjectName)
 }

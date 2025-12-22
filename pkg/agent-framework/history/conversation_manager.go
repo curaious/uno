@@ -17,15 +17,14 @@ import (
 var convTracer = otel.Tracer("ConversationManager")
 
 type ConversationPersistenceManager interface {
-	LoadMessages(ctx context.Context, projectID uuid.UUID, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error)
-	SaveMessages(ctx context.Context, projectID uuid.UUID, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error
-	SaveSummary(ctx context.Context, projectID uuid.UUID, namespace string, summary conversation.Summary) error
+	LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error)
+	SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error
+	SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error
 }
 
 type CommonConversationManager struct {
 	ConversationPersistenceManager
 
-	projectID      uuid.UUID
 	namespace      string
 	conversationId string
 	msgId          string
@@ -45,7 +44,6 @@ type CommonConversationManager struct {
 func NewConversationManager(p ConversationPersistenceManager, projectID uuid.UUID, namespace, msgId, previousMsgId string, opts ...ConversationManagerOptions) *CommonConversationManager {
 	cm := &CommonConversationManager{
 		ConversationPersistenceManager: p,
-		projectID:                      projectID,
 		namespace:                      namespace,
 		msgId:                          msgId,
 		previousMsgId:                  previousMsgId,
@@ -116,7 +114,6 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 	span.SetAttributes(
 		attribute.String("namespace", cm.namespace),
 		attribute.String("previous_msg_id", cm.previousMsgId),
-		attribute.String("project_id", cm.projectID.String()),
 	)
 
 	if cm.ConversationPersistenceManager == nil {
@@ -129,7 +126,7 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 		return cm.oldMessages, nil
 	}
 
-	convMessages, err := cm.ConversationPersistenceManager.LoadMessages(ctx, cm.projectID, cm.namespace, cm.previousMsgId)
+	convMessages, err := cm.ConversationPersistenceManager.LoadMessages(ctx, cm.namespace, cm.previousMsgId)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -194,7 +191,7 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 			sum.SummaryMessage = *cm.summaries.Summary
 		}
 
-		err := cm.ConversationPersistenceManager.SaveSummary(ctx, cm.projectID, cm.namespace, sum)
+		err := cm.ConversationPersistenceManager.SaveSummary(ctx, cm.namespace, sum)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -204,7 +201,7 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 		cm.summaries = nil
 	}
 
-	err := cm.ConversationPersistenceManager.SaveMessages(ctx, cm.projectID, cm.namespace, cm.msgId, cm.previousMsgId, cm.conversationId, cm.newMessages, meta)
+	err := cm.ConversationPersistenceManager.SaveMessages(ctx, cm.namespace, cm.msgId, cm.previousMsgId, cm.conversationId, cm.newMessages, meta)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

@@ -31,9 +31,17 @@ func (p *PromptTemplate) Execute(ctx context.Context, data map[string]any) (stri
 
 func (c *SDK) NewPromptManager(name string, label string, resolver core.SystemPromptResolver) core.SystemPromptProvider {
 	return prompts.NewPromptManager(
-		adapters.NewExternalPromptPersistence(c.endpoint, c.projectId),
+		c.getPromptPersistence(),
 		name,
 		label,
 		resolver,
 	)
+}
+
+func (c *SDK) getPromptPersistence() prompts.PromptPersistence {
+	if c.endpoint == "" {
+		return nil
+	}
+
+	return adapters.NewExternalPromptPersistence(c.endpoint, c.projectId)
 }

@@ -282,7 +282,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	// Add history manager if enabled
 	if agentConfig.EnableHistory {
 		agentOpts.History = history.NewConversationManager(
-			adapters.NewInternalConversationPersistence(svc.Conversation),
+			adapters.NewInternalConversationPersistence(svc.Conversation, projectID),
 			projectID,
 			input.Namespace,
 			input.MessageID,

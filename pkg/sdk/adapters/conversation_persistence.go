@@ -22,23 +22,25 @@ type Response[T any] struct {
 }
 
 type ExternalConversationPersistence struct {
-	Endpoint string
+	Endpoint  string
+	projectID uuid.UUID
 }
 
-func NewExternalConversationPersistence(endpoint string) *ExternalConversationPersistence {
+func NewExternalConversationPersistence(endpoint string, projectID uuid.UUID) *ExternalConversationPersistence {
 	return &ExternalConversationPersistence{
-		Endpoint: endpoint,
+		Endpoint:  endpoint,
+		projectID: projectID,
 	}
 }
 
 // LoadMessages implements core.ChatHistory
-func (p *ExternalConversationPersistence) LoadMessages(ctx context.Context, projectID uuid.UUID, namespace string, previousMessageId string) ([]conversation.ConversationMessage, error) {
+func (p *ExternalConversationPersistence) LoadMessages(ctx context.Context, namespace string, previousMessageId string) ([]conversation.ConversationMessage, error) {
 	// If no previous message ID, return empty list
 	if previousMessageId == "" {
 		return []conversation.ConversationMessage{}, nil
 	}
 
-	url := fmt.Sprintf("%s/api/agent-server/messages/summary?namespace=%s&previous_message_id=%s&project_id=%s", p.Endpoint, namespace, previousMessageId, projectID.String())
+	url := fmt.Sprintf("%s/api/agent-server/messages/summary?namespace=%s&previous_message_id=%s&project_id=%s", p.Endpoint, namespace, previousMessageId, p.projectID.String())
 
 	resp, err := http.DefaultClient.Get(url)
 	if err != nil {
@@ -55,9 +57,9 @@ func (p *ExternalConversationPersistence) LoadMessages(ctx context.Context, proj
 }
 
 // SaveMessages implements core.ChatHistory
-func (p *ExternalConversationPersistence) SaveMessages(ctx context.Context, projectID uuid.UUID, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
+func (p *ExternalConversationPersistence) SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
 	// Save regular messages
-	url := fmt.Sprintf("%s/api/agent-server/messages?project_id=%s", p.Endpoint, projectID.String())
+	url := fmt.Sprintf("%s/api/agent-server/messages?project_id=%s", p.Endpoint, p.projectID.String())
 
 	payload := conversation.AddMessageRequest{
 		Namespace:         namespace,
@@ -94,8 +96,8 @@ func (p *ExternalConversationPersistence) SaveMessages(ctx context.Context, proj
 }
 
 // SaveSummary
-func (p *ExternalConversationPersistence) SaveSummary(ctx context.Context, projectID uuid.UUID, namespace string, summary conversation.Summary) error {
-	url := fmt.Sprintf("%s/api/agent-server/summary?project_id=%s&namespace=%s", p.Endpoint, projectID.String(), namespace)
+func (p *ExternalConversationPersistence) SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error {
+	url := fmt.Sprintf("%s/api/agent-server/summary?project_id=%s&namespace=%s", p.Endpoint, p.projectID.String(), namespace)
 
 	payloadBytes, err := sonic.Marshal(summary)
 	if err != nil {

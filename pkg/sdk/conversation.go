@@ -18,9 +18,9 @@ func (c *SDK) NewConversationManager(namespace, msgId, previousMsgId string, opt
 }
 
 func (c *SDK) getConversationPersistence() history.ConversationPersistenceManager {
-	if c.directMode {
+	if c.endpoint == "" {
 		return nil
 	}
 
-	return adapters.NewExternalConversationPersistence(c.endpoint)
+	return adapters.NewExternalConversationPersistence(c.endpoint, c.projectId)
 }
