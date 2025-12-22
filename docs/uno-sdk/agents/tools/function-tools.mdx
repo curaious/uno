@@ -1,5 +1,5 @@
 ---
-title: Tool Calling Agent
+title: Function Tools
 ---
 
 Tool calling agents can execute custom functions to interact with external systems, databases, APIs, or perform computations. The agent decides when to call tools based on the user's request and uses the results to provide better responses.
@@ -19,7 +19,7 @@ func NewCustomTool() *CustomTool {
 			OfFunction: &responses.FunctionTool{
                 Name:        "get_user_name",
                 Description: utils.Ptr("Returns the user's name"),
-                InputSchema: map[string]any{
+                Parameters: map[string]any{
                     "type": "object",
                     "properties": map[string]any{
                         "user_id": map[string]any{
@@ -66,7 +66,7 @@ Here's a simple example of an agent with a custom tool:
 ```go
 func main() {
     // Create agent with tool
-    agent := client.NewAgent(&agents.AgentOptions{
+    agent := client.NewAgent(&sdk.AgentOptions{
         Name:        "Assistant",
         Instruction: "You are a helpful assistant. Use the get_user_name tool to get the user's name and greet them.",
         LLM:         client.NewLLM(sdk.LLMOptions{

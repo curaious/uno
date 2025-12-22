@@ -10,14 +10,14 @@ import (
 )
 
 type AgentTool struct {
-	*core.BaseTool
+	*responses.ToolUnion
 	agent *agents.Agent
 }
 
-func NewAgentTool(t *core.BaseTool, agent *agents.Agent) *AgentTool {
+func NewAgentTool(t *responses.ToolUnion, agent *agents.Agent) *AgentTool {
 	return &AgentTool{
-		BaseTool: t,
-		agent:    agent,
+		ToolUnion: t,
+		agent:     agent,
 	}
 }
 

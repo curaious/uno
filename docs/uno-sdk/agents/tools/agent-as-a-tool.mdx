@@ -1,0 +1,161 @@
+---
+title: Agent as a tool
+---
+
+You can use an agent as a tool that another agent can call. This enables hierarchical agent architectures where specialized agents handle specific tasks, and a parent agent orchestrates them by calling these agent tools as needed.
+
+## Creating an Agent Tool
+
+To create an agent tool, you need to:
+
+1. Create a specialized agent that will act as the tool
+2. Wrap it using `tools.NewAgentTool` with a tool definition
+
+```go
+import (
+    "github.com/praveen001/uno/internal/utils"
+    "github.com/praveen001/uno/pkg/agent-framework/tools"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+// Create a specialized agent
+subAgent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "User lookup agent",
+    Instruction: "You are a helpful assistant that looks up user information.",
+    LLM:         model,
+})
+
+// Wrap the agent as a tool
+agentTool := tools.NewAgentTool(&responses.ToolUnion{
+    OfFunction: &responses.FunctionTool{
+        Name:        "get_user_name",
+        Description: utils.Ptr("Returns the user's name"),
+        Parameters: map[string]any{
+            "type": "object",
+            "properties": map[string]any{
+                "user_id": map[string]any{
+                    "type":        "string",
+                    "description": "The user ID to look up",
+                },
+            },
+            "required": []string{"user_id"},
+        },
+    },
+}, subAgent)
+```
+
+### Parameters
+
+- **`toolUnion`**: A `*responses.ToolUnion` that defines the tool's interface (name, description, parameters)
+- **`agent`**: The agent instance that will be executed when the tool is called
+
+When the tool is called, the agent receives the tool's arguments as input and returns its output as the tool's result.
+
+## Using Agent Tools
+
+Once created, you can use the agent tool in another agent's tools list:
+
+```go
+// Create a parent agent that uses the agent tool
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Main agent",
+    Instruction: "You are a helpful assistant. Use the get_user_name tool when needed.",
+    LLM:         model,
+    Tools:       []core.Tool{agentTool},
+})
+```
+
+## Complete Example
+
+Here's a complete example demonstrating an agent using another agent as a tool:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/bytedance/sonic"
+    "github.com/praveen001/uno/internal/utils"
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/agent-framework/tools"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    // Initialize SDK client
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
+            {
+                ProviderName:  llm.ProviderNameOpenAI,
+                BaseURL:       "",
+                CustomHeaders: nil,
+                Keys: []*sdk.ProviderKey{
+                    {
+                        Name: "Key 1",
+                        Key:  "",
+                    },
+                },
+            },
+        }),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create LLM model
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Create a specialized agent that will act as a tool
+    subAgent := client.NewAgent(&sdk.AgentOptions{
+        Name:        "Hello world agent",
+        Instruction: "You are helpful assistant.",
+        LLM:         model,
+    })
+
+    // Wrap the agent as a tool
+    agentTool := tools.NewAgentTool(&responses.ToolUnion{
+        OfFunction: &responses.FunctionTool{
+            Name:        "get_user_name",
+            Description: utils.Ptr("Returns the user's name"),
+            Parameters: map[string]any{
+                "type": "object",
+                "properties": map[string]any{
+                    "user_id": map[string]any{
+                        "type":        "string",
+                        "description": "The user ID to look up",
+                    },
+                },
+                "required": []string{"user_id"},
+            },
+        },
+    }, subAgent)
+
+    // Create the main agent that uses the agent tool
+    agent := client.NewAgent(&sdk.AgentOptions{
+        Name:        "Hello world agent",
+        Instruction: "You are helpful assistant.",
+        LLM:         model,
+        Tools:       []core.Tool{agentTool},
+    })
+
+    // Execute the main agent
+    out, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("Hello!"),
+    }, core.NilCallback)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    b, _ := sonic.Marshal(out)
+    fmt.Println(string(b))
+}
+```

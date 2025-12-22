@@ -5,7 +5,7 @@ title: Simple Agent
 You can create a simple agent like this:
 
 ```go
-agent := client.NewAgent(&agents.AgentOptions{
+agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Hello world agent",
     Instruction: "You are helpful assistant. You greet user with a light-joke",
     LLM: client.NewLLM(sdk.LLMOptions{

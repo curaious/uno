@@ -7,12 +7,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/services/project"
 	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/agent-framework/agents"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
-	"github.com/praveen001/uno/pkg/agent-framework/history"
-	"github.com/praveen001/uno/pkg/agent-framework/prompts"
 	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
@@ -89,62 +84,4 @@ func New(opts *ClientOptions) (*SDK, error) {
 	}
 
 	return nil, fmt.Errorf("project %s not found", opts.ProjectName)
-}
-
-func (c *SDK) NewConversationManager(namespace, msgId, previousMsgId string, opts ...history.ConversationManagerOptions) core.ChatHistory {
-	return history.NewConversationManager(
-		c.getConversationPersistence(),
-		c.projectId,
-		namespace,
-		msgId,
-		previousMsgId,
-		opts...,
-	)
-}
-
-func (c *SDK) NewPromptManager(name string, label string, resolver core.SystemPromptResolver) core.SystemPromptProvider {
-	return prompts.NewPromptManager(
-		adapters.NewExternalPromptPersistence(c.endpoint, c.projectId),
-		name,
-		label,
-		resolver,
-	)
-}
-
-type LLMOptions struct {
-	Provider llm.ProviderName
-	Model    string
-}
-
-// NewLLM creates a new LLMClient that provides access to multiple LLM providers.
-func (c *SDK) NewLLM(opts LLMOptions) llm.Provider {
-	return gateway.NewLLMClient(
-		c.getGatewayAdapter(),
-		opts.Provider,
-		opts.Model,
-	)
-}
-
-func (c *SDK) getGatewayAdapter() gateway.LLMGatewayAdapter {
-	if c.directMode {
-		return adapters.NewLocalLLMGateway(gateway.NewLLMGateway(c.llmConfigs))
-	}
-
-	return adapters.NewExternalLLMGateway(c.endpoint, c.virtualKey)
-}
-
-func (c *SDK) getConversationPersistence() history.ConversationPersistenceManager {
-	if c.directMode {
-		return nil
-	}
-
-	return adapters.NewExternalConversationPersistence(c.endpoint)
-}
-
-func (c *SDK) NewAgent(options *agents.AgentOptions) *agents.Agent {
-	return agents.NewAgent(options)
-}
-
-func (c *SDK) NewMcpSseServer() {
-
 }

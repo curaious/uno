@@ -44,7 +44,15 @@
                 "expanded": true,
                 "pages": [
                   "uno-sdk/agents/simple-agent",
-                  "uno-sdk/agents/tool-calling-agent",
+                  {
+                    "group": "Tools",
+                    "expanded": true,
+                    "pages": [
+                      "uno-sdk/agents/tools/function-tools",
+                      "uno-sdk/agents/tools/mcp-tools",
+                      "uno-sdk/agents/tools/agent-as-a-tool"
+                    ]
+                  },
                   "uno-sdk/agents/conversation-history"
                 ]
               }
