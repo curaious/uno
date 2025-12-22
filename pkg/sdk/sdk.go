@@ -144,3 +144,7 @@ func (c *SDK) getConversationPersistence() history.ConversationPersistenceManage
 func (c *SDK) NewAgent(options *agents.AgentOptions) *agents.Agent {
 	return agents.NewAgent(options)
 }
+
+func (c *SDK) NewMcpSseServer() {
+
+}
