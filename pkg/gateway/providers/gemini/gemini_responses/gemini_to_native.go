@@ -24,7 +24,7 @@ func (in *Request) ToNativeRequest() *responses.Request {
 			ParallelToolCalls: nil,
 			Store:             nil,
 			Temperature:       in.GenerationConfig.Temperature,
-			TopLogprobs:       nil,
+			TopLogprobs:       in.GenerationConfig.TopK,
 			TopP:              in.GenerationConfig.TopP,
 			Include:           nil,
 			Metadata:          nil,

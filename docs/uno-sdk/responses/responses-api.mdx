@@ -2,15 +2,77 @@
 title: Responses API
 ---
 
+The Responses API provides a unified interface for interacting with large language models from various providers. It offers fine-grained control over request parameters and supports advanced features like reasoning, structured output, and streaming.
+
 ## Request Configuration
 
 The `responses.Request` struct allows you to fine-tune your LLM calls with several parameters:
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
+| **Model** | `string` | The model identifier (e.g., "gpt-4o-mini", "claude-3-5-sonnet"). |
 | **Instructions** | `*string` | System-level instructions (System Prompt). |
 | **Input** | `InputUnion` | The user prompt (string or list of messages). |
-| **Temperature** | `*float64` | Sampling temperature (0.0 to 2.0). |
-| **MaxOutputTokens** | `*int` | Limit on the number of tokens generated. |
-| **TopP** | `*float64` | Nucleus sampling parameter. |
 | **Tools** | `[]ToolUnion` | Definitions for function calling. |
+
+### Parameters
+
+The `Parameters` struct contains additional configuration options:
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| **Temperature** | `*float64` | Sampling temperature (0.0 to 2.0). Higher values make output more random. |
+| **MaxOutputTokens** | `*int` | Maximum number of tokens to generate in the response. |
+| **TopP** | `*float64` | Nucleus sampling parameter (0.0 to 1.0). Controls diversity via nucleus sampling. |
+| **TopLogprobs** | `*int64` | Number of most likely tokens to return with their log probabilities. |
+| **Text** | `*TextFormat` | Structured output format configuration (JSON schema). See [Structured Output](/uno-sdk/responses/structured-output). |
+| **Stream** | `*bool` | Enable streaming responses. When `true`, responses are returned incrementally. |
+| **Reasoning** | `*ReasoningParam` | Reasoning configuration for models that support chain-of-thought reasoning. See [Reasoning](/uno-sdk/responses/reasoning). |
+| **Metadata** | `map[string]string` | Custom metadata to attach to the request. |
+| **MaxToolCalls** | `*int` | Maximum number of tool calls allowed in a single response. |
+| **ParallelToolCalls** | `*bool` | Allow parallel execution of multiple tool calls. |
+
+### Reasoning Parameters
+
+The `ReasoningParam` struct configures reasoning behavior:
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| **Summary** | `*string` | Reasoning summary level: `"auto"`, `"concise"`, or `"detailed"`. |
+| **Effort** | `*string` | Reasoning effort level: `"none"`, `"minimal"`, `"low"`, `"medium"`, `"high"`, `"xhigh"`. |
+| **BudgetTokens** | `*int` | Maximum tokens to allocate for reasoning steps. Not used for OpenAI. |
+
+### Text Format (Structured Output)
+
+The `TextFormat` struct enables structured output using JSON schema:
+
+```go
+Text: &responses.TextFormat{
+    Format: map[string]any{
+        "type": "json_schema",
+        "name": "structured_output",
+        "strict": false,
+        "schema": map[string]any{
+            "type": "object",
+            "properties": map[string]any{
+                "name": map[string]any{
+                    "type": "string",
+                },
+            },
+        },
+    },
+}
+```
+
+See the [Structured Output](/uno-sdk/responses/structured-output) documentation for detailed examples.
+
+## Supported Providers
+
+The Responses API supports the following LLM providers:
+
+| Provider | Text | Image Gen | Image Proc | Tool Calls | Reasoning | Streaming | Structured Output |
+| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **OpenAI** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Anthropic** | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| **Gemini** | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+
