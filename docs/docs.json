@@ -44,6 +44,7 @@
                 "expanded": true,
                 "pages": [
                   "uno-sdk/agents/simple-agent",
+                  "uno-sdk/agents/system-instruction",
                   {
                     "group": "Tools",
                     "expanded": true,

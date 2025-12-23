@@ -1,0 +1,238 @@
+---
+title: System Instruction
+---
+
+System instructions define the behavior and personality of an agent. The SDK provides flexible ways to create system instructions, from simple strings to dynamic templates loaded from remote sources.
+
+## Basic Usage
+
+The simplest way to provide a system instruction is using a plain string:
+
+```go
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Assistant",
+    Instruction: client.Prompt("You are a helpful assistant."),
+    LLM:         model,
+})
+```
+
+## Template Variables
+
+System instructions support template variables using Go template syntax. Variables are resolved at runtime using resolvers.
+
+### Simple Template Variables
+
+Use `{{variable}}` syntax in your instruction string, and provide a resolver to populate the values:
+
+```go
+contextData := map[string]any{
+    "name": "Alice",
+    "role": "developer",
+}
+
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Personalized Assistant",
+    Instruction: client.Prompt(
+        "You are a helpful assistant. You are interacting with {{name}}, who is a {{role}}.",
+        prompts.WithDefaultResolver(contextData),
+    ),
+    LLM: model,
+})
+```
+
+The template syntax `{{variable}}` is automatically converted to Go template format `{{ .variable }}` for resolution.
+
+### Custom Resolvers
+
+You can create custom resolvers for more complex template resolution logic:
+
+```go
+import "github.com/praveen001/uno/pkg/agent-framework/prompts"
+
+customResolver := func(promptStr string) (string, error) {
+    // Your custom resolution logic
+    // For example, fetch data from a database or API
+    data := map[string]any{
+        "userName": getUserName(),
+        "timestamp": time.Now().Format(time.RFC3339),
+    }
+    
+    // Use the default resolver with your data
+    return prompts.WithDefaultResolver(data)(promptStr)
+}
+
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Dynamic Assistant",
+    Instruction: client.Prompt("Hello {{userName}}, current time is {{timestamp}}", customResolver),
+    LLM:         model,
+})
+```
+
+## Remote Prompts
+
+You can load system instructions from the Uno Gateway server using `RemotePrompt`:
+
+```go
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Remote Assistant",
+    Instruction: client.RemotePrompt("my-prompt-name", "production"),
+    LLM:         model,
+})
+```
+
+### Parameters
+
+- **`name`**: The name of the prompt stored in the Uno Gateway server
+- **`label`**: The prompt label (`"production"` or `"latest"`)
+- **`resolvers`**: Optional resolvers for template variable resolution
+
+### Remote Prompt with Resolvers
+
+You can combine remote prompts with resolvers for dynamic content:
+
+```go
+contextData := map[string]any{
+    "environment": "production",
+    "version": "1.0.0",
+}
+
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Versioned Assistant",
+    Instruction: client.RemotePrompt(
+        "assistant-prompt",
+        "production",
+        prompts.WithDefaultResolver(contextData),
+    ),
+    LLM: model,
+})
+```
+
+## Custom Prompt Loaders
+
+For advanced use cases, you can implement a custom `PromptLoader` interface to load prompts from any source:
+
+```go
+type CustomLoader struct {
+    // Your custom fields
+}
+
+func (l *CustomLoader) GetPrompt(ctx context.Context) (string, error) {
+    // Load prompt from your custom source
+    // e.g., database, file system, external API, etc.
+    return "Your prompt content", nil
+}
+
+customLoader := &CustomLoader{}
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Custom Assistant",
+    Instruction: client.CustomPrompt(customLoader),
+    LLM:         model,
+})
+```
+
+## Multiple Resolvers
+
+You can chain multiple resolvers to apply different transformations:
+
+```go
+resolver1 := prompts.WithDefaultResolver(map[string]any{"name": "Alice"})
+resolver2 := func(s string) (string, error) {
+    // Additional processing
+    return strings.ToUpper(s), nil
+}
+
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Multi-Resolver Assistant",
+    Instruction: client.Prompt("Hello {{name}}", resolver1, resolver2),
+    LLM:         model,
+})
+```
+
+Resolvers are applied in order, with each resolver receiving the output of the previous one.
+
+## Complete Example
+
+Here's a complete example demonstrating different ways to use system instructions:
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/agent-framework/prompts"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                Keys: []*sdk.ProviderKey{
+                    {Name: "Key 1", Key: "your-api-key"},
+                },
+            },
+        }),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Example 1: Simple string instruction
+    agent1 := client.NewAgent(&sdk.AgentOptions{
+        Name:        "Simple Assistant",
+        Instruction: client.Prompt("You are a helpful assistant."),
+        LLM:         model,
+    })
+
+    // Example 2: Template with variables
+    contextData := map[string]any{
+        "userName": "Bob",
+        "userRole": "developer",
+    }
+    agent2 := client.NewAgent(&sdk.AgentOptions{
+        Name:        "Personalized Assistant",
+        Instruction: client.Prompt(
+            "You are a helpful assistant for {{userName}}, who is a {{userRole}}.",
+            prompts.WithDefaultResolver(contextData),
+        ),
+        LLM: model,
+    })
+
+    // Example 3: Remote prompt (requires endpoint and projectName)
+    // agent3 := client.NewAgent(&sdk.AgentOptions{
+    //     Name:        "Remote Assistant",
+    //     Instruction: client.RemotePrompt("my-prompt", "production"),
+    //     LLM:         model,
+    // })
+
+    // Execute agent
+    out, err := agent2.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("Hello!"),
+    }, core.NilCallback)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Println(out[0].OfOutputMessage.Content[0].OfOutputText.Text)
+}
+```
+
+## Notes
+
+- Template variables use the syntax `{{variable}}` which is automatically converted to Go template format
+- Resolvers are applied in the order they are provided
+- The `WithDefaultResolver` function creates a resolver that uses Go templates with the provided data map
+- Remote prompts require the SDK client to be initialized with `endpoint` and `projectName`
+- Custom prompt loaders must implement the `PromptLoader` interface with a `GetPrompt(ctx context.Context) (string, error)` method
+
