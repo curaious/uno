@@ -1,0 +1,281 @@
+---
+title: Summarization
+---
+
+Conversation summarization helps manage long conversation histories by condensing older messages while preserving important context. This is essential for maintaining context in extended conversations without exceeding token limits or performance constraints.
+
+## Overview
+
+The SDK provides two types of summarizers:
+
+1. **LLM Summarizer**: Uses an LLM to intelligently summarize conversation history while preserving important context
+2. **Sliding Window Summarizer**: Keeps only the most recent N conversation runs and discards older messages
+
+Summarizers are integrated with conversation managers and automatically trigger when certain conditions are met (e.g., token threshold for LLM summarizer, or when the number of runs exceeds the window size for sliding window).
+
+## LLM Summarizer
+
+The LLM summarizer uses an LLM to create intelligent summaries of conversation history. It triggers when the total token count exceeds a specified threshold, keeping recent messages intact and summarizing older ones.
+
+### Configuration
+
+```go
+import (
+    "github.com/praveen001/uno/pkg/agent-framework/summariser"
+    "github.com/praveen001/uno/pkg/agent-framework/history"
+    "github.com/praveen001/uno/pkg/agent-framework/prompts"
+)
+
+// Create a summarizer LLM (can be different from the agent's LLM)
+summarizerLLM := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOpenAI,
+    Model:    "gpt-4o-mini",
+})
+
+// Create an instruction provider for the summarizer
+summarizerInstruction := client.Prompt("You are a conversation summarizer. Create concise summaries that preserve important context, decisions, and information.")
+
+// Create the LLM summarizer
+summarizer := summariser.NewLLMHistorySummarizer(&summariser.LLMHistorySummarizerOptions{
+    LLM:                 summarizerLLM,
+    InstructionProvider: summarizerInstruction,
+    TokenThreshold:      1000,        // Summarize when total tokens exceed this
+    KeepRecentCount:     5,            // Keep the last 5 runs unsummarized (default: 5)
+    Parameters:          responses.Parameters{}, // Optional LLM parameters
+})
+```
+
+### Parameters
+
+- **`LLM`**: The LLM provider to use for summarization (can be different from the agent's LLM)
+- **`InstructionProvider`**: System prompt provider that defines how the summarizer should summarize conversations
+- **`TokenThreshold`**: The token count threshold at which summarization triggers
+- **`KeepRecentCount`**: Number of recent conversation runs to keep unsummarized (default: 5)
+- **`Parameters`**: Optional LLM parameters (temperature, etc.) for the summarization call
+
+### How It Works
+
+1. When messages are loaded, the summarizer checks if the total token count exceeds the threshold
+2. If the threshold is exceeded and there are enough messages, it groups messages by run ID
+3. It keeps the most recent `KeepRecentCount` runs intact
+4. Older runs are summarized into a single system message using the LLM
+5. The summary replaces the old messages, preserving context while reducing token usage
+
+## Sliding Window Summarizer
+
+The sliding window summarizer keeps only the most recent N conversation runs and discards older ones. This is a simple, cost-effective approach that doesn't require an LLM.
+
+### Configuration
+
+```go
+import "github.com/praveen001/uno/pkg/agent-framework/summariser"
+
+summarizer := summariser.NewSlidingWindowHistorySummarizer(&summariser.SlidingWindowHistorySummarizerOptions{
+    KeepCount: 10, // Keep only the last 10 conversation runs
+})
+```
+
+### Parameters
+
+- **`KeepCount`**: The number of recent conversation runs to retain. Older runs are discarded.
+
+### How It Works
+
+1. Messages are grouped by their run ID
+2. If the number of runs exceeds `KeepCount`, only the most recent `KeepCount` runs are kept
+3. Older runs are discarded without creating a summary
+4. This approach is simple and cost-effective but loses older context completely
+
+## Using Summarizers with Conversation Managers
+
+To use a summarizer, pass it to the conversation manager using `history.WithSummarizer()`:
+
+```go
+import (
+    "github.com/praveen001/uno/pkg/agent-framework/history"
+    "github.com/praveen001/uno/pkg/agent-framework/summariser"
+)
+
+// Create a summarizer
+summarizer := summariser.NewLLMHistorySummarizer(&summariser.LLMHistorySummarizerOptions{
+    LLM:                 summarizerLLM,
+    InstructionProvider: summarizerInstruction,
+    TokenThreshold:      1000,
+    KeepRecentCount:     5,
+})
+
+// Create conversation manager with summarizer
+history := client.NewConversationManager(
+    "namespace",
+    "previous-message-id",
+    history.WithSummarizer(summarizer),
+)
+
+// Use with agent
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Assistant",
+    Instruction: client.Prompt("You are a helpful assistant."),
+    LLM:         model,
+    History:     history,
+})
+```
+
+## Complete Example: LLM Summarizer
+
+Here's a complete example using an LLM summarizer:
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/agent-framework/history"
+    "github.com/praveen001/uno/pkg/agent-framework/summariser"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    // Initialize SDK client
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                Keys: []*sdk.ProviderKey{
+                    {Name: "Key 1", Key: "your-api-key"},
+                },
+            },
+        }),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create main agent LLM
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Create summarizer LLM (can use a cheaper/faster model)
+    summarizerLLM := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Create summarizer instruction
+    summarizerInstruction := client.Prompt(
+        "You are a conversation summarizer. Create concise summaries that preserve important context, decisions, and information needed for future interactions.",
+    )
+
+    // Create LLM summarizer
+    summarizer := summariser.NewLLMHistorySummarizer(&summariser.LLMHistorySummarizerOptions{
+        LLM:                 summarizerLLM,
+        InstructionProvider: summarizerInstruction,
+        TokenThreshold:      1000,  // Summarize when tokens exceed 1000
+        KeepRecentCount:     5,      // Keep last 5 runs
+        Parameters:          responses.Parameters{},
+    })
+
+    // Create conversation manager with summarizer
+    history := client.NewConversationManager(
+        "my-namespace",
+        "", // Empty for new conversation
+        history.WithSummarizer(summarizer),
+    )
+
+    // Create agent with history
+    agent := client.NewAgent(&sdk.AgentOptions{
+        Name:        "Assistant",
+        Instruction: client.Prompt("You are a helpful assistant."),
+        LLM:         model,
+        History:     history,
+    })
+
+    // Execute agent (summarization happens automatically when threshold is exceeded)
+    out, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("Hello!"),
+    }, core.NilCallback)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Println(out[0].OfOutputMessage.Content[0].OfOutputText.Text)
+}
+```
+
+## Complete Example: Sliding Window Summarizer
+
+Here's a complete example using a sliding window summarizer:
+
+```go
+package main
+
+import (
+    "context"
+    "log"
+
+    "github.com/praveen001/uno/pkg/agent-framework/core"
+    "github.com/praveen001/uno/pkg/agent-framework/history"
+    "github.com/praveen001/uno/pkg/agent-framework/summariser"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    // Initialize SDK client
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                Keys: []*sdk.ProviderKey{
+                    {Name: "Key 1", Key: "your-api-key"},
+                },
+            },
+        }),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Create sliding window summarizer
+    summarizer := summariser.NewSlidingWindowHistorySummarizer(&summariser.SlidingWindowHistorySummarizerOptions{
+        KeepCount: 10, // Keep only the last 10 conversation runs
+    })
+
+    // Create conversation manager with summarizer
+    history := client.NewConversationManager(
+        "my-namespace",
+        "",
+        history.WithSummarizer(summarizer),
+    )
+
+    // Create agent
+    agent := client.NewAgent(&sdk.AgentOptions{
+        Name:        "Assistant",
+        Instruction: client.Prompt("You are a helpful assistant."),
+        LLM:         model,
+        History:     history,
+    })
+
+    // Execute agent
+    out, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
+        responses.UserMessage("Hello!"),
+    }, core.NilCallback)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    log.Println(out[0].OfOutputMessage.Content[0].OfOutputText.Text)
+}
+```

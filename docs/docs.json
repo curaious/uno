@@ -54,7 +54,14 @@
                       "uno-sdk/agents/tools/agent-as-a-tool"
                     ]
                   },
-                  "uno-sdk/agents/conversation-history"
+                  {
+                    "group": "Conversations",
+                    "expanded": true,
+                    "pages": [
+                      "uno-sdk/agents/conversations/history",
+                      "uno-sdk/agents/conversations/summarization"
+                    ]
+                  }
                 ]
               }
             ]
