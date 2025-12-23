@@ -41,7 +41,7 @@ func main() {
 	history := client.NewConversationManager("default", "")
 	agent := agents.NewAgent(&agents.AgentOptions{
 		Name:        "Hello world agent",
-		Instruction: "You are helpful assistant.",
+		Instruction: client.Prompt("You are helpful assistant."),
 		LLM:         model,
 		History:     history,
 	})
@@ -58,9 +58,9 @@ func main() {
 
 	// Agent itself is stateless - you can either re-create another agent or reuse the same agent instance
 	// as long as the same history is given, it retains the context.
-	agent2 := agents.NewAgent(&agents.AgentOptions{
+	agent2 := client.NewAgent(&sdk.AgentOptions{
 		Name:        "Hello world agent",
-		Instruction: "You are helpful assistant.",
+		Instruction: client.Prompt("You are helpful assistant."),
 		LLM:         model,
 		History:     history,
 	})

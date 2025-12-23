@@ -45,7 +45,7 @@ func main() {
 
 	agent := client.NewAgent(&sdk.AgentOptions{
 		Name:        "Hello world agent",
-		Instruction: "You are helpful assistant.",
+		Instruction: client.Prompt("You are helpful assistant."),
 		LLM:         model,
 		Tools:       mcpClient.GetTools(),
 	})

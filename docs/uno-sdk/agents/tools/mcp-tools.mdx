@@ -35,9 +35,9 @@ if err != nil {
 Once connected, you can retrieve the available tools from the MCP server and pass them to your agent:
 
 ```go
-agent := agents.NewAgent(&sdk.AgentOptions{
+agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Hello world agent",
-    Instruction: "You are helpful assistant.",
+    Instruction: client.Prompt("You are helpful assistant."),
     LLM:         model,
     History:     history,
     Tools:       mcpClient.GetTools(),  // Get all available MCP tools
@@ -112,9 +112,9 @@ func main() {
     }
 
     // Create agent with MCP tools
-    agent := agents.NewAgent(&sdk.AgentOptions{
+    agent := client.NewAgent(&sdk.AgentOptions{
         Name:        "Hello world agent",
-        Instruction: "You are helpful assistant.",
+        Instruction: client.Prompt("You are helpful assistant."),
         LLM:         model,
         History:     history,
         Tools:       mcpClient.GetTools(),

@@ -20,21 +20,19 @@ var (
 )
 
 type Agent struct {
-	name                string
-	output              map[string]any
-	history             core.ChatHistory
-	instruction         string
-	instructionProvider core.SystemPromptProvider
-	tools               []core.Tool
-	llm                 llm.Provider
-	parameters          responses.Parameters
+	name        string
+	output      map[string]any
+	history     core.ChatHistory
+	instruction core.SystemPromptProvider
+	tools       []core.Tool
+	llm         llm.Provider
+	parameters  responses.Parameters
 }
 
 type AgentOptions struct {
-	History             core.ChatHistory
-	Instruction         string
-	InstructionProvider core.SystemPromptProvider
-	Parameters          responses.Parameters
+	History     core.ChatHistory
+	Instruction core.SystemPromptProvider
+	Parameters  responses.Parameters
 
 	Name   string
 	LLM    llm.Provider
@@ -56,14 +54,13 @@ func NewAgent(opts *AgentOptions) *Agent {
 	}
 
 	return &Agent{
-		name:                opts.Name,
-		output:              opts.Output,
-		history:             opts.History,
-		instruction:         opts.Instruction,
-		instructionProvider: opts.InstructionProvider,
-		tools:               opts.Tools,
-		llm:                 opts.LLM,
-		parameters:          opts.Parameters,
+		name:        opts.Name,
+		output:      opts.Output,
+		history:     opts.History,
+		instruction: opts.Instruction,
+		tools:       opts.Tools,
+		llm:         opts.LLM,
+		parameters:  opts.Parameters,
 	}
 }
 
@@ -95,10 +92,8 @@ func (e *Agent) Execute(ctx context.Context, msgs []responses.InputMessageUnion,
 
 	// Set up the system instruction
 	instruction := "You are a helpful assistant."
-	if e.instruction != "" {
-		instruction = e.instruction
-	} else if e.instructionProvider != nil {
-		instruction, err = e.instructionProvider.GetPrompt(ctx)
+	if e.instruction != nil {
+		instruction, err = e.instruction.GetPrompt(ctx)
 		if err != nil {
 			return finalOutput, err
 		}

@@ -380,11 +380,11 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 		allTools = append(allTools, tools.NewImageGenerationTool())
 
 		agentOpts := &agents.AgentOptions{
-			Name:                agentConfig.Name,
-			LLM:                 llmClient,
-			Tools:               allTools,
-			InstructionProvider: instructionProvider,
-			Parameters:          *modelParams,
+			Name:        agentConfig.Name,
+			LLM:         llmClient,
+			Tools:       allTools,
+			Instruction: instructionProvider,
+			Parameters:  *modelParams,
 		}
 
 		// If agent has a schema configured, set it as the output format

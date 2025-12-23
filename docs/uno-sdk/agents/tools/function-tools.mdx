@@ -68,7 +68,7 @@ func main() {
     // Create agent with tool
     agent := client.NewAgent(&sdk.AgentOptions{
         Name:        "Assistant",
-        Instruction: "You are a helpful assistant. Use the get_user_name tool to get the user's name and greet them.",
+        Instruction: client.Prompt("You are a helpful assistant. Use the get_user_name tool to get the user's name and greet them."),
         LLM:         client.NewLLM(sdk.LLMOptions{
             Provider: llm.ProviderNameOpenAI,
             Model:    "gpt-4o-mini",

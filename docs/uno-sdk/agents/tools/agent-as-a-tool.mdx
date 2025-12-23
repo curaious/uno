@@ -22,7 +22,7 @@ import (
 // Create a specialized agent
 subAgent := client.NewAgent(&sdk.AgentOptions{
     Name:        "User lookup agent",
-    Instruction: "You are a helpful assistant that looks up user information.",
+    Instruction: client.Prompt("You are a helpful assistant that looks up user information."),
     LLM:         model,
 })
 
@@ -60,7 +60,7 @@ Once created, you can use the agent tool in another agent's tools list:
 // Create a parent agent that uses the agent tool
 agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Main agent",
-    Instruction: "You are a helpful assistant. Use the get_user_name tool when needed.",
+    Instruction: client.Prompt("You are a helpful assistant. Use the get_user_name tool when needed."),
     LLM:         model,
     Tools:       []core.Tool{agentTool},
 })
@@ -117,7 +117,7 @@ func main() {
     // Create a specialized agent that will act as a tool
     subAgent := client.NewAgent(&sdk.AgentOptions{
         Name:        "Hello world agent",
-        Instruction: "You are helpful assistant.",
+        Instruction: client.Prompt("You are helpful assistant."),
         LLM:         model,
     })
 
@@ -142,7 +142,7 @@ func main() {
     // Create the main agent that uses the agent tool
     agent := client.NewAgent(&sdk.AgentOptions{
         Name:        "Hello world agent",
-        Instruction: "You are helpful assistant.",
+        Instruction: client.Prompt("You are helpful assistant."),
         LLM:         model,
         Tools:       []core.Tool{agentTool},
     })

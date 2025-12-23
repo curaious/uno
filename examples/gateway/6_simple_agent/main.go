@@ -6,9 +6,9 @@ import (
 	"log"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
-	"github.com/praveen001/uno/pkg/agent-framework/tools"
+	"github.com/praveen001/uno/pkg/agent-framework/prompts"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/praveen001/uno/pkg/sdk"
@@ -39,32 +39,16 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	agentTool := tools.NewAgentTool(&responses.ToolUnion{
-		OfFunction: &responses.FunctionTool{
-			Name:        "get_user_name",
-			Description: utils.Ptr("Returns the user's name"),
-			Parameters: map[string]any{
-				"type": "object",
-				"properties": map[string]any{
-					"user_id": map[string]any{
-						"type":        "string",
-						"description": "The user ID to look up",
-					},
-				},
-				"required": []string{"user_id"},
-			},
-		},
-	}, client.NewAgent(&sdk.AgentOptions{
-		Name:        "Hello world agent",
-		Instruction: client.Prompt("You are helpful assistant."),
-		LLM:         model,
-	}))
+	contextData := map[string]any{
+		"name": "Bob",
+	}
 
-	agent := client.NewAgent(&sdk.AgentOptions{
+	history := client.NewConversationManager("default", "")
+	agent := agents.NewAgent(&agents.AgentOptions{
 		Name:        "Hello world agent",
-		Instruction: client.Prompt("You are helpful assistant."),
+		Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}", prompts.WithDefaultResolver(contextData)),
 		LLM:         model,
-		Tools:       []core.Tool{agentTool},
+		History:     history,
 	})
 
 	out, err := agent.Execute(context.Background(), []responses.InputMessageUnion{

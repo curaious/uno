@@ -69,9 +69,9 @@ The following example demonstrates an agent with conversation history:
 history := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd9472260b")
 
 // Create agent with history
-agent := client.NewAgent(&agents.AgentOptions{
+agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Chat Assistant",
-    Instruction: "You are a helpful assistant.",
+    Instruction: client.Prompt("You are a helpful assistant."),
     LLM:         client.NewLLM(sdk.LLMOptions{
         Provider: llm.ProviderNameOpenAI,
         Model:    "gpt-4o-mini",
@@ -89,9 +89,9 @@ if err != nil {
 
 fmt.Println("Response 1:", resp1[0].OfOutputMessage.Content[0].OfOutputText.Text)
 
-agent2 := client.NewAgent(&agents.AgentOptions{
+agent2 := client.NewAgent(&sdk.AgentOptions{
     Name:        "Chat Assistant",
-    Instruction: "You are a helpful assistant.",
+    Instruction: client.Prompt("You are a helpful assistant."),
     LLM:         model,
     History:     history,
 })

@@ -8,25 +8,23 @@ import (
 )
 
 type AgentOptions struct {
-	Name                string
-	LLM                 llm.Provider
-	Instruction         string
-	Tools               []core.Tool
-	Output              map[string]any
-	History             core.ChatHistory
-	Parameters          responses.Parameters
-	InstructionProvider core.SystemPromptProvider
+	Name        string
+	LLM         llm.Provider
+	Tools       []core.Tool
+	Output      map[string]any
+	History     core.ChatHistory
+	Parameters  responses.Parameters
+	Instruction core.SystemPromptProvider
 }
 
 func (c *SDK) NewAgent(options *AgentOptions) *agents.Agent {
 	return agents.NewAgent(&agents.AgentOptions{
-		Name:                options.Name,
-		LLM:                 options.LLM,
-		Instruction:         options.Instruction,
-		History:             options.History,
-		Parameters:          options.Parameters,
-		Output:              options.Output,
-		Tools:               options.Tools,
-		InstructionProvider: options.InstructionProvider,
+		Name:        options.Name,
+		LLM:         options.LLM,
+		History:     options.History,
+		Parameters:  options.Parameters,
+		Output:      options.Output,
+		Tools:       options.Tools,
+		Instruction: options.Instruction,
 	})
 }

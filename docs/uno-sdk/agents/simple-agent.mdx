@@ -7,7 +7,7 @@ You can create a simple agent like this:
 ```go
 agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Hello world agent",
-    Instruction: "You are helpful assistant. You greet user with a light-joke",
+    Instruction: client.Prompt("You are helpful assistant. You greet user with a light-joke"),
     LLM: client.NewLLM(sdk.LLMOptions{
         Provider: llm.ProviderNameOpenAI,
         Model:    "gpt-4o-mini",
