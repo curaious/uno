@@ -14,13 +14,21 @@ func NativeRequestToRequest(in *responses.Request) *Request {
 		in.MaxOutputTokens = utils.Ptr(512)
 	}
 
+	if in.MaxToolCalls != nil {
+		slog.Warn("max tool call is not supported for anthropic models")
+	}
+
+	if in.ParallelToolCalls != nil {
+		slog.Warn("parallel tool call is not supported for anthropic models")
+	}
+
 	out := &Request{
+		Temperature: in.Temperature,
 		MaxTokens:   *in.MaxOutputTokens,
+		TopP:        in.TopP,
+		TopK:        in.TopLogprobs,
 		Model:       in.Model,
 		Messages:    NativeMessagesToMessage(in.Input),
-		Temperature: in.Temperature,
-		TopK:        in.TopLogprobs,
-		TopP:        in.TopP,
 		Metadata:    in.Metadata,
 		Tools:       NativeToolsToTools(in.Tools),
 		Stream:      in.Stream,

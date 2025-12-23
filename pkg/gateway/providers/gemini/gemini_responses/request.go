@@ -13,6 +13,7 @@ type GenerationConfig struct {
 	MaxOutputTokens *int            `json:"maxOutputTokens,omitempty"`
 	Temperature     *float64        `json:"temperature,omitempty"`
 	TopP            *float64        `json:"topP,omitempty"`
+	TopK            *int64          `json:"topK,omitempty"`
 	ThinkingConfig  *ThinkingConfig `json:"thinkingConfig,omitempty"`
 
 	// Structured output
@@ -21,8 +22,9 @@ type GenerationConfig struct {
 }
 
 type ThinkingConfig struct {
-	IncludeThoughts *bool `json:"includeThoughts,omitempty"`
-	ThinkingBudget  *int  `json:"thinkingBudget,omitempty"`
+	IncludeThoughts *bool   `json:"includeThoughts,omitempty"`
+	ThinkingBudget  *int    `json:"thinkingBudget,omitempty"`
+	ThinkingLevel   *string `json:"thinkingLevel,omitempty"`
 }
 
 type Content struct {

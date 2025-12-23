@@ -18,19 +18,20 @@ type Request struct {
 }
 
 type Parameters struct {
-	Temperature       *float64          `json:"temperature,omitempty"`
-	TopP              *float64          `json:"top_p,omitempty"`
-	MaxOutputTokens   *int              `json:"max_output_tokens,omitempty"`
-	MaxToolCalls      *int              `json:"max_tool_calls,omitempty"`
-	ParallelToolCalls *bool             `json:"parallel_tool_calls,omitempty"`
-	TopLogprobs       *int64            `json:"top_logprobs,omitempty"`
-	Background        *bool             `json:"background,omitempty"`
-	Reasoning         *ReasoningParam   `json:"reasoning,omitempty"`
-	Store             *bool             `json:"store,omitempty"`
-	Include           []Includable      `json:"include,omitempty"`
-	Metadata          map[string]string `json:"metadata,omitempty"`
-	Stream            *bool             `json:"stream,omitempty"`
-	Text              *TextFormat       `json:"text,omitempty"`
+	Temperature     *float64          `json:"temperature,omitempty"`
+	MaxOutputTokens *int              `json:"max_output_tokens,omitempty"`
+	TopP            *float64          `json:"top_p,omitempty"`
+	TopLogprobs     *int64            `json:"top_logprobs,omitempty"`
+	Text            *TextFormat       `json:"text,omitempty"`
+	Background      *bool             `json:"background,omitempty"`
+	Reasoning       *ReasoningParam   `json:"reasoning,omitempty"`
+	Store           *bool             `json:"store,omitempty"`
+	Include         []Includable      `json:"include,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	Stream          *bool             `json:"stream,omitempty"`
+
+	MaxToolCalls      *int  `json:"max_tool_calls,omitempty"`
+	ParallelToolCalls *bool `json:"parallel_tool_calls,omitempty"`
 }
 
 type TextFormat struct {
@@ -57,8 +58,8 @@ const (
 )
 
 type ReasoningParam struct {
-	Summary      *string `json:"summary"`
-	Effort       *string `json:"effort"`
+	Summary      *string `json:"summary"` // "auto", "concise", "detailed"
+	Effort       *string `json:"effort"`  // "none", "minimal", "low", "medium", "high", "xhigh"
 	BudgetTokens *int    `json:",omitempty"`
 }
 

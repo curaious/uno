@@ -25,17 +25,21 @@ func (in *Request) ToNativeRequest() *responses.Request {
 			Background:      utils.Ptr(false),
 			MaxOutputTokens: &in.MaxTokens,
 			Temperature:     in.Temperature,
-			TopLogprobs:     in.TopK,
 			TopP:            in.TopP,
+			TopLogprobs:     in.TopK,
 			Metadata:        in.Metadata,
 			Stream:          in.Stream,
+			Include:         []responses.Includable{},
 		},
 	}
 
 	if in.Thinking != nil {
-		out.Reasoning = &responses.ReasoningParam{
-			Summary:      utils.Ptr("auto"),
-			BudgetTokens: in.Thinking.BudgetTokens,
+		if in.Thinking.Type != nil && *in.Thinking.Type == "enabled" {
+			out.Reasoning = &responses.ReasoningParam{
+				Summary:      utils.Ptr("auto"),
+				BudgetTokens: in.Thinking.BudgetTokens,
+			}
+			out.Include = append(out.Include, responses.IncludableReasoningEncryptedContent)
 		}
 	}
 

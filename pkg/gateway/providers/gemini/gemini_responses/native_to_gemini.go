@@ -2,7 +2,6 @@ package gemini_responses
 
 import (
 	"log/slog"
-	"slices"
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
@@ -11,24 +10,28 @@ import (
 )
 
 func ResponsesInputToGeminiResponsesInput(in *responses.Request) *Request {
+	if in.MaxToolCalls != nil {
+		slog.Warn("max tool call is not supported for anthropic models")
+	}
+
+	if in.ParallelToolCalls != nil {
+		slog.Warn("parallel tool call is not supported for anthropic models")
+	}
+
 	out := &Request{
 		Model:    in.Model,
 		Contents: NativeMessagesToMessages(in.Input),
 		GenerationConfig: &GenerationConfig{
-			MaxOutputTokens: in.MaxOutputTokens,
 			Temperature:     in.Temperature,
+			MaxOutputTokens: in.MaxOutputTokens,
 			TopP:            in.TopP,
+			TopK:            in.TopLogprobs,
 		},
 		Tools:  NativeToolsToTools(in.Tools),
 		Stream: in.Stream,
 	}
 
-	if in.Reasoning != nil {
-		out.GenerationConfig.ThinkingConfig = &ThinkingConfig{
-			IncludeThoughts: utils.Ptr(slices.Contains(in.Include, responses.IncludableReasoningEncryptedContent)),
-			ThinkingBudget:  in.Reasoning.BudgetTokens,
-		}
-	}
+	out.GenerationConfig.ThinkingConfig = NativeReasoningParamToGeminiThinkingConfig(in)
 
 	if in.Instructions != nil {
 		out.SystemInstruction = &Content{
@@ -42,14 +45,38 @@ func ResponsesInputToGeminiResponsesInput(in *responses.Request) *Request {
 	}
 
 	// Gemini doesn't allow structured outputs while also having tools
-	if in.Text != nil && in.Text.Format != nil && (in.Tools == nil || len(in.Tools) == 0) {
-		if schema, ok := in.Text.Format["schema"].(map[string]any); ok {
-			out.GenerationConfig.ResponseMimeType = utils.Ptr("application/json")
-			out.GenerationConfig.ResponseJsonSchema = schema
+	if in.Text != nil && in.Text.Format != nil {
+		if in.Tools == nil || len(in.Tools) == 0 {
+			if schema, ok := in.Text.Format["schema"].(map[string]any); ok {
+				out.GenerationConfig.ResponseMimeType = utils.Ptr("application/json")
+				out.GenerationConfig.ResponseJsonSchema = schema
+			}
+		} else {
+			slog.Warn("structured output is not supported while tools are provided")
 		}
 	}
 
 	return out
+}
+
+func NativeReasoningParamToGeminiThinkingConfig(in *responses.Request) *ThinkingConfig {
+	if in.Reasoning == nil {
+		return nil
+	}
+
+	var effort string // "LOW" or "HIGH"
+	switch *in.Reasoning.Effort {
+	case "none", "minimal", "low", "medium":
+		effort = "LOW"
+	case "high", "xhigh":
+		effort = "HIGH"
+	}
+
+	return &ThinkingConfig{
+		IncludeThoughts: utils.Ptr(true),
+		ThinkingBudget:  in.Reasoning.BudgetTokens,
+		ThinkingLevel:   utils.Ptr(effort),
+	}
 }
 
 func NativeRoleToRole(role constants.Role) Role {

@@ -34,14 +34,18 @@ func (in *Request) ToNativeRequest() *responses.Request {
 
 	includables := []responses.Includable{}
 	if in.GenerationConfig.ThinkingConfig != nil {
+		effort := "high"
+		if in.GenerationConfig.ThinkingConfig.ThinkingLevel != nil && *in.GenerationConfig.ThinkingConfig.ThinkingLevel != "HIGH" {
+			effort = "low"
+		}
+
 		out.Reasoning = &responses.ReasoningParam{
+			Effort:       &effort,
 			Summary:      utils.Ptr("auto"),
 			BudgetTokens: in.GenerationConfig.ThinkingConfig.ThinkingBudget,
 		}
 
-		if in.GenerationConfig.ThinkingConfig.IncludeThoughts != nil && *in.GenerationConfig.ThinkingConfig.IncludeThoughts {
-			includables = append(includables, responses.IncludableReasoningEncryptedContent)
-		}
+		includables = append(includables, responses.IncludableReasoningEncryptedContent)
 	}
 
 	if len(includables) > 0 {
