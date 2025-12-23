@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
-	"text/template"
 	"time"
 
 	json "github.com/bytedance/sonic"
@@ -274,13 +273,9 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 		reqCtx.Response.Header.Set("Cache-Control", "no-cache")
 		reqCtx.SetStatusCode(fasthttp.StatusOK)
 
-		instructionProvider := prompts.NewPromptManager(
-			adapters.NewInternalPromptPersistence(svc.Prompt, projectID),
-			agentConfig.PromptName,
-			promptLabel,
-			func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
-				return utils.ExecuteTemplate(tmpl, contextData)
-			},
+		instructionProvider := prompts.NewWithLoader(
+			adapters.NewInternalPromptPersistence(svc.Prompt, projectID, agentConfig.PromptName, promptLabel),
+			prompts.WithDefaultResolver(contextData),
 		)
 
 		conversationManagerOpts := []history.ConversationManagerOptions{
@@ -313,13 +308,9 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 					summarizerPromptLabel = *agentConfig.LLMSummarizerPromptLabel
 				}
 
-				summarizerInstructionProvider := prompts.NewPromptManager(
-					adapters.NewInternalPromptPersistence(svc.Prompt, projectID),
-					*agentConfig.SummarizerPromptName,
-					summarizerPromptLabel,
-					func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
-						return utils.ExecuteTemplate(tmpl, contextData)
-					},
+				summarizerInstructionProvider := prompts.NewWithLoader(
+					adapters.NewInternalPromptPersistence(svc.Prompt, projectID, *agentConfig.SummarizerPromptName, summarizerPromptLabel),
+					prompts.WithDefaultResolver(contextData),
 				)
 
 				tokenThreshold := 500

@@ -98,7 +98,7 @@ func (e *Agent) Execute(ctx context.Context, msgs []responses.InputMessageUnion,
 	if e.instruction != "" {
 		instruction = e.instruction
 	} else if e.instructionProvider != nil {
-		instruction, err = e.instructionProvider.GetPrompt(ctx, msgs)
+		instruction, err = e.instructionProvider.GetPrompt(ctx)
 		if err != nil {
 			return finalOutput, err
 		}

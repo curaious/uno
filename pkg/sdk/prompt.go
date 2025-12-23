@@ -1,47 +1,18 @@
 package sdk
 
 import (
-	"context"
-	"text/template"
-
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/prompts"
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
-type PromptTemplate struct {
-	Template string
+func (c *SDK) NewPrompt(prompt string, resolvers ...prompts.PromptResolverFn) *prompts.SimplePrompt {
+	return prompts.New(prompt, resolvers...)
 }
 
-func NewPromptTemplate(tmpl string) *PromptTemplate {
-	return &PromptTemplate{
-		Template: tmpl,
-	}
+func (c *SDK) NewRemotePrompt(name, label string, resolvers ...prompts.PromptResolverFn) *prompts.SimplePrompt {
+	return prompts.NewWithLoader(adapters.NewExternalPromptPersistence(c.endpoint, c.projectId, name, label), resolvers...)
 }
 
-func (p *PromptTemplate) Execute(ctx context.Context, data map[string]any) (string, error) {
-	tmpl, err := template.New("file_prompt").Parse(p.Template)
-	if err != nil {
-		return "", err
-	}
-
-	return utils.ExecuteTemplate(tmpl, data)
-}
-
-func (c *SDK) NewPromptManager(name string, label string, resolver core.SystemPromptResolver) core.SystemPromptProvider {
-	return prompts.NewPromptManager(
-		c.getPromptPersistence(),
-		name,
-		label,
-		resolver,
-	)
-}
-
-func (c *SDK) getPromptPersistence() prompts.PromptPersistence {
-	if c.endpoint == "" {
-		return nil
-	}
-
-	return adapters.NewExternalPromptPersistence(c.endpoint, c.projectId)
+func (c *SDK) NewCustomPrompt(loader prompts.PromptLoader, resolvers ...prompts.PromptResolverFn) *prompts.SimplePrompt {
+	return prompts.NewWithLoader(loader, resolvers...)
 }

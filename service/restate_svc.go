@@ -6,7 +6,6 @@ import (
 	"log"
 	"log/slog"
 	"sync"
-	"text/template"
 	"time"
 
 	json "github.com/bytedance/sonic"
@@ -229,13 +228,9 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	}
 
 	// Create instruction provider
-	instructionProvider := prompts.NewPromptManager(
-		adapters.NewInternalPromptPersistence(svc.Prompt, projectID),
-		agentConfig.PromptName,
-		promptLabel,
-		func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
-			return utils.ExecuteTemplate(tmpl, contextData)
-		},
+	instructionProvider := prompts.NewWithLoader(
+		adapters.NewInternalPromptPersistence(svc.Prompt, projectID, agentConfig.PromptName, promptLabel),
+		prompts.WithDefaultResolver(contextData),
 	)
 
 	// Build conversation manager options
@@ -454,13 +449,9 @@ func buildSummarizer(agentConfig *agent.AgentWithDetails, projectID uuid.UUID, v
 			summarizerPromptLabel = *agentConfig.LLMSummarizerPromptLabel
 		}
 
-		summarizerInstructionProvider := prompts.NewPromptManager(
-			adapters.NewInternalPromptPersistence(svc.Prompt, projectID),
-			*agentConfig.SummarizerPromptName,
-			summarizerPromptLabel,
-			func(tmpl *template.Template, msgs []responses.InputMessageUnion) (string, error) {
-				return utils.ExecuteTemplate(tmpl, contextData)
-			},
+		summarizerInstructionProvider := prompts.NewWithLoader(
+			adapters.NewInternalPromptPersistence(svc.Prompt, projectID, *agentConfig.SummarizerPromptName, summarizerPromptLabel),
+			prompts.WithDefaultResolver(contextData),
 		)
 
 		tokenThreshold := 500

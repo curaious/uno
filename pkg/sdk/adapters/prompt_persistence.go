@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"os"
 
 	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/integrations"
@@ -17,18 +16,22 @@ import (
 type ExternalPromptPersistence struct {
 	Endpoint  string
 	projectID uuid.UUID
+	name      string
+	label     string
 }
 
-func NewExternalPromptPersistence(endpoint string, projectID uuid.UUID) *ExternalPromptPersistence {
+func NewExternalPromptPersistence(endpoint string, projectID uuid.UUID, name string, label string) *ExternalPromptPersistence {
 	return &ExternalPromptPersistence{
 		Endpoint:  endpoint,
 		projectID: projectID,
+		name:      name,
+		label:     label,
 	}
 }
 
-func (p *ExternalPromptPersistence) GetPrompt(ctx context.Context, name string, label string) (string, error) {
+func (p *ExternalPromptPersistence) GetPrompt(ctx context.Context) (string, error) {
 	// Read the prompt from file
-	url := fmt.Sprintf("%s/api/agent-server/prompts/%s/label/%s?project_id=%s", p.Endpoint, name, label, p.projectID)
+	url := fmt.Sprintf("%s/api/agent-server/prompts/%s/label/%s?project_id=%s", p.Endpoint, p.name, p.label, p.projectID)
 
 	resp, err := http.DefaultClient.Get(url)
 	if err != nil {
@@ -46,19 +49,23 @@ func (p *ExternalPromptPersistence) GetPrompt(ctx context.Context, name string, 
 
 type LangfusePromptPersistence struct {
 	client *integrations.LangfuseClient
+	name   string
+	label  string
 }
 
-func NewLangfusePromptProvider(endpoint, username, password string) *LangfusePromptPersistence {
+func NewLangfusePromptProvider(endpoint, username, password string, name string, label string) *LangfusePromptPersistence {
 	client := integrations.NewLangfuseClient(endpoint, username, password)
 
 	return &LangfusePromptPersistence{
 		client: client,
+		name:   name,
+		label:  label,
 	}
 }
 
-func (p *LangfusePromptPersistence) GetPrompt(ctx context.Context, name string, label string) (string, error) {
+func (p *LangfusePromptPersistence) GetPrompt(ctx context.Context) (string, error) {
 	// Get the prompt from Langfuse
-	promptResp, err := p.client.GetPrompt(name, label)
+	promptResp, err := p.client.GetPrompt(p.name, p.label)
 	if err != nil {
 		return "", err
 	}
@@ -69,21 +76,4 @@ func (p *LangfusePromptPersistence) GetPrompt(ctx context.Context, name string, 
 	span.SetAttributes(attribute.Int("langfuse.observation.prompt.version", promptResp.Version))
 
 	return promptResp.Prompt, nil
-}
-
-type FilePromptPersistence struct {
-}
-
-func NewFilePromptPersistence() *FilePromptPersistence {
-	return &FilePromptPersistence{}
-}
-
-func (p *FilePromptPersistence) GetPrompt(ctx context.Context, name string, label string) (string, error) {
-	// Read the prompt from file
-	promptBytes, err := os.ReadFile(name)
-	if err != nil {
-		return "", err
-	}
-
-	return string(promptBytes), nil
 }

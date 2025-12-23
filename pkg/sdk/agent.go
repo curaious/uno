@@ -8,13 +8,14 @@ import (
 )
 
 type AgentOptions struct {
-	Name        string
-	LLM         llm.Provider
-	Instruction string
-	Tools       []core.Tool
-	Output      map[string]any
-	History     core.ChatHistory
-	Parameters  responses.Parameters
+	Name                string
+	LLM                 llm.Provider
+	Instruction         string
+	Tools               []core.Tool
+	Output              map[string]any
+	History             core.ChatHistory
+	Parameters          responses.Parameters
+	InstructionProvider core.SystemPromptProvider
 }
 
 func (c *SDK) NewAgent(options *AgentOptions) *agents.Agent {
@@ -26,6 +27,6 @@ func (c *SDK) NewAgent(options *AgentOptions) *agents.Agent {
 		Parameters:          options.Parameters,
 		Output:              options.Output,
 		Tools:               options.Tools,
-		InstructionProvider: nil,
+		InstructionProvider: options.InstructionProvider,
 	})
 }

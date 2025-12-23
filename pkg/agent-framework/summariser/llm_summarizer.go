@@ -143,7 +143,7 @@ func (s *LLMHistorySummarizer) Summarize(ctx context.Context, msgIdToRunId map[s
 	var instruction string
 	var err error
 	if s.instructionProvider != nil {
-		instruction, err = s.instructionProvider.GetPrompt(ctx, messagesToSummarize)
+		instruction, err = s.instructionProvider.GetPrompt(ctx)
 		if err != nil {
 			return nil, err
 		}
