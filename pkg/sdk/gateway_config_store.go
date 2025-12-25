@@ -13,19 +13,6 @@ type InMemoryConfigStore struct {
 	providerConfigs map[llm.ProviderName]*gateway.ProviderConfig
 }
 
-// ProviderOptions configures a provider for in-memory use
-type ProviderConfig struct {
-	ProviderName  llm.ProviderName
-	BaseURL       string
-	CustomHeaders map[string]string
-	Keys          []*ProviderKey
-}
-
-type ProviderKey struct {
-	Name string
-	Key  string
-}
-
 // NewInMemoryConfigStore creates a config store with full provider options.
 func NewInMemoryConfigStore(configs []*gateway.ProviderConfig) *InMemoryConfigStore {
 	store := &InMemoryConfigStore{
