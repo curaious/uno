@@ -32,10 +32,11 @@ type CommonConversationManager struct {
 	msgIdToRunId   map[string]string
 	threadId       string
 
-	convMessages []conversation.ConversationMessage
-	oldMessages  []responses.InputMessageUnion
-	newMessages  []responses.InputMessageUnion
-	usage        *responses.Usage
+	convMessages    []conversation.ConversationMessage
+	oldMessages     []responses.InputMessageUnion
+	newMessages     []responses.InputMessageUnion
+	usage           *responses.Usage
+	lastMessageMeta map[string]any
 
 	summarizer core.HistorySummarizer
 	summaries  *core.SummaryResult
@@ -62,12 +63,6 @@ type ConversationManagerOptions func(*CommonConversationManager)
 func WithConversationID(conversationId string) ConversationManagerOptions {
 	return func(cm *CommonConversationManager) {
 		cm.conversationId = conversationId
-	}
-}
-
-func WithMessageID(msgId string) ConversationManagerOptions {
-	return func(cm *CommonConversationManager) {
-		cm.msgId = msgId
 	}
 }
 
@@ -157,6 +152,22 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 
 			sonic.Unmarshal(b, &usage)
 		}
+
+		// Store the most recent message's meta for run state loading
+		// The last message in the chain contains the current run state
+		if msg.Meta != nil {
+			cm.lastMessageMeta = msg.Meta
+		}
+	}
+
+	// Initialize lastMessageMeta if no messages were found
+	if cm.lastMessageMeta == nil {
+		cm.lastMessageMeta = make(map[string]any)
+	} else {
+		runState := core.LoadRunStateFromMeta(cm.lastMessageMeta)
+		if !runState.IsComplete() {
+			cm.msgId = cm.previousMsgId
+		}
 	}
 
 	cm.convMessages = convMessages
@@ -164,6 +175,16 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 	cm.usage = usage
 
 	return messages, nil
+}
+
+// GetMeta returns the meta from the most recent message
+func (cm *CommonConversationManager) GetMeta() map[string]any {
+	return cm.lastMessageMeta
+}
+
+// GetMessageID returns the current run id
+func (cm *CommonConversationManager) GetMessageID() string {
+	return cm.msgId
 }
 
 func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[string]any) error {
@@ -176,11 +197,6 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 		attribute.Int("new_messages_count", len(cm.newMessages)),
 		attribute.Bool("has_summary", cm.summaries != nil),
 	)
-
-	if cm.ConversationPersistenceAdapter == nil {
-		span.SetAttributes(attribute.Bool("persistence_nil", true))
-		return nil
-	}
 
 	if cm.summaries != nil {
 		sum := conversation.Summary{
@@ -197,24 +213,33 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 			sum.SummaryMessage = *cm.summaries.Summary
 		}
 
-		err := cm.ConversationPersistenceAdapter.SaveSummary(ctx, cm.namespace, sum)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			return err
+		if cm.ConversationPersistenceAdapter != nil {
+			err := cm.ConversationPersistenceAdapter.SaveSummary(ctx, cm.namespace, sum)
+			if err != nil {
+				span.RecordError(err)
+				span.SetStatus(codes.Error, err.Error())
+				return err
+			}
 		}
 
 		cm.summaries = nil
 	}
 
-	err := cm.ConversationPersistenceAdapter.SaveMessages(ctx, cm.namespace, cm.msgId, cm.previousMsgId, cm.conversationId, cm.newMessages, meta)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return err
+	if cm.ConversationPersistenceAdapter != nil {
+		err := cm.ConversationPersistenceAdapter.SaveMessages(ctx, cm.namespace, cm.msgId, cm.previousMsgId, cm.conversationId, cm.newMessages, meta)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
 	}
 
-	cm.msgId = uuid.NewString()
+	runState := core.LoadRunStateFromMeta(meta)
+	if runState.IsComplete() {
+		cm.msgId = uuid.NewString()
+	}
+
+	cm.lastMessageMeta = meta
 	cm.oldMessages = append(cm.oldMessages, cm.newMessages...)
 	cm.newMessages = []responses.InputMessageUnion{}
 

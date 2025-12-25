@@ -51,36 +51,20 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 
 		var ctx context.Context
 		var span trace.Span
-		if messageUUID, err := uuid.Parse(reqPayload.MessageID); err == nil {
-			// Convert UUID bytes to trace ID (UUID is 16 bytes, same as trace ID)
-			var traceIDBytes [16]byte
-			copy(traceIDBytes[:], messageUUID[:])
-			traceID := trace.TraceID(traceIDBytes)
-
-			// Create a new span context with the custom trace ID
-			spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-				TraceID:    traceID,
-				TraceFlags: trace.FlagsSampled,
-			})
-			ctx = trace.ContextWithSpanContext(baseCtx, spanCtx)
-			ctx, span = tracer.Start(ctx, "Controller.Converse")
-		} else {
-			// Fallback to auto-generated trace ID if message_id is not a valid UUID
-			ctx, span = tracer.Start(baseCtx, "Controller.Converse")
-		}
+		ctx, span = tracer.Start(baseCtx, "Controller.Converse")
+		traceID := span.SpanContext().TraceID().String()
+		reqCtx.Response.Header.Set("X-Trace-Id", traceID)
 
 		span.SetAttributes(
 			attribute.String("project_id", projectIDStr),
 			attribute.String("agent_name", agentName),
 			attribute.String("namespace", reqPayload.Namespace),
-			attribute.String("message_id", reqPayload.MessageID),
 			attribute.String("session_id", reqPayload.SessionID),
 		)
 
 		in := service.AgentRunInput{
 			Message:           reqPayload.Message,
 			Namespace:         reqPayload.Namespace,
-			MessageID:         reqPayload.MessageID,
 			PreviousMessageID: reqPayload.PreviousMessageID,
 			Context:           reqPayload.Context,
 			SessionID:         reqPayload.SessionID,
@@ -117,7 +101,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 		otel.GetTextMapPropagator().Inject(ctx, carrier)
 
 		ctx, cancel := context.WithCancel(ctx)
-		channel := "stream:" + in.MessageID
+		channel := "stream:" + uuid.New().String()
 		ps := redisClient.Subscribe(reqCtx, channel)
 
 		restateClient := ingress.NewClient("http://localhost:8081")
@@ -126,7 +110,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 			defer cancel()
 			// To call a service
 			_, err := ingress.Workflow[*service.AgentRunInput, *service.AgentRunOutput](
-				restateClient, "AgentWorkflow", in.MessageID, "Run").
+				restateClient, "AgentWorkflow", channel, "Run").
 				Request(ctx, &in, restate.WithHeaders(carrier))
 			if err != nil {
 				return

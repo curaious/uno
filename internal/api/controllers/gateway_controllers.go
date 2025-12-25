@@ -10,7 +10,6 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/fasthttp/router"
-	"github.com/praveen001/uno/internal/adapters"
 	"github.com/praveen001/uno/internal/perrors"
 	"github.com/praveen001/uno/internal/services"
 	"github.com/praveen001/uno/internal/utils"
@@ -23,9 +22,7 @@ import (
 	"go.opentelemetry.io/otel/codes"
 )
 
-func RegisterGatewayRoutes(r *router.Group, svc *services.Services) {
-	llmGateway := gateway.NewLLMGateway(adapters.NewServiceConfigStore(svc.Provider, svc.VirtualKey))
-
+func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *gateway.LLMGateway) {
 	r.Handle(http.MethodPost, "/responses", func(reqCtx *fasthttp.RequestCtx) {
 		stdCtx := requestContext(reqCtx)
 

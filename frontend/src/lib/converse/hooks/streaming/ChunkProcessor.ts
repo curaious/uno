@@ -25,13 +25,12 @@ export class ChunkProcessor {
   constructor(
     conversationId: string,
     threadId: string,
-    messageId: string,
     onChange: OnChangeCallback
   ) {
     this.conversation = {
       conversation_id: conversationId,
       thread_id: threadId,
-      message_id: messageId,
+      message_id: '',
       messages: [],
       meta: {},
     };
@@ -64,7 +63,12 @@ export class ChunkProcessor {
     switch (chunk.type) {
       // Run lifecycle
       case ChunkType.ChunkTypeRunCreated:
+      case ChunkType.ChunkTypeRunInProgress:
       case ChunkType.ChunkTypeRunCompleted:
+      case ChunkType.ChunkTypeRunPaused:
+        this.conversation.meta.run_state = chunk.run_state;
+        this.conversation.message_id = chunk.run_state!.id;
+        this.emitChange();
         break;
 
       // Response lifecycle

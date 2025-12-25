@@ -17,7 +17,7 @@ var tracer = otel.Tracer("LLMGateway")
 // - ExternalConfigStore (in gateway_adapter): for SDK consumers calling agent-server API
 type ConfigStore interface {
 	// GetProviderConfig returns provider configuration and associated API keys.
-	GetProviderConfig(providerName llm.ProviderName) (*ProviderConfig, []*APIKeyConfig, error)
+	GetProviderConfig(providerName llm.ProviderName) (*ProviderConfig, error)
 
 	// GetVirtualKey returns virtual key configuration for access control.
 	GetVirtualKey(secretKey string) (*VirtualKeyConfig, error)

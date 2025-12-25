@@ -11,7 +11,7 @@ import { SlideDialog } from "../../components/shared/Dialog";
 import Editor from "@monaco-editor/react";
 import { STORAGE_KEY } from "../../contexts/ProjectContext";
 import { useConversation, ConverseConfig } from "../../lib/converse/hooks";
-import {Usage} from "../../lib/converse/types/types";
+import {MessageUnion, Usage} from "../../lib/converse/types/types";
 
 export const ChatPage: React.FC = () => {
   const namespace = 'ns';
@@ -57,7 +57,7 @@ export const ChatPage: React.FC = () => {
     loadAgents();
   }, []);
 
-  const onUserMessage = (text: string) => {
+  const onUserMessage = (userMessages: MessageUnion[]) => {
     // Get project_id from localStorage
     let projectId: string | null = null;
     try {
@@ -89,7 +89,7 @@ export const ChatPage: React.FC = () => {
       headers: parsedHeaders,
     };
 
-    sendMessage(text, config);
+    sendMessage(userMessages, config);
   };
 
   console.log("All", allMessages)

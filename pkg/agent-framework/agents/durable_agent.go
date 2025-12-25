@@ -77,7 +77,7 @@ func NewDurableAgent(opts *DurableAgentOptions) (*DurableAgent, error) {
 
 // Execute runs the agent with durable execution.
 // Each LLM call and tool execution is checkpointed.
-func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessageUnion, cb func(chunk *responses.ResponseChunk)) ([]responses.OutputMessageUnion, error) {
+func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessageUnion, cb func(chunk *responses.ResponseChunk)) (*ExecutionResult, error) {
 	ctx, span := tracer.Start(ctx, "DurableAgent.Execute")
 	defer span.End()
 
@@ -97,7 +97,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	_, err = e.history.LoadMessages(ctx)
 	if err != nil {
 		span.RecordError(err)
-		return finalOutput, err
+		return &ExecutionResult{Status: core.RunStatusError}, err
 	}
 
 	// Add the incoming new message to the conversation
@@ -110,7 +110,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	} else if e.instructionProvider != nil {
 		instruction, err = e.instructionProvider.GetPrompt(ctx)
 		if err != nil {
-			return finalOutput, err
+			return &ExecutionResult{Status: core.RunStatusError}, err
 		}
 	}
 
@@ -122,8 +122,8 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	}
 
 	cb(&responses.ResponseChunk{
-		OfRunCreated: &responses.ChunkResponse[constants.ChunkTypeRunCreated]{
-			Response: responses.ChunkResponseData{
+		OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
+			RunState: responses.ChunkRunData{
 				Object: "run",
 			},
 		},
@@ -137,14 +137,14 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		// Check for cancellation
 		if cancelled, ok, _ := e.executor.Get(ctx, "cancelled"); ok && cancelled.(bool) {
 			slog.InfoContext(ctx, "agent execution cancelled")
-			return finalOutput, fmt.Errorf("execution cancelled")
+			return &ExecutionResult{Status: core.RunStatusError}, fmt.Errorf("execution cancelled")
 		}
 
 		// Get the messages from the conversation history
 		convMessages, err := e.history.GetMessages(ctx)
 		if err != nil {
 			span.RecordError(err)
-			return finalOutput, err
+			return &ExecutionResult{Status: core.RunStatusError}, err
 		}
 
 		// DURABLE CHECKPOINT: LLM Call
@@ -159,7 +159,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 				Parameters: e.parameters,
 			})
 			if err != nil {
-				return finalOutput, err
+				return nil, err
 			}
 
 			acc := Accumulator{}
@@ -203,7 +203,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 
 			args := map[string]interface{}{}
 			if err := sonic.Unmarshal([]byte(msg.OfFunctionCall.Arguments), &args); err != nil {
-				return finalOutput, err
+				return &ExecutionResult{Status: core.RunStatusError}, err
 			}
 
 			for _, tool := range e.tools {
@@ -250,7 +250,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			inputMsg, err := outMsg.AsInput()
 			if err != nil {
 				slog.ErrorContext(ctx, "output msg conversion failed", slog.Any("error", err))
-				return finalOutput, err
+				return &ExecutionResult{Status: core.RunStatusError}, err
 			}
 			inputMsgs = append(inputMsgs, inputMsg)
 		}
@@ -283,8 +283,8 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 
 	// Run end
 	cb(&responses.ResponseChunk{
-		OfRunCreated: &responses.ChunkResponse[constants.ChunkTypeRunCreated]{
-			Response: responses.ChunkResponseData{
+		OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
+			RunState: responses.ChunkRunData{
 				Object: "run",
 				Usage:  runUsage,
 			},
@@ -292,7 +292,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	})
 
 	if loopCount >= e.maxLoops {
-		return finalOutput, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
+		return &ExecutionResult{Status: core.RunStatusError}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
 	}
 
 	// Save the conversation history
@@ -301,10 +301,13 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	})
 	if err != nil {
 		span.RecordError(err)
-		return finalOutput, err
+		return &ExecutionResult{Status: core.RunStatusError}, err
 	}
 
-	return finalOutput, nil
+	return &ExecutionResult{
+		Status: core.RunStatusCompleted,
+		Output: finalOutput,
+	}, nil
 }
 
 // Cancel signals the agent to stop execution.

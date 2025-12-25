@@ -54,7 +54,7 @@ func (g *LLMGateway) getProvider(ctx context.Context, providerName llm.ProviderN
 			return nil, err
 		}
 
-		providerConfig, providerKeys, err := g.ConfigStore.GetProviderConfig(providerName)
+		providerConfig, err := g.ConfigStore.GetProviderConfig(providerName)
 		if err != nil {
 			err = errors.New("failed to get provider config")
 			span.RecordError(err)
@@ -65,16 +65,16 @@ func (g *LLMGateway) getProvider(ctx context.Context, providerName llm.ProviderN
 		if providerConfig != nil {
 			baseUrl = providerConfig.BaseURL
 			customHeaders = providerConfig.CustomHeaders
-		}
 
-		// TODO: add support for key rotation
-		if len(providerKeys) > 0 {
-			directKey = providerKeys[0].APIKey
+			// Todo: support for key rotation
+			if len(providerConfig.ApiKeys) > 0 {
+				directKey = providerConfig.ApiKeys[0].APIKey
+			}
 		}
 	} else {
 		directKey = key
 
-		providerConfig, _, err := g.ConfigStore.GetProviderConfig(providerName)
+		providerConfig, err := g.ConfigStore.GetProviderConfig(providerName)
 		if err != nil {
 			err = errors.New("failed to get provider config")
 			span.RecordError(err)

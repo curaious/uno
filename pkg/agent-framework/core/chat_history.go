@@ -18,4 +18,10 @@ type ChatHistory interface {
 
 	// SaveMessages saves the messages to persistent storage
 	SaveMessages(ctx context.Context, meta map[string]any) error
+
+	// GetMeta returns the meta from the most recent message
+	GetMeta() map[string]any
+
+	// GetMessageID returns the current run id
+	GetMessageID() string
 }

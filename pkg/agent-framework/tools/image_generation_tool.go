@@ -3,11 +3,12 @@ package tools
 import (
 	"context"
 
+	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
 type ImageGenerationTool struct {
-	*responses.ToolUnion
+	*core.BaseTool
 }
 
 func NewImageGenerationTool() *ImageGenerationTool {

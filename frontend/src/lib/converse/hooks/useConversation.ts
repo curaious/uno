@@ -3,7 +3,12 @@ import {v4 as uuidv4} from 'uuid';
 import {api} from '../../../api';
 import {ChunkProcessor, ConversationMessage, ConverseConfig} from './streaming';
 import {streamSSE} from './useSSEStream';
-import {ContentType, Conversation, InputMessage, MessageType, Role, Thread} from '../types/types';
+import {
+  Conversation,
+  MessageType,
+  MessageUnion,
+  Thread
+} from '../types/types';
 
 export interface UseConversationOptions {
   namespace: string;
@@ -40,7 +45,7 @@ export interface UseConversationReturn {
   selectThread: (threadId: string) => void;
   
   // Actions - Messages
-  sendMessage: (text: string, config: ConverseConfig) => Promise<void>;
+  sendMessage: (userMessages: MessageUnion[], config: ConverseConfig) => Promise<void>;
   
   // Actions - Utility
   startNewChat: () => void;
@@ -187,37 +192,29 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   /**
    * Send a user message and stream the response
    */
-  const sendMessage = useCallback(async (text: string, config: ConverseConfig) => {
+  const sendMessage = useCallback(async (userMessages: MessageUnion[], config: ConverseConfig) => {
     const messageId = uuidv4();
 
-    // Create the user message
-    const userMessage: InputMessage = {
-      id: `msg_` + uuidv4(),
-      type: MessageType.Message,
-      role: Role.User,
-      content: [
-        {
-          type: ContentType.InputText,
-          text,
-        }
-      ],
-    };
+    // Check if this is a tool approval response (resuming a run)
+    const isToolApproval = userMessages.length === 1 && 
+      userMessages[0].type === MessageType.FunctionCallApprovalResponse;
 
-    // Add user message to state immediately for responsive UI
-    const userConversation: ConversationMessage = {
-      conversation_id: currentConversationId || '',
-      thread_id: currentThreadId || '',
-      message_id: messageId + '-user',
-      messages: [userMessage],
-      meta: {},
-    };
-    setMessages(prev => [...prev, userConversation]);
+    // Only add user message for regular messages, not for tool approvals
+    if (!isToolApproval) {
+      const userConversation: ConversationMessage = {
+        conversation_id: currentConversationId || '',
+        thread_id: currentThreadId || '',
+        message_id: messageId + '-user',
+        messages: userMessages,
+        meta: {},
+      };
+      setMessages(prev => [...prev, userConversation]);
+    }
 
     // Initialize the chunk processor for the assistant response
     processorRef.current = new ChunkProcessor(
       currentConversationId || '',
       currentThreadId || '',
-      messageId,
       (conversation) => {
         setStreamingMessage({ ...conversation, isStreaming: true });
       }
@@ -237,9 +234,8 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     // Prepare request body
     const body = JSON.stringify({
       namespace: config.namespace,
-      message_id: messageId,
       previous_message_id: previousMessageId,
-      message: userMessage,
+      message: userMessages[0],
       context: config.context || {},
     });
 
@@ -268,8 +264,29 @@ export function useConversation(options: UseConversationOptions): UseConversatio
             // Move streaming message to messages list
             if (processorRef.current) {
               const finalConversation = processorRef.current.getConversation();
-              setMessages(prev => [...prev, { ...finalConversation, isStreaming: false }]);
+              
+              if (isToolApproval) {
+                // For tool approvals, update the last message instead of appending
+                // This removes the pending_tool_calls UI and appends the tool results
+                setMessages(prev => {
+                  const newMessages = [...prev];
+                  if (newMessages.length > 0) {
+                    const lastMsg = newMessages[newMessages.length - 1];
+                    newMessages[newMessages.length - 1] = {
+                      ...lastMsg,
+                      messages: [...lastMsg.messages, ...finalConversation.messages],
+                      meta: finalConversation.meta, // Update meta to clear pending_tool_calls
+                      isStreaming: false,
+                    };
+                  }
+                  return newMessages;
+                });
+              } else {
+                setMessages(prev => [...prev, { ...finalConversation, isStreaming: false }]);
+              }
+              
               setStreamingMessage(null);
+              setPreviousMessageId(finalConversation.message_id);
             }
           },
           onError: (error) => {
@@ -280,13 +297,10 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         abortControllerRef.current.signal
       );
 
-      // Update previous message ID for next message
-      setPreviousMessageId(messageId);
-
       // If this was a new conversation, fetch the conversation info
       if (previousMessageId === '') {
         try {
-          const response = await api.get(`/messages/${messageId}`, {
+          const response = await api.get(`/messages/${processorRef.current.getConversation().message_id}`, {
             params: { namespace },
           });
           const newConversationId = response.data.data?.conversation_id;

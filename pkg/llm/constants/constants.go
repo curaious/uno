@@ -45,6 +45,18 @@ func (m *MessageTypeFunctionCall) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type MessageTypeFunctionCallApprovalResponse string
+
+func (m *MessageTypeFunctionCallApprovalResponse) Value() string {
+	return "function_call_approval_response"
+}
+func (m *MessageTypeFunctionCallApprovalResponse) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *MessageTypeFunctionCallApprovalResponse) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 type MessageTypeFunctionCallOutput string
 
 func (m *MessageTypeFunctionCallOutput) Value() string { return "function_call_output" }
@@ -147,6 +159,22 @@ type ChunkTypeRunCreated string
 func (m *ChunkTypeRunCreated) Value() string                { return "run.created" }
 func (m *ChunkTypeRunCreated) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
 func (m *ChunkTypeRunCreated) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeRunInProgress string
+
+func (m *ChunkTypeRunInProgress) Value() string                { return "run.in_progress" }
+func (m *ChunkTypeRunInProgress) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
+func (m *ChunkTypeRunInProgress) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeRunPaused string
+
+func (m *ChunkTypeRunPaused) Value() string                { return "run.paused" }
+func (m *ChunkTypeRunPaused) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
+func (m *ChunkTypeRunPaused) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 

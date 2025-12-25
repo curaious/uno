@@ -99,13 +99,14 @@ func (u *InputUnion) MarshalJSON() ([]byte, error) {
 type InputMessageList []InputMessageUnion
 
 type InputMessageUnion struct {
-	OfEasyInput           *EasyMessage                `json:",omitempty"`
-	OfInputMessage        *InputMessage               `json:",omitempty"`
-	OfOutputMessage       *OutputMessage              `json:",omitempty"`
-	OfFunctionCall        *FunctionCallMessage        `json:",omitempty"`
-	OfFunctionCallOutput  *FunctionCallOutputMessage  `json:",omitempty"`
-	OfReasoning           *ReasoningMessage           `json:",omitempty"`
-	OfImageGenerationCall *ImageGenerationCallMessage `json:",omitempty,inline"`
+	OfEasyInput                    *EasyMessage                         `json:",omitempty"`
+	OfInputMessage                 *InputMessage                        `json:",omitempty"`
+	OfOutputMessage                *OutputMessage                       `json:",omitempty"`
+	OfFunctionCall                 *FunctionCallMessage                 `json:",omitempty"`
+	OfFunctionCallApprovalResponse *FunctionCallApprovalResponseMessage `json:",omitempty"`
+	OfFunctionCallOutput           *FunctionCallOutputMessage           `json:",omitempty"`
+	OfReasoning                    *ReasoningMessage                    `json:",omitempty"`
+	OfImageGenerationCall          *ImageGenerationCallMessage          `json:",omitempty,inline"`
 	//OfFileSearchCall       *ResponseFileSearchToolCallParam            `json:",omitempty,inline"`
 	//OfComputerCall         *ResponseComputerToolCallParam              `json:",omitempty,inline"`
 	//OfComputerCallOutput   *ResponseInputItemComputerCallOutputParam   `json:",omitempty,inline"`
@@ -137,6 +138,10 @@ func (u *InputMessageUnion) ID() string {
 
 	if u.OfFunctionCall != nil {
 		return u.OfFunctionCall.ID
+	}
+
+	if u.OfFunctionCallApprovalResponse != nil {
+		return u.OfFunctionCallApprovalResponse.ID
 	}
 
 	if u.OfFunctionCallOutput != nil {
@@ -179,6 +184,12 @@ func (u *InputMessageUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var fnCallApprovalResponse FunctionCallApprovalResponseMessage
+	if err := sonic.Unmarshal(data, &fnCallApprovalResponse); err == nil {
+		u.OfFunctionCallApprovalResponse = &fnCallApprovalResponse
+		return nil
+	}
+
 	var fnCallOutputMsg FunctionCallOutputMessage
 	if err := sonic.Unmarshal(data, &fnCallOutputMsg); err == nil {
 		u.OfFunctionCallOutput = &fnCallOutputMsg
@@ -217,6 +228,10 @@ func (u *InputMessageUnion) MarshalJSON() ([]byte, error) {
 		return sonic.Marshal(u.OfFunctionCall)
 	}
 
+	if u.OfFunctionCallApprovalResponse != nil {
+		return sonic.Marshal(u.OfFunctionCallApprovalResponse)
+	}
+
 	if u.OfFunctionCallOutput != nil {
 		return sonic.Marshal(u.OfFunctionCallOutput)
 	}
@@ -252,6 +267,13 @@ type FunctionCallMessage struct {
 	CallID    string                            `json:"call_id,omitempty"`
 	Name      string                            `json:"name"`
 	Arguments string                            `json:"arguments"`
+}
+
+type FunctionCallApprovalResponseMessage struct {
+	Type            constants.MessageTypeFunctionCallApprovalResponse `json:"type"`
+	ID              string                                            `json:"id"`
+	ApprovedCallIds []string                                          `json:"approved_call_ids"`
+	RejectedCallIds []string                                          `json:"rejected_call_ids"`
 }
 
 type FunctionCallOutputMessage struct {

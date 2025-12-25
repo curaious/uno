@@ -51,7 +51,8 @@
                     "pages": [
                       "uno-sdk/agents/tools/function-tools",
                       "uno-sdk/agents/tools/mcp-tools",
-                      "uno-sdk/agents/tools/agent-as-a-tool"
+                      "uno-sdk/agents/tools/agent-as-a-tool",
+                      "uno-sdk/agents/tools/human-in-the-loop"
                     ]
                   },
                   {
@@ -60,6 +61,13 @@
                     "pages": [
                       "uno-sdk/agents/conversations/history",
                       "uno-sdk/agents/conversations/summarization"
+                    ]
+                  },
+                  {
+                    "group": "Durable Execution",
+                    "expanded": true,
+                    "pages": [
+                      "uno-sdk/agents/durable/restate"
                     ]
                   }
                 ]
@@ -87,19 +95,6 @@
                         "gateway/integrations/anthropic",
                         "gateway/integrations/gemini"
                       ]
-                    }
-                ]
-            },
-            {
-                "tab": "Agent Server",
-                "icon": "robot",
-                "groups": [
-                    {
-                        "group": "Getting started",
-                        "icon": "rocket",
-                        "pages": [
-                            "agent-server/welcome"
-                        ]
                     }
                 ]
             },

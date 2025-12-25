@@ -42,15 +42,12 @@ var (
 type ConverseRequest struct {
 	Message           responses.InputMessageUnion `json:"message" doc:"User message"`
 	Namespace         string                      `json:"namespace" doc:"Namespace ID"`
-	MessageID         string                      `json:"message_id" required:"true" doc:"MessageID"`
 	PreviousMessageID string                      `json:"previous_message_id" doc:"Previous run ID for threading"`
 	Context           map[string]any              `json:"context" doc:"Context to pass to prompt template"`
 	SessionID         string                      `json:"session_id" required:"true" doc:"Session ID"`
 }
 
-func RegisterConverseRoute(r *router.Router, svc *services.Services) {
-	llmGateway := gateway.NewLLMGateway(adapters.NewServiceConfigStore(svc.Provider, svc.VirtualKey))
-
+func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway) {
 	r.POST("/api/agent-server/converse", func(reqCtx *fasthttp.RequestCtx) {
 		baseCtx := requestContext(reqCtx)
 
@@ -82,29 +79,14 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 		// This allows direct lookup of traces by message_id
 		var ctx context.Context
 		var span trace.Span
-		if messageUUID, err := uuid.Parse(reqPayload.MessageID); err == nil {
-			// Convert UUID bytes to trace ID (UUID is 16 bytes, same as trace ID)
-			var traceIDBytes [16]byte
-			copy(traceIDBytes[:], messageUUID[:])
-			traceID := trace.TraceID(traceIDBytes)
-
-			// Create a new span context with the custom trace ID
-			spanCtx := trace.NewSpanContext(trace.SpanContextConfig{
-				TraceID:    traceID,
-				TraceFlags: trace.FlagsSampled,
-			})
-			ctx = trace.ContextWithSpanContext(baseCtx, spanCtx)
-			ctx, span = tracer.Start(ctx, "Controller.Converse")
-		} else {
-			// Fallback to auto-generated trace ID if message_id is not a valid UUID
-			ctx, span = tracer.Start(baseCtx, "Controller.Converse")
-		}
+		ctx, span = tracer.Start(baseCtx, "Controller.Converse")
+		traceID := span.SpanContext().TraceID().String()
+		reqCtx.Response.Header.Set("X-Trace-Id", traceID)
 
 		span.SetAttributes(
 			attribute.String("project_id", projectIDStr),
 			attribute.String("agent_name", agentName),
 			attribute.String("namespace", reqPayload.Namespace),
-			attribute.String("message_id", reqPayload.MessageID),
 			attribute.String("session_id", reqPayload.SessionID),
 		)
 
@@ -260,8 +242,8 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 				toolFilters = agentMCP.ToolFilters
 			}
 
-			tools := mcpServer.GetTools(toolFilters...)
-			allTools = append(allTools, tools...)
+			mcpTools := mcpServer.GetTools(tools.WithMcpToolFilter(toolFilters...), tools.WithMcpApprovalRequiredTools("list_enumerations"))
+			allTools = append(allTools, mcpTools...)
 		}
 
 		promptLabel := "latest"
@@ -278,9 +260,7 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services) {
 			prompts.WithDefaultResolver(contextData),
 		)
 
-		conversationManagerOpts := []history.ConversationManagerOptions{
-			history.WithMessageID(reqPayload.MessageID),
-		}
+		conversationManagerOpts := []history.ConversationManagerOptions{}
 
 		var summarizer core.HistorySummarizer
 		if agentConfig.EnableHistory && agentConfig.SummarizerType != nil && *agentConfig.SummarizerType != "none" {

@@ -12,7 +12,8 @@ export enum MessageType {
   FunctionCall = "function_call",
   FunctionCallOutput = "function_call_output",
   Reasoning = "reasoning",
-  ImageGenerationCall = "image_generation_call"
+  ImageGenerationCall = "image_generation_call",
+  FunctionCallApprovalResponse = "function_call_approval_response",
 }
 
 // Content Types
@@ -26,6 +27,8 @@ export enum ContentType {
 // Chunk Types
 export enum ChunkType {
   ChunkTypeRunCreated = "run.created",
+  ChunkTypeRunInProgress = "run.in_progress",
+  ChunkTypeRunPaused = "run.paused",
   ChunkTypeRunCompleted = "run.completed",
   ChunkTypeResponseCreated = "response.created",
   ChunkTypeResponseInProgress = "response.in_progress",
@@ -77,7 +80,7 @@ export interface ConversationMessage {
   thread_id: string;
   message_id: string;
   messages: MessageUnion[];
-  meta: Record<string, unknown>;
+  meta: Record<string, any>;
   isStreaming?: boolean;
 }
 
@@ -87,6 +90,7 @@ export type MessageUnion =
   | InputMessage
   | OutputMessage
   | FunctionCallMessage
+  | FunctionCallApprovalResponseMessage
   | FunctionCallOutputMessage
   | ReasoningMessage
   | ImageGenerationCallMessage;
@@ -118,6 +122,13 @@ export interface FunctionCallMessage {
   call_id?: string;
   name: string;
   arguments: string;
+}
+
+export interface FunctionCallApprovalResponseMessage {
+  type: MessageType.FunctionCallApprovalResponse;
+  id: string;
+  approved_call_ids: string[];
+  rejected_call_ids: string[];
 }
 
 export interface FunctionCallOutputMessage {
@@ -193,6 +204,9 @@ export interface ResponseChunk {
   type: ChunkType;
   sequence_number: number;
 
+  // Only on run items
+  run_state?: ChunkRunData;
+
   // Only on response items
   response?: ChunkResponseData;
 
@@ -230,6 +244,15 @@ export interface ResponseChunk {
   quality?: string;
   size?: string;
   status?: string;
+}
+
+export interface ChunkRunData {
+  id: string;
+  object: "run";
+  status: "created" | "in_progress" | "paused" | "resumed" | "completed" | "aborted";
+  pending_tool_calls: FunctionCallMessage[];
+  usage: ChunkResponseUsage;
+  traceid: string;
 }
 
 export interface ChunkResponseData {

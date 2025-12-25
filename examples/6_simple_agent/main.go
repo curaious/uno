@@ -9,6 +9,7 @@ import (
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/prompts"
+	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/praveen001/uno/pkg/sdk"
@@ -16,15 +17,15 @@ import (
 
 func main() {
 	client, err := sdk.New(&sdk.ClientOptions{
-		LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
 			{
 				ProviderName:  llm.ProviderNameOpenAI,
 				BaseURL:       "",
 				CustomHeaders: nil,
-				Keys: []*sdk.ProviderKey{
+				ApiKeys: []*gateway.APIKeyConfig{
 					{
-						Name: "Key 1",
-						Key:  "",
+						Name:   "Key 1",
+						APIKey: "",
 					},
 				},
 			},

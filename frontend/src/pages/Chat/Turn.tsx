@@ -1,7 +1,7 @@
 import React from 'react';
 import {MessageRenderer} from "./Message";
 import styles from './Message.module.css';
-import {Box, CircularProgress, Popover, Tooltip, Typography} from '@mui/material';
+import {Box, Button, CircularProgress, Collapse, Popover, Tooltip, Typography} from '@mui/material';
 import IconButton from '@mui/material/IconButton';
 import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import {SlideDialog} from '../../components/shared/Dialog';
@@ -9,19 +9,260 @@ import {TraceWaterfall} from '../Traces/TraceWaterfall';
 import {Span, Trace} from '../Traces/types';
 import {SpanDetailsPanel} from '../../components/Traces/SpanDetailsPanel';
 import TimelineIcon from '@mui/icons-material/Timeline';
-import {ContentType, ConversationMessage, MessageType, Role, Usage} from "../../lib/converse/types/types";
+import {
+  ContentType,
+  ConversationMessage,
+  FunctionCallMessage,
+  MessageType, MessageUnion,
+  Role,
+  Usage
+} from "../../lib/converse/types/types";
 import {getTrace} from "../Traces/api";
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownAlt';
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
 import DataUsageIcon from '@mui/icons-material/DataUsage';
+import {v4 as uuidv4} from "uuid";
+import CheckCircleOutlineIcon from '@mui/icons-material/CheckCircleOutline';
+import CancelOutlinedIcon from '@mui/icons-material/CancelOutlined';
+import BuildIcon from '@mui/icons-material/Build';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+
+// Tool Call Approval Component
+interface PendingToolCallsProps {
+  toolCalls: FunctionCallMessage[];
+  onApprove: () => void;
+  onDecline: () => void;
+}
+
+const ToolCallCard: React.FC<{ fnCall: FunctionCallMessage }> = ({ fnCall }) => {
+  const [expanded, setExpanded] = React.useState(false);
+
+  const parseArgs = () => {
+    try {
+      return JSON.parse(fnCall.arguments);
+    } catch {
+      return fnCall.arguments;
+    }
+  };
+
+  const args = parseArgs();
+  const hasArgs = args && (typeof args === 'object' ? Object.keys(args).length > 0 : args.length > 0);
+
+  return (
+    <Box
+      sx={{
+        background: 'oklch(24% .006 285.885)',
+        borderRadius: '6px',
+        border: '1px solid #333',
+        overflow: 'hidden',
+        transition: 'border-color 0.15s ease',
+        '&:hover': {
+          borderColor: '#444',
+        },
+      }}
+    >
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          px: 1.5,
+          py: 1,
+          cursor: hasArgs ? 'pointer' : 'default',
+        }}
+        onClick={() => hasArgs && setExpanded(!expanded)}
+      >
+        <BuildIcon sx={{ fontSize: 14, color: '#888', flexShrink: 0 }} />
+
+        <Typography
+          sx={{
+            fontFamily: 'source-code-pro, Menlo, Monaco, Consolas, monospace',
+            fontSize: '13px',
+            color: '#fff',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            flex: 1,
+          }}
+        >
+          {fnCall.name.replaceAll('_', ' ')}
+        </Typography>
+
+        {hasArgs && (
+          <ExpandMoreIcon 
+            sx={{ 
+              fontSize: 18, 
+              color: '#888',
+              transition: 'transform 0.15s ease',
+              transform: expanded ? 'rotate(180deg)' : 'rotate(0deg)',
+            }} 
+          />
+        )}
+      </Box>
+
+      <Collapse in={expanded}>
+        <Box
+          sx={{
+            px: 1.5,
+            pb: 1.5,
+            pt: 0,
+          }}
+        >
+          <Box
+            sx={{
+              background: '#121212',
+              borderRadius: '4px',
+              p: 1.5,
+              maxHeight: '180px',
+              overflow: 'auto',
+            }}
+          >
+            <pre
+              style={{
+                margin: 0,
+                fontFamily: 'source-code-pro, Menlo, Monaco, Consolas, monospace',
+                fontSize: '12px',
+                color: '#888',
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+              }}
+            >
+              {typeof args === 'object' ? JSON.stringify(args, null, 2) : args}
+            </pre>
+          </Box>
+        </Box>
+      </Collapse>
+    </Box>
+  );
+};
+
+const PendingToolCalls: React.FC<PendingToolCallsProps> = ({ toolCalls, onApprove, onDecline }) => {
+  return (
+    <Box
+      sx={{
+        mt: 1.5,
+        mb: 0.5,
+        p: 1.5,
+        background: 'oklch(21% .006 285.885)',
+        borderRadius: '6px',
+        border: '1px solid #333',
+      }}
+    >
+      {/* Header */}
+      <Box
+        sx={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 1,
+          mb: 1.5,
+        }}
+      >
+        <Box
+          sx={{
+            width: 6,
+            height: 6,
+            borderRadius: '50%',
+            background: '#10a37f',
+          }}
+        />
+        <Typography
+          sx={{
+            fontSize: '13px',
+            fontWeight: 500,
+            color: '#fff',
+          }}
+        >
+          Pending approval
+        </Typography>
+        <Typography
+          sx={{
+            fontSize: '12px',
+            color: '#888',
+            ml: 'auto',
+          }}
+        >
+          {toolCalls.length} {toolCalls.length === 1 ? 'tool' : 'tools'}
+        </Typography>
+      </Box>
+
+      {/* Tool Cards */}
+      <Box
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 0.75,
+          mb: 1.5,
+        }}
+      >
+        {toolCalls.map((fnCall) => (
+          <ToolCallCard key={fnCall.call_id || fnCall.id} fnCall={fnCall} />
+        ))}
+      </Box>
+
+      {/* Action Buttons */}
+      <Box
+        sx={{
+          display: 'flex',
+          gap: 1,
+        }}
+      >
+        <Button
+          variant="contained"
+          size="small"
+          onClick={onApprove}
+          startIcon={<CheckCircleOutlineIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            background: '#10a37f',
+            color: '#fff',
+            fontWeight: 500,
+            fontSize: '13px',
+            textTransform: 'none',
+            borderRadius: '6px',
+            px: 2,
+            py: 0.75,
+            boxShadow: 'none',
+            '&:hover': {
+              background: '#0d8a6a',
+              boxShadow: 'none',
+            },
+          }}
+        >
+          Approve{toolCalls.length > 1 ? ' all' : ''}
+        </Button>
+        <Button
+          variant="text"
+          size="small"
+          onClick={onDecline}
+          startIcon={<CancelOutlinedIcon sx={{ fontSize: 16 }} />}
+          sx={{
+            color: '#888',
+            fontWeight: 500,
+            fontSize: '13px',
+            textTransform: 'none',
+            borderRadius: '6px',
+            px: 2,
+            py: 0.75,
+            '&:hover': {
+              background: 'rgba(255, 255, 255, 0.05)',
+              color: '#fff',
+            },
+          }}
+        >
+          Decline{toolCalls.length > 1 ? ' all' : ''}
+        </Button>
+      </Box>
+    </Box>
+  );
+};
 
 interface Props {
   message: ConversationMessage
   completed: boolean;
+  onUserMessage: (userMessages: MessageUnion[]) => void;
 }
 
 export const Turn: React.FC<Props> = props => {
-  const { message, completed } = props;
+  const { message, completed, onUserMessage } = props;
 
   const [usageOpen, setUsageOpen] = React.useState(false);
   const ref = React.useRef<HTMLButtonElement | null>(null);
@@ -66,7 +307,7 @@ export const Turn: React.FC<Props> = props => {
     setTraceDialogOpen(true);
     setTraceLoading(true);
     try {
-      const traceData = await getTrace(message.message_id.replaceAll("-", ""));
+      const traceData = await getTrace(message.meta.run_state.traceid);
       setTrace(traceData);
     } catch (error) {
       console.error('Failed to fetch trace:', error);
@@ -81,7 +322,7 @@ export const Turn: React.FC<Props> = props => {
     setSelectedSpan(null);
   };
 
-  const usage = message.meta?.usage as Usage;
+  const usage = message.meta?.run_state?.usage as Usage;
   let hasAssistantMessage = false;
   if (message.messages.length > 0) {
     message.messages.forEach((msg) => {
@@ -91,9 +332,41 @@ export const Turn: React.FC<Props> = props => {
     })
   }
 
+  const approveToolCalls = () => {
+    const fnCalls = message.meta.run_state.pending_tool_calls as FunctionCallMessage[];
+    onUserMessage([
+      {
+        id: `msg_` + uuidv4(),
+        type: MessageType.FunctionCallApprovalResponse,
+        approved_call_ids: fnCalls.map(fnCall => fnCall.call_id!),
+        rejected_call_ids: []
+      }
+    ])
+  }
+
+  const declineToolCalls = () => {
+    const fnCalls = message.meta.run_state.pending_tool_calls as FunctionCallMessage[];
+    onUserMessage([
+      {
+        id: `msg_` + uuidv4(),
+        type: MessageType.FunctionCallApprovalResponse,
+        approved_call_ids: [],
+        rejected_call_ids: fnCalls.map(fnCall => fnCall.call_id!),
+      }
+    ])
+  }
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: '4px' }}>
       {message.messages.map(m => <MessageRenderer key={m.id+(m.type||"")} message={m}/>)}
+
+      {message.meta?.run_state?.pending_tool_calls && (message.meta.run_state.pending_tool_calls as FunctionCallMessage[]).length > 0 && (
+        <PendingToolCalls
+          toolCalls={message.meta.run_state.pending_tool_calls as FunctionCallMessage[]}
+          onApprove={approveToolCalls}
+          onDecline={declineToolCalls}
+        />
+      )}
 
       {completed && hasAssistantMessage && <div className={styles.messageActions}>
         <Tooltip title="Copy to clipboard">
@@ -112,7 +385,7 @@ export const Turn: React.FC<Props> = props => {
         {usage &&
             <Tooltip title="Usage"><IconButton onClick={() => setUsageOpen(true)} ref={ref}><DataUsageIcon fontSize="small"/></IconButton></Tooltip>}
 
-        {message.message_id &&
+        {message.meta.run_state.traceid &&
             <Tooltip title="View Trace">
               <IconButton onClick={handleOpenTrace}>
                 <TimelineIcon fontSize="small"/>

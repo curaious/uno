@@ -41,9 +41,11 @@ type ResponseChunk struct {
 	OfImageGenerationCallPartialImage *ChunkImageGenerationCall[constants.ChunkTypeImageGenerationCallPartialImage] `json:",omitempty"`
 
 	// Custom Chunks
-	OfRunCreated         *ChunkResponse[constants.ChunkTypeRunCreated]   `json:",omitempty"`
-	OfRunCompleted       *ChunkResponse[constants.ChunkTypeRunCompleted] `json:",omitempty"`
-	OfFunctionCallOutput *FunctionCallOutputMessage                      `json:",omitempty"`
+	OfRunCreated         *ChunkRun[constants.ChunkTypeRunCreated]    `json:",omitempty"`
+	OfRunInProgress      *ChunkRun[constants.ChunkTypeRunInProgress] `json:",omitempty"`
+	OfRunPaused          *ChunkRun[constants.ChunkTypeRunPaused]     `json:",omitempty"`
+	OfRunCompleted       *ChunkRun[constants.ChunkTypeRunCompleted]  `json:",omitempty"`
+	OfFunctionCallOutput *FunctionCallOutputMessage                  `json:",omitempty"`
 }
 
 func (u *ResponseChunk) UnmarshalJSON(data []byte) error {
@@ -236,6 +238,14 @@ func (u *ResponseChunk) MarshalJSON() ([]byte, error) {
 		return sonic.Marshal(u.OfRunCreated)
 	}
 
+	if u.OfRunInProgress != nil {
+		return sonic.Marshal(u.OfRunInProgress)
+	}
+
+	if u.OfRunPaused != nil {
+		return sonic.Marshal(u.OfRunPaused)
+	}
+
 	if u.OfRunCompleted != nil {
 		return sonic.Marshal(u.OfRunCompleted)
 	}
@@ -325,6 +335,14 @@ func (u *ResponseChunk) ChunkType() string {
 		return u.OfRunCreated.Type.Value()
 	}
 
+	if u.OfRunInProgress != nil {
+		return u.OfRunInProgress.Type.Value()
+	}
+
+	if u.OfRunPaused != nil {
+		return u.OfRunPaused.Type.Value()
+	}
+
 	if u.OfRunCompleted != nil {
 		return u.OfRunCompleted.Type.Value()
 	}
@@ -334,6 +352,21 @@ func (u *ResponseChunk) ChunkType() string {
 	}
 
 	return ""
+}
+
+type ChunkRun[T any] struct {
+	Type           T            `json:"type"`
+	SequenceNumber int          `json:"sequence_number"`
+	RunState       ChunkRunData `json:"run_state"`
+}
+
+type ChunkRunData struct {
+	Id               string                `json:"id"`
+	Object           string                `json:"object"` // "run"
+	Status           string                `json:"status"` // "created", "in_progress", "paused", "resumed", "completed", "aborted"
+	PendingToolCalls []FunctionCallMessage `json:"pending_tool_calls"`
+	Usage            Usage                 `json:"usage"`
+	TraceID          string                `json:"traceid"`
 }
 
 type ChunkResponse[T any] struct {

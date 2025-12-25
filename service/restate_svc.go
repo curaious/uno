@@ -13,6 +13,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/praveen001/uno/internal/adapters"
 	"github.com/praveen001/uno/internal/config"
+	"github.com/praveen001/uno/internal/pubsub"
 	"github.com/praveen001/uno/internal/services"
 	"github.com/praveen001/uno/internal/services/agent"
 	"github.com/praveen001/uno/internal/utils"
@@ -40,7 +41,6 @@ import (
 type AgentRunInput struct {
 	Message           responses.InputMessageUnion `json:"message"`
 	Namespace         string                      `json:"namespace"`
-	MessageID         string                      `json:"message_id"`
 	PreviousMessageID string                      `json:"previous_message_id,omitempty"`
 	Context           map[string]any              `json:"context,omitempty"`
 	SessionID         string                      `json:"session_id"`
@@ -99,9 +99,23 @@ func init() {
 	svc = services.NewServices(conf)
 	slog.Info("services initialized")
 
-	// Initialize LLM gateway
-	llmGateway = gateway.NewLLMGateway(adapters.NewServiceConfigStore(svc.Provider, svc.VirtualKey))
-	slog.Info("LLM gateway initialized")
+	// Create shared config store for the LLM gateway
+	configStore := adapters.NewServiceConfigStore(svc.Provider, svc.VirtualKey)
+
+	// Create pubsub for live configuration updates
+	ps := pubsub.NewPubSub(conf)
+
+	// Subscribe config store to pubsub before starting
+	configStore.SubscribeToPubSub(ps)
+
+	// Start pubsub listener
+	if err := ps.Start(); err != nil {
+		slog.Warn("Failed to start pubsub, config changes won't be live-reloaded", slog.Any("error", err))
+	}
+
+	// Initialize LLM gateway with shared config store
+	llmGateway = gateway.NewLLMGateway(configStore)
+	slog.Info("LLM gateway initialized with pubsub")
 
 	slog.Info("config", slog.Any("config", conf))
 
@@ -234,9 +248,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	)
 
 	// Build conversation manager options
-	conversationManagerOpts := []history.ConversationManagerOptions{
-		history.WithMessageID(input.MessageID),
-	}
+	conversationManagerOpts := []history.ConversationManagerOptions{}
 
 	// Setup summarizer if enabled
 	var summarizer core.HistorySummarizer
@@ -303,7 +315,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	}
 
 	// Execute the agent
-	finalMsg, err := agent.Execute(ctx, []responses.InputMessageUnion{input.Message}, streamCallback)
+	result, err := agent.Execute(ctx, []responses.InputMessageUnion{input.Message}, streamCallback)
 
 	if err != nil {
 		publishStreamEvent(streamChannel, StreamEvent{
@@ -313,7 +325,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	}
 
 	return AgentRunOutput{
-		FinalMessage: finalMsg,
+		FinalMessage: result.Output,
 	}, nil
 }
 
@@ -427,8 +439,8 @@ func fetchAndConnectMCPServers(ctx context.Context, projectID uuid.UUID, agentCo
 			toolFilters = agentMCP.ToolFilters
 		}
 
-		serverTools := mcpServer.GetTools(toolFilters...)
-		allTools = append(allTools, serverTools...)
+		mcpTools := mcpServer.GetTools(tools.WithMcpToolFilter(toolFilters...))
+		allTools = append(allTools, mcpTools...)
 	}
 
 	return allTools, nil

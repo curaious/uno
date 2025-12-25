@@ -4,14 +4,16 @@ import styles from './Chat.module.css';
 import {Box, CircularProgress, Typography} from "@mui/material";
 import {Turn} from "./Turn";
 import {
-  ConversationMessage, Usage,
+  ContentType,
+  ConversationMessage, InputMessage, MessageType, MessageUnion, Role, Usage,
 } from "../../lib/converse/types/types";
+import {v4 as uuidv4} from "uuid";
 
 interface IOwnProps {
   messages: ConversationMessage[];
   contextWindow?: Usage;
   isStreaming: boolean;
-  onUserMessage: (text: string) => void;
+  onUserMessage: (userMessages: MessageUnion[]) => void;
   children: React.ReactNode;
 }
 
@@ -25,7 +27,19 @@ export const Chat: React.FC<IOwnProps> = props => {
   const currentContextWindowSize = useMemo(() => Math.trunc(((contextWindow?.input_tokens || 0) / MAX_CONTEXT_WINDOW_SIZE) * 100 * 100) / 100, [contextWindow])
 
   const onSubmit = () => {
-    onUserMessage(userTextMessage);
+    // Create the user message
+    const userMessage: InputMessage = {
+      id: `msg_` + uuidv4(),
+      type: MessageType.Message,
+      role: Role.User,
+      content: [
+        {
+          type: ContentType.InputText,
+          text: userTextMessage,
+        }
+      ],
+    };
+    onUserMessage([userMessage]);
     setUserTextMessage('');
   }
 
@@ -38,7 +52,7 @@ export const Chat: React.FC<IOwnProps> = props => {
 
   return <div className={styles.root}>
     <div className={styles.messageContainer}>
-      {messages.map(((m, idx) => <Turn message={m} key={m.message_id} completed={!isStreaming || idx+1 < messages.length}/>))}
+      {messages.map(((m, idx) => <Turn message={m} onUserMessage={onUserMessage} key={m.message_id} completed={!isStreaming || idx+1 < messages.length}/>))}
     </div>
 
     <div className={styles.composer}>

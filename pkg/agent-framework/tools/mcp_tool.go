@@ -21,9 +21,11 @@ var (
 )
 
 type MCPServer struct {
-	Client *client.Client `json:"-"`
-	Tools  []mcp.Tool     `json:"-"`
-	Meta   *mcp.Meta      `json:"-"`
+	Client                *client.Client `json:"-"`
+	Tools                 []mcp.Tool     `json:"-"`
+	Meta                  *mcp.Meta      `json:"-"`
+	ToolFilter            []string       `json:"-"`
+	ApprovalRequiredTools []string       `json:"-"`
 }
 
 func NewInProcessMCPServer(ctx context.Context, client *client.Client, headers map[string]any) (*MCPServer, error) {
@@ -98,17 +100,40 @@ func NewMCPServer(ctx context.Context, endpoint string, headers map[string]strin
 	}, nil
 }
 
-func (srv *MCPServer) GetTools(toolFilter ...string) []core.Tool {
+func (srv *MCPServer) GetTools(opts ...McpToolOption) []core.Tool {
 	mcpTools := []core.Tool{}
 
+	for _, o := range opts {
+		o(srv)
+	}
+
 	for _, tool := range srv.Tools {
-		if len(toolFilter) > 0 && !slices.Contains(toolFilter, tool.Name) {
+		if len(srv.ToolFilter) > 0 && !slices.Contains(srv.ToolFilter, tool.Name) {
 			continue
 		}
-		mcpTools = append(mcpTools, NewMcpTool(tool, srv.Client, srv.Meta))
+		requiresApproval := false
+		if len(srv.ApprovalRequiredTools) > 0 && slices.Contains(srv.ApprovalRequiredTools, tool.Name) {
+			requiresApproval = true
+		}
+
+		mcpTools = append(mcpTools, NewMcpTool(tool, srv.Client, srv.Meta, requiresApproval))
 	}
 
 	return mcpTools
+}
+
+type McpToolOption func(*MCPServer)
+
+func WithMcpToolFilter(toolFilter ...string) McpToolOption {
+	return func(srv *MCPServer) {
+		srv.ToolFilter = toolFilter
+	}
+}
+
+func WithMcpApprovalRequiredTools(tools ...string) McpToolOption {
+	return func(srv *MCPServer) {
+		srv.ApprovalRequiredTools = tools
+	}
 }
 
 type McpTool struct {
@@ -117,7 +142,7 @@ type McpTool struct {
 	Meta   *mcp.Meta      `json:"-"`
 }
 
-func NewMcpTool(t mcp.Tool, cli *client.Client, Meta *mcp.Meta) *McpTool {
+func NewMcpTool(t mcp.Tool, cli *client.Client, Meta *mcp.Meta, requiresApproval bool) *McpTool {
 	inputSchema := map[string]any{
 		"type":       "object",
 		"properties": map[string]any{},
@@ -135,6 +160,7 @@ func NewMcpTool(t mcp.Tool, cli *client.Client, Meta *mcp.Meta) *McpTool {
 
 	return &McpTool{
 		BaseTool: &core.BaseTool{
+			RequiresApproval: requiresApproval,
 			ToolUnion: &responses.ToolUnion{
 				OfFunction: &responses.FunctionTool{
 					Name:        t.Name,

@@ -73,7 +73,7 @@ export async function loadConversationTraces(conversationId: string, namespace: 
       const messages: ConversationMessage[] = messagesResponse.data.data || [];
       
       for (const msg of messages) {
-        const traceId = uuidToTraceId(msg.message_id);
+        const traceId = uuidToTraceId(msg.meta.run_state.traceid);
         
         // Try to get trace info
         let hasTrace = false;

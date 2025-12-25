@@ -51,14 +51,14 @@ func (p *LocalLLMGateway) NewStreamingResponses(ctx context.Context, providerNam
 }
 
 func (p *LocalLLMGateway) getKey(providerName llm.ProviderName) string {
-	_, keys, err := p.gateway.ConfigStore.GetProviderConfig(providerName)
+	providerConfig, err := p.gateway.ConfigStore.GetProviderConfig(providerName)
 	if err != nil {
 		return ""
 	}
 
-	if len(keys) == 0 {
+	if len(providerConfig.ApiKeys) == 0 {
 		return ""
 	}
 
-	return keys[0].APIKey
+	return providerConfig.ApiKeys[0].APIKey
 }

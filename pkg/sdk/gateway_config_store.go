@@ -11,7 +11,6 @@ import (
 // It holds API keys and provider configs in memory.
 type InMemoryConfigStore struct {
 	providerConfigs map[llm.ProviderName]*gateway.ProviderConfig
-	apiKeys         map[llm.ProviderName][]*gateway.APIKeyConfig
 }
 
 // ProviderOptions configures a provider for in-memory use
@@ -28,10 +27,9 @@ type ProviderKey struct {
 }
 
 // NewInMemoryConfigStore creates a config store with full provider options.
-func NewInMemoryConfigStore(configs []*ProviderConfig) *InMemoryConfigStore {
+func NewInMemoryConfigStore(configs []*gateway.ProviderConfig) *InMemoryConfigStore {
 	store := &InMemoryConfigStore{
 		providerConfigs: make(map[llm.ProviderName]*gateway.ProviderConfig),
-		apiKeys:         make(map[llm.ProviderName][]*gateway.APIKeyConfig),
 	}
 
 	for _, config := range configs {
@@ -40,32 +38,21 @@ func NewInMemoryConfigStore(configs []*ProviderConfig) *InMemoryConfigStore {
 			ProviderName:  config.ProviderName,
 			BaseURL:       config.BaseURL,
 			CustomHeaders: config.CustomHeaders,
+			ApiKeys:       config.ApiKeys,
 		}
-
-		var keys []*gateway.APIKeyConfig
-		for _, key := range config.Keys {
-			keys = append(keys, &gateway.APIKeyConfig{
-				ProviderName: config.ProviderName,
-				APIKey:       key.Key,
-				Name:         key.Name,
-				Enabled:      true,
-				IsDefault:    true,
-			})
-		}
-		store.apiKeys[config.ProviderName] = keys
 	}
 
 	return store
 }
 
-func (s *InMemoryConfigStore) GetProviderConfig(providerName llm.ProviderName) (*gateway.ProviderConfig, []*gateway.APIKeyConfig, error) {
-	keys := s.apiKeys[providerName]
-	if len(keys) == 0 {
-		return nil, nil, fmt.Errorf("no API key configured for provider %s", providerName)
+func (s *InMemoryConfigStore) GetProviderConfig(providerName llm.ProviderName) (*gateway.ProviderConfig, error) {
+	config := s.providerConfigs[providerName]
+
+	if len(config.ApiKeys) == 0 {
+		return nil, fmt.Errorf("no API key configured for provider %s", providerName)
 	}
 
-	config := s.providerConfigs[providerName]
-	return config, keys, nil
+	return config, nil
 }
 
 func (s *InMemoryConfigStore) GetVirtualKey(secretKey string) (*gateway.VirtualKeyConfig, error) {

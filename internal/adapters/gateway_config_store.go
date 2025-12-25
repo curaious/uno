@@ -2,10 +2,14 @@ package adapters
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strings"
+	"sync"
 
+	"github.com/praveen001/uno/internal/pubsub"
 	"github.com/praveen001/uno/internal/services/provider"
 	"github.com/praveen001/uno/internal/services/virtual_key"
 	"github.com/praveen001/uno/internal/utils"
@@ -15,39 +19,166 @@ import (
 
 // ServiceConfigStore implements gateway.ConfigStore using provider and virtual key services.
 // This is used server-side where we have access to the database services.
+// It maintains an in-memory cache that is automatically updated via PostgreSQL LISTEN/NOTIFY.
 type ServiceConfigStore struct {
+	providerConfigs map[llm.ProviderName]*gateway.ProviderConfig
+	virtualKeys     map[string]*gateway.VirtualKeyConfig
+
 	providerService   *provider.ProviderService
 	virtualKeyService *virtual_key.VirtualKeyService
+
+	mu sync.RWMutex
 }
 
 // NewServiceConfigStore creates a config store backed by database services.
 func NewServiceConfigStore(providerSvc *provider.ProviderService, virtualKeySvc *virtual_key.VirtualKeyService) *ServiceConfigStore {
-	return &ServiceConfigStore{
+	store := &ServiceConfigStore{
+		providerConfigs:   make(map[llm.ProviderName]*gateway.ProviderConfig),
+		virtualKeys:       make(map[string]*gateway.VirtualKeyConfig),
 		providerService:   providerSvc,
 		virtualKeyService: virtualKeySvc,
 	}
+
+	// Initial load of all configurations
+	store.reloadProviderConfigs()
+	store.reloadAPIKeys()
+	store.reloadVirtualKeys()
+
+	return store
 }
 
-func (s *ServiceConfigStore) GetProviderConfig(providerName llm.ProviderName) (*gateway.ProviderConfig, []*gateway.APIKeyConfig, error) {
+// SubscribeToPubSub subscribes to configuration change notifications.
+// This should be called after the pubsub is started.
+func (s *ServiceConfigStore) SubscribeToPubSub(ps *pubsub.PubSub) {
+	ps.Subscribe(func(event pubsub.ConfigChangeEvent) {
+		slog.Debug("ServiceConfigStore received config change",
+			slog.String("table", string(event.ChangeType)),
+			slog.String("operation", event.Operation))
+
+		switch event.ChangeType {
+		case pubsub.ChangeTypeProviderConfig:
+			s.reloadProviderConfigs()
+		case pubsub.ChangeTypeAPIKey:
+			s.reloadAPIKeys()
+		case pubsub.ChangeTypeVirtualKey, pubsub.ChangeTypeVirtualKeyProvider, pubsub.ChangeTypeVirtualKeyModel:
+			s.reloadVirtualKeys()
+		}
+	})
+}
+
+// reloadProviderConfigs reloads all provider configurations from the database
+func (s *ServiceConfigStore) reloadProviderConfigs() {
 	ctx := context.Background()
 
-	// Get provider config from service
-	svcConfig, err := s.providerService.GetProviderConfig(ctx, providerName)
+	providerConfigs, err := s.providerService.ListProviderConfigs(ctx)
 	if err != nil {
-		return nil, nil, err
+		slog.Error("Failed to reload provider configs", slog.Any("error", err))
+		return
 	}
 
-	// Get API keys from service
-	svcKeys, err := s.providerService.List(ctx, &providerName, true)
-	if err != nil {
-		return nil, nil, err
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Update provider configs (base_url, custom_headers) while preserving API keys
+	for _, providerConfig := range providerConfigs {
+		existing, exists := s.providerConfigs[providerConfig.ProviderType]
+		if !exists {
+			existing = &gateway.ProviderConfig{
+				ProviderName: providerConfig.ProviderType,
+			}
+			s.providerConfigs[providerConfig.ProviderType] = existing
+		}
+
+		if providerConfig.BaseURL != nil {
+			existing.BaseURL = *providerConfig.BaseURL
+		} else {
+			existing.BaseURL = ""
+		}
+		if providerConfig.CustomHeaders != nil {
+			existing.CustomHeaders = providerConfig.CustomHeaders
+		} else {
+			existing.CustomHeaders = nil
+		}
 	}
 
-	if len(svcKeys) == 0 {
-		return nil, nil, fmt.Errorf("no enabled api keys found for provider %s", providerName)
+	slog.Debug("Reloaded provider configs", slog.Int("count", len(providerConfigs)))
+}
+
+// reloadAPIKeys reloads all API keys from the database
+func (s *ServiceConfigStore) reloadAPIKeys() {
+	ctx := context.Background()
+
+	providerKeys, err := s.providerService.List(ctx, nil, false)
+	if err != nil {
+		slog.Error("Failed to reload API keys", slog.Any("error", err))
+		return
 	}
 
 	// Process environment variable templates in API keys
+	envData := getEnvData()
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Clear existing API keys from all providers
+	for _, config := range s.providerConfigs {
+		config.ApiKeys = nil
+	}
+
+	// Repopulate API keys
+	for _, providerKey := range providerKeys {
+		if _, exists := s.providerConfigs[providerKey.ProviderType]; !exists {
+			s.providerConfigs[providerKey.ProviderType] = &gateway.ProviderConfig{
+				ProviderName: providerKey.ProviderType,
+			}
+		}
+
+		apiKey := utils.TryAndParseAsTemplate(providerKey.APIKey, map[string]any{
+			"Env": envData,
+		})
+		s.providerConfigs[providerKey.ProviderType].ApiKeys = append(
+			s.providerConfigs[providerKey.ProviderType].ApiKeys,
+			&gateway.APIKeyConfig{
+				ProviderName: providerKey.ProviderType,
+				APIKey:       apiKey,
+				Name:         providerKey.Name,
+				Enabled:      providerKey.Enabled,
+				IsDefault:    providerKey.IsDefault,
+			},
+		)
+	}
+
+	slog.Debug("Reloaded API keys", slog.Int("count", len(providerKeys)))
+}
+
+// reloadVirtualKeys reloads all virtual keys from the database
+func (s *ServiceConfigStore) reloadVirtualKeys() {
+	ctx := context.Background()
+
+	virtualKeys, err := s.virtualKeyService.List(ctx)
+	if err != nil {
+		slog.Error("Failed to reload virtual keys", slog.Any("error", err))
+		return
+	}
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Clear and repopulate
+	s.virtualKeys = make(map[string]*gateway.VirtualKeyConfig)
+	for _, virtualKey := range virtualKeys {
+		s.virtualKeys[virtualKey.SecretKey] = &gateway.VirtualKeyConfig{
+			SecretKey:        virtualKey.SecretKey,
+			AllowedProviders: virtualKey.Providers,
+			AllowedModels:    virtualKey.ModelNames,
+		}
+	}
+
+	slog.Debug("Reloaded virtual keys", slog.Int("count", len(virtualKeys)))
+}
+
+// getEnvData returns environment variables as a map
+func getEnvData() map[string]string {
 	envData := map[string]string{}
 	for _, env := range os.Environ() {
 		frag := strings.Split(env, "=")
@@ -55,55 +186,34 @@ func (s *ServiceConfigStore) GetProviderConfig(providerName llm.ProviderName) (*
 			envData[frag[0]] = strings.Join(frag[1:], "=")
 		}
 	}
+	return envData
+}
 
-	// Convert to gateway types
-	var gwConfig *gateway.ProviderConfig
-	if svcConfig != nil {
-		gwConfig = &gateway.ProviderConfig{
-			ProviderName: svcConfig.ProviderType,
-		}
-		if svcConfig.BaseURL != nil {
-			gwConfig.BaseURL = *svcConfig.BaseURL
-		}
-		if svcConfig.CustomHeaders != nil {
-			gwConfig.CustomHeaders = svcConfig.CustomHeaders
-		}
+func (s *ServiceConfigStore) GetProviderConfig(providerName llm.ProviderName) (*gateway.ProviderConfig, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	gwConfig := s.providerConfigs[providerName]
+
+	if gwConfig == nil {
+		return nil, errors.New("provider not exist")
 	}
 
-	gwKeys := make([]*gateway.APIKeyConfig, 0, len(svcKeys))
-	for _, svcKey := range svcKeys {
-		apiKey := utils.TryAndParseAsTemplate(svcKey.APIKey, map[string]any{
-			"Env": envData,
-		})
-		gwKeys = append(gwKeys, &gateway.APIKeyConfig{
-			ProviderName: svcKey.ProviderType,
-			APIKey:       apiKey,
-			Name:         svcKey.Name,
-			Enabled:      svcKey.Enabled,
-			IsDefault:    svcKey.IsDefault,
-		})
-	}
-
-	return gwConfig, gwKeys, nil
+	return gwConfig, nil
 }
 
 func (s *ServiceConfigStore) GetVirtualKey(secretKey string) (*gateway.VirtualKeyConfig, error) {
-	ctx := context.Background()
-
 	if secretKey == "" {
 		return nil, fmt.Errorf("secret key is required")
 	}
 
-	// Get virtual key from service
-	svcKey, err := s.virtualKeyService.GetBySecretKey(ctx, secretKey)
-	if err != nil {
-		return nil, err
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	vk, ok := s.virtualKeys[secretKey]
+	if !ok {
+		return nil, fmt.Errorf("secret key not exist")
 	}
 
-	// Convert to gateway type
-	return &gateway.VirtualKeyConfig{
-		SecretKey:        svcKey.SecretKey,
-		AllowedProviders: svcKey.Providers,
-		AllowedModels:    svcKey.ModelNames,
-	}, nil
+	return vk, nil
 }

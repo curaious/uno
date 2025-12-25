@@ -10,6 +10,7 @@ type ProviderConfig struct {
 	ProviderName  llm.ProviderName
 	BaseURL       string
 	CustomHeaders map[string]string
+	ApiKeys       []*APIKeyConfig
 }
 
 // APIKeyConfig contains API key information for a provider.

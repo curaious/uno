@@ -115,7 +115,11 @@ func (r *ConversationRepo) CreateMessages(ctx context.Context, message Conversat
 
 	query := `
 		INSERT INTO messages (id, thread_id, conversation_id, messages, meta, created_at)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		VALUES ($1, $2, $3, $4, $5, $6) 
+		ON CONFLICT (id) DO UPDATE
+		SET
+    		messages = messages.messages || EXCLUDED.messages,
+    		meta     = EXCLUDED.meta;
 	`
 
 	stmt, err := r.db.PreparexContext(ctx, query)

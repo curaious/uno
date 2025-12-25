@@ -10,19 +10,21 @@ import (
 )
 
 type AgentTool struct {
-	*responses.ToolUnion
+	*core.BaseTool
 	agent *agents.Agent
 }
 
 func NewAgentTool(t *responses.ToolUnion, agent *agents.Agent) *AgentTool {
 	return &AgentTool{
-		ToolUnion: t,
-		agent:     agent,
+		BaseTool: &core.BaseTool{
+			ToolUnion: t,
+		},
+		agent: agent,
 	}
 }
 
 func (t *AgentTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
-	output, err := t.agent.Execute(ctx,
+	result, err := t.agent.Execute(ctx,
 		[]responses.InputMessageUnion{
 			{
 				OfEasyInput: &responses.EasyMessage{
@@ -37,10 +39,12 @@ func (t *AgentTool) Execute(ctx context.Context, params *responses.FunctionCallM
 	}
 
 	data := ""
-	for _, out := range output {
-		for _, content := range out.OfOutputMessage.Content {
-			if content.OfOutputText != nil {
-				data += content.OfOutputText.Text
+	for _, out := range result.Output {
+		if out.OfOutputMessage != nil {
+			for _, content := range out.OfOutputMessage.Content {
+				if content.OfOutputText != nil {
+					data += content.OfOutputText.Text
+				}
 			}
 		}
 	}

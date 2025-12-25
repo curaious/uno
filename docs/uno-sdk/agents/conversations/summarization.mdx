@@ -134,6 +134,7 @@ import (
     "github.com/praveen001/uno/pkg/agent-framework/core"
     "github.com/praveen001/uno/pkg/agent-framework/history"
     "github.com/praveen001/uno/pkg/agent-framework/summariser"
+    "github.com/praveen001/uno/pkg/gateway"
     "github.com/praveen001/uno/pkg/llm"
     "github.com/praveen001/uno/pkg/llm/responses"
     "github.com/praveen001/uno/pkg/sdk"
@@ -142,15 +143,20 @@ import (
 func main() {
     // Initialize SDK client
     client, err := sdk.New(&sdk.ClientOptions{
-        LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
-            {
-                ProviderName: llm.ProviderNameOpenAI,
-                Keys: []*sdk.ProviderKey{
-                    {Name: "Key 1", Key: "your-api-key"},
-                },
-            },
-        }),
-    })
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+			{
+				ProviderName:  llm.ProviderNameOpenAI,
+				BaseURL:       "",
+				CustomHeaders: nil,
+				ApiKeys: []*gateway.APIKeyConfig{
+					{
+						Name:   "Key 1",
+						APIKey: "",
+					},
+				},
+			},
+		}),
+	})
     if err != nil {
         log.Fatal(err)
     }
@@ -222,6 +228,7 @@ import (
     "github.com/praveen001/uno/pkg/agent-framework/core"
     "github.com/praveen001/uno/pkg/agent-framework/history"
     "github.com/praveen001/uno/pkg/agent-framework/summariser"
+    "github.com/praveen001/uno/pkg/gateway"
     "github.com/praveen001/uno/pkg/llm"
     "github.com/praveen001/uno/pkg/llm/responses"
     "github.com/praveen001/uno/pkg/sdk"
@@ -230,15 +237,20 @@ import (
 func main() {
     // Initialize SDK client
     client, err := sdk.New(&sdk.ClientOptions{
-        LLMConfigs: sdk.NewInMemoryConfigStore([]*sdk.ProviderConfig{
-            {
-                ProviderName: llm.ProviderNameOpenAI,
-                Keys: []*sdk.ProviderKey{
-                    {Name: "Key 1", Key: "your-api-key"},
-                },
-            },
-        }),
-    })
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+			{
+				ProviderName:  llm.ProviderNameOpenAI,
+				BaseURL:       "",
+				CustomHeaders: nil,
+				ApiKeys: []*gateway.APIKeyConfig{
+					{
+						Name:   "Key 1",
+						APIKey: "",
+					},
+				},
+			},
+		}),
+	})
     if err != nil {
         log.Fatal(err)
     }
