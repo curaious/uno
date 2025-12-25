@@ -357,8 +357,6 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 			attribute.Bool("history.enabled", agentConfig.EnableHistory),
 		)
 
-		allTools = append(allTools, tools.NewImageGenerationTool())
-
 		agentOpts := &agents.AgentOptions{
 			Name:        agentConfig.Name,
 			LLM:         llmClient,

@@ -26,6 +26,7 @@ func GetAllProviderNames() []ProviderName {
 		ProviderNameOpenAI,
 		ProviderNameAnthropic,
 		ProviderNameGemini,
+		ProviderNameXAI,
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
@@ -52,7 +53,7 @@ func main() {
 				ApiKeys: []*gateway.APIKeyConfig{
 					{
 						Name:   "Key 1",
-						APIKey: "",
+						APIKey: os.Getenv("OPENAI_API_KEY"),
 					},
 				},
 			},

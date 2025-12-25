@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
@@ -109,7 +110,7 @@ func main() {
 				ApiKeys: []*gateway.APIKeyConfig{
 					{
 						Name:   "Key 1",
-						APIKey: "",
+						APIKey: os.Getenv("OPENAI_API_KEY"),
 					},
 				},
 			},
