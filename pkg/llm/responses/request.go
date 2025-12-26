@@ -354,6 +354,11 @@ func (u *InputContentUnion) UnmarshalJSON(data []byte) error {
 	var outputTextContent OutputTextContent
 	if err := sonic.Unmarshal(data, &outputTextContent); err == nil {
 		u.OfOutputText = &outputTextContent
+
+		// We will force annotations to exist
+		if outputTextContent.Annotations == nil {
+			outputTextContent.Annotations = []Annotation{}
+		}
 		return nil
 	}
 
@@ -388,8 +393,9 @@ type InputTextContent struct {
 }
 
 type OutputTextContent struct {
-	Type constants.ContentTypeOutputText `json:"type"`
-	Text string                          `json:"text"`
+	Type        constants.ContentTypeOutputText `json:"type"`
+	Text        string                          `json:"text"`
+	Annotations []Annotation                    `json:"annotations"`
 }
 
 type InputImageContent struct {
@@ -402,6 +408,14 @@ type InputImageContent struct {
 type SummaryTextContent struct {
 	Type constants.ContentTypeSummaryText `json:"type"`
 	Text string                           `json:"text"`
+}
+
+type Annotation struct {
+	Type       string `json:"type"`
+	Text       string `json:"text"`
+	StartIndex int    `json:"start_index"`
+	EndIndex   int    `json:"end_index"`
+	Operation  string `json:"operation"`
 }
 
 type FunctionCallOutputContentUnion struct {

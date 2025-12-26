@@ -10,6 +10,7 @@ import (
 	"github.com/praveen001/uno/pkg/gateway/providers/anthropic"
 	"github.com/praveen001/uno/pkg/gateway/providers/gemini"
 	"github.com/praveen001/uno/pkg/gateway/providers/openai"
+	"github.com/praveen001/uno/pkg/gateway/providers/xai"
 	"github.com/praveen001/uno/pkg/llm"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -113,11 +114,7 @@ func (g *LLMGateway) getProvider(ctx context.Context, providerName llm.ProviderN
 		}), nil
 
 	case llm.ProviderNameXAI:
-		if baseUrl == "" {
-			baseUrl = "https://api.x.ai/v1"
-		}
-
-		return openai.NewClient(&openai.ClientOptions{
+		return xai.NewClient(&xai.ClientOptions{
 			BaseURL: baseUrl,
 			ApiKey:  directKey,
 			Headers: customHeaders,
