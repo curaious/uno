@@ -48,7 +48,7 @@ export interface Usage {
   cached_input_tokens: number;
 }
 
-export type ProviderType = 'OpenAI' | 'Anthropic' | 'Gemini' | 'xAI';
+export type ProviderType = 'OpenAI' | 'Anthropic' | 'Gemini' | 'xAI' | 'Ollama';
 
 export interface ProviderConfig {
   provider_type: ProviderType;
@@ -228,12 +228,18 @@ export interface UpdateModelRequest {
   parameters?: { [key: string]: any };
 }
 
+export interface RateLimit {
+  unit: '1min' | '1h' | '6h' | '12h' | '1d' | '1w' | '1mo';
+  limit: number;
+}
+
 export interface VirtualKey {
   id: string;
   name: string;
   secret_key: string;
   providers: ProviderType[];
   model_ids: string[];
+  rate_limits?: RateLimit[];
   created_at: string;
   updated_at: string;
 }
@@ -242,12 +248,14 @@ export interface CreateVirtualKeyRequest {
   name: string;
   providers: ProviderType[];
   model_ids?: string[];
+  rate_limits?: RateLimit[];
 }
 
 export interface UpdateVirtualKeyRequest {
   name?: string;
   providers?: ProviderType[];
   model_ids?: string[];
+  rate_limits?: RateLimit[];
 }
 
 export interface ProviderModelsData {

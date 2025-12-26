@@ -119,6 +119,12 @@ func (g *LLMGateway) getProvider(ctx context.Context, providerName llm.ProviderN
 			ApiKey:  directKey,
 			Headers: customHeaders,
 		}), nil
+	case llm.ProviderNameOllama:
+		return openai.NewClient(&openai.ClientOptions{
+			BaseURL: baseUrl,
+			ApiKey:  directKey,
+			Headers: customHeaders,
+		}), nil
 	}
 
 	return nil, fmt.Errorf("unknown provider: %s", providerName)

@@ -23,6 +23,7 @@ import {OpenAIIcon} from '../../Icons/OpenAI';
 import {AnthropicIcon} from '../../Icons/Anthropic';
 import {GeminiIcon} from '../../Icons/Gemini';
 import {XAIIcon} from '../../Icons/XAI';
+import {OllamaIcon} from "../../Icons/Ollama";
 
 const StyledTab = styled(Tab)(() => ({
   justifyContent: 'flex-start',
@@ -40,6 +41,7 @@ export const Providers: React.FC = props => {
     Anthropic: null,
     Gemini: null,
     xAI: null,
+    Ollama: null,
   });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export const Providers: React.FC = props => {
   }, []);
 
   // Provider types in order
-  const providerTypes: ProviderType[] = ['OpenAI', 'Anthropic', 'Gemini', 'xAI'];
+  const providerTypes: ProviderType[] = ['OpenAI', 'Anthropic', 'Gemini', 'xAI', 'Ollama'];
 
   // Provider icons mapping
   const providerIcons: Record<ProviderType, React.ReactElement> = {
@@ -79,6 +81,7 @@ export const Providers: React.FC = props => {
     Anthropic: <AnthropicIcon />,
     Gemini: <GeminiIcon />,
     xAI: <XAIIcon />,
+    Ollama: <OllamaIcon />,
   };
 
   const loadAPIKeys = async (providerType?: string) => {
@@ -107,6 +110,7 @@ export const Providers: React.FC = props => {
         Anthropic: null,
         Gemini: null,
         xAI: null,
+        Ollama: null,
       };
       configs.forEach((config: ProviderConfig) => {
         configMap[config.provider_type] = config;

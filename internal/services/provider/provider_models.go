@@ -50,6 +50,10 @@ var ProviderModels = map[llm.ProviderName][]string{
 		"grok-3-mini",
 		"grok-2.5",
 	},
+	llm.ProviderNameOllama: {
+		"llama3.1:latest",
+		"mistral:latest",
+	},
 }
 
 // ProviderModelsResponse represents the response structure for provider models API

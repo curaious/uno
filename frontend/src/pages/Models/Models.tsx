@@ -23,6 +23,7 @@ import {OpenAIIcon} from '../../Icons/OpenAI';
 import {AnthropicIcon} from '../../Icons/Anthropic';
 import {GeminiIcon} from '../../Icons/Gemini';
 import {XAIIcon} from '../../Icons/XAI';
+import {OllamaIcon} from "../../Icons/Ollama";
 
 export const Models: React.FC = props => {
   const [models, setModels] = useState<ModelWithProvider[]>([]);
@@ -233,6 +234,7 @@ export const Models: React.FC = props => {
     Anthropic: <AnthropicIcon />,
     Gemini: <GeminiIcon />,
     xAI: <XAIIcon />,
+    Ollama: <OllamaIcon />,
   };
 
   const getProviderIcon = (providerType: ProviderType) => {
