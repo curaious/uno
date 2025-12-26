@@ -19,3 +19,9 @@ func NativeRequestToRequest(in *responses.Request) *Request {
 
 	return r
 }
+
+func NativeResponseToResponse(in *responses.Response) *Response {
+	return &Response{
+		*in,
+	}
+}

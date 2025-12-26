@@ -12,7 +12,6 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_responses"
 	"github.com/praveen001/uno/pkg/gateway/providers/xai/xai_responses"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
@@ -44,9 +43,9 @@ func NewClient(opts *ClientOptions) *Client {
 }
 
 func (c *Client) NewResponses(ctx context.Context, inp *responses.Request) (*responses.Response, error) {
-	openAiRequest := openai_responses.NativeRequestToRequest(inp)
+	xaiRequest := xai_responses.NativeRequestToRequest(inp)
 
-	payload, err := sonic.Marshal(openAiRequest)
+	payload, err := sonic.Marshal(xaiRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -64,23 +63,23 @@ func (c *Client) NewResponses(ctx context.Context, inp *responses.Request) (*res
 	}
 	defer res.Body.Close()
 
-	var openAiResponse *openai_responses.Response
-	err = utils.DecodeJSON(res.Body, &openAiResponse)
+	var xaiResponse *xai_responses.Response
+	err = utils.DecodeJSON(res.Body, &xaiResponse)
 	if err != nil {
 		return nil, err
 	}
 
-	if openAiResponse.Error != nil {
-		return nil, errors.New(openAiResponse.Error.Message)
+	if xaiResponse.Error != nil {
+		return nil, errors.New(xaiResponse.Error.Message)
 	}
 
-	return openAiResponse.ToNativeResponse(), nil
+	return xaiResponse.ToNativeResponse(), nil
 }
 
 func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Request) (chan *responses.ResponseChunk, error) {
-	openAiRequest := xai_responses.NativeRequestToRequest(inp)
+	xaiRequest := xai_responses.NativeRequestToRequest(inp)
 
-	payload, err := sonic.Marshal(openAiRequest)
+	payload, err := sonic.Marshal(xaiRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -120,13 +119,13 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 			line = strings.TrimRight(line, "\r\n")
 			fmt.Println(line)
 			if strings.HasPrefix(line, "data:") {
-				openAiResponseChunk := &openai_responses.ResponseChunk{}
-				err = sonic.Unmarshal([]byte(strings.TrimPrefix(line, "data:")), openAiResponseChunk)
+				xaiResponseChunk := &xai_responses.ResponseChunk{}
+				err = sonic.Unmarshal([]byte(strings.TrimPrefix(line, "data:")), xaiResponseChunk)
 				if err != nil {
-					slog.WarnContext(ctx, "unable to unmarshal openai response chunk", slog.String("data", line), slog.Any("error", err))
+					slog.WarnContext(ctx, "unable to unmarshal xai response chunk", slog.String("data", line), slog.Any("error", err))
 					continue
 				}
-				out <- openAiResponseChunk.ToNativeResponseChunk()
+				out <- xaiResponseChunk.ToNativeResponseChunk()
 			}
 		}
 	}()
