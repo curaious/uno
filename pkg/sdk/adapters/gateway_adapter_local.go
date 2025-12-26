@@ -51,7 +51,7 @@ func (p *LocalLLMGateway) NewStreamingResponses(ctx context.Context, providerNam
 	return streamResp.ResponsesStreamData, nil
 }
 
-func (p *LocalLLMGateway) CreateEmbeddings(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error) {
+func (p *LocalLLMGateway) NewEmbedding(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error) {
 	llmReq := &llm.Request{
 		OfEmbeddingsInput: req,
 	}

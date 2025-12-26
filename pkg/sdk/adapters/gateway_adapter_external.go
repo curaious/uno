@@ -155,7 +155,7 @@ func (p *ExternalLLMGateway) NewStreamingResponses(ctx context.Context, provider
 	return out, nil
 }
 
-func (p *ExternalLLMGateway) CreateEmbeddings(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error) {
+func (p *ExternalLLMGateway) NewEmbedding(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error) {
 	// Prepend provider to model for gateway routing
 	originalModel := req.Model
 	req.Model = fmt.Sprintf("%s:%s", providerName, req.Model)

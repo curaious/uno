@@ -10,7 +10,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use: "gollm",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		err := godotenv.Load()
+		err := godotenv.Overload()
 		if err != nil {
 			log.Println("Error loading .env file, skipping")
 		}

@@ -17,6 +17,6 @@ func (bp *BaseProvider) NewStreamingResponses(ctx context.Context, in *responses
 	panic("implement me")
 }
 
-func (bp *BaseProvider) CreateEmbeddings(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error) {
+func (bp *BaseProvider) NewEmbedding(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error) {
 	panic("implement me")
 }

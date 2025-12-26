@@ -138,7 +138,7 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 	return out, nil
 }
 
-func (c *Client) CreateEmbeddings(ctx context.Context, inp *embeddings.Request) (*embeddings.Response, error) {
+func (c *Client) NewEmbedding(ctx context.Context, inp *embeddings.Request) (*embeddings.Response, error) {
 	openAiRequest := openai_embeddings.NativeRequestToRequest(inp)
 
 	payload, err := sonic.Marshal(openAiRequest)

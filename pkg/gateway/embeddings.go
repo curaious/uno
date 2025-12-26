@@ -18,7 +18,7 @@ func (g *LLMGateway) handleEmbeddingsRequest(ctx context.Context, providerName l
 		attribute.String("llm.model", in.Model),
 	)
 
-	out, err := p.CreateEmbeddings(ctx, in)
+	out, err := p.NewEmbedding(ctx, in)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

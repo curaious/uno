@@ -11,7 +11,7 @@ import (
 type Provider interface {
 	NewResponses(ctx context.Context, in *responses.Request) (*responses.Response, error)
 	NewStreamingResponses(ctx context.Context, in *responses.Request) (chan *responses.ResponseChunk, error)
-	CreateEmbeddings(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error)
+	NewEmbedding(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error)
 }
 
 type ProviderName string

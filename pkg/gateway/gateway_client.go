@@ -20,8 +20,8 @@ type LLMGatewayAdapter interface {
 	// NewStreamingResponses makes a streaming LLM call
 	NewStreamingResponses(ctx context.Context, provider llm.ProviderName, req *responses.Request) (chan *responses.ResponseChunk, error)
 
-	// CreateEmbeddings
-	CreateEmbeddings(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error)
+	// NewEmbedding
+	NewEmbedding(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error)
 }
 
 // LLMClient wraps an LLMGatewayAdapter and provides a high-level interface
@@ -56,6 +56,7 @@ func (c *LLMClient) NewStreamingResponses(ctx context.Context, in *responses.Req
 	return c.LLMGatewayAdapter.NewStreamingResponses(ctx, c.provider, in)
 }
 
-func (c *LLMClient) CreateEmbeddings(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error) {
-	return c.LLMGatewayAdapter.CreateEmbeddings(ctx, c.provider, in)
+func (c *LLMClient) NewEmbedding(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error) {
+	in.Model = c.model
+	return c.LLMGatewayAdapter.NewEmbedding(ctx, c.provider, in)
 }
