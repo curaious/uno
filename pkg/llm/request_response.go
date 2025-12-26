@@ -1,16 +1,19 @@
 package llm
 
 import (
+	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
 type Request struct {
-	OfResponsesInput *responses.Request
+	OfEmbeddingsInput *embeddings.Request
+	OfResponsesInput  *responses.Request
 }
 
 type Response struct {
-	OfResponsesOutput *responses.Response
-	Error             *Error
+	OfEmbeddingsOutput *embeddings.Response
+	OfResponsesOutput  *responses.Response
+	Error              *Error
 }
 
 type StreamingResponse struct {

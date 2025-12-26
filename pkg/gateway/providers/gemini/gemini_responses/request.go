@@ -28,7 +28,7 @@ type ThinkingConfig struct {
 }
 
 type Content struct {
-	Role  Role   `json:"role"`
+	Role  Role   `json:"role,omitempty,omitzero"`
 	Parts []Part `json:"parts"`
 }
 

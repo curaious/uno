@@ -11,7 +11,10 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/gateway/providers/base"
+	"github.com/praveen001/uno/pkg/gateway/providers/gemini/gemini_embeddings"
 	"github.com/praveen001/uno/pkg/gateway/providers/gemini/gemini_responses"
+	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
@@ -25,6 +28,7 @@ type ClientOptions struct {
 }
 
 type Client struct {
+	*base.BaseProvider
 	opts *ClientOptions
 }
 
@@ -201,4 +205,57 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 	}()
 
 	return out, nil
+}
+
+func (c *Client) CreateEmbeddings(ctx context.Context, inp *embeddings.Request) (*embeddings.Response, error) {
+	geminiRequest := gemini_embeddings.NativeRequestToRequest(inp)
+
+	model := inp.Model
+	if model == "" {
+		model = "models/gemini-embedding-001"
+	}
+
+	action := "embedContent"
+	if len(geminiRequest.Requests) > 0 {
+		action = "batchEmbedContents"
+	}
+
+	endpoint := fmt.Sprintf("%s/%s:%s", c.opts.BaseURL, model, action)
+
+	payload, err := sonic.Marshal(geminiRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, endpoint, bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("x-goog-api-key", c.opts.ApiKey)
+
+	for k, v := range c.opts.Headers {
+		req.Header.Set(k, v)
+	}
+
+	res, err := c.opts.transport.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		var errResp map[string]any
+		err = utils.DecodeJSON(res.Body, &errResp)
+		return nil, errors.New(errResp["error"].(map[string]any)["message"].(string))
+	}
+
+	var geminiResponse *gemini_embeddings.Response
+	err = utils.DecodeJSON(res.Body, &geminiResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return geminiResponse.ToNativeResponse(model), nil
 }

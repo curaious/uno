@@ -12,6 +12,7 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/gateway/providers/base"
 	"github.com/praveen001/uno/pkg/gateway/providers/xai/xai_responses"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
@@ -25,6 +26,7 @@ type ClientOptions struct {
 }
 
 type Client struct {
+	*base.BaseProvider
 	opts *ClientOptions
 }
 

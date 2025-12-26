@@ -44,6 +44,12 @@ func (g *LLMGateway) HandleRequest(ctx context.Context, providerName llm.Provide
 	resp := &llm.Response{}
 
 	switch {
+	case r.OfEmbeddingsInput != nil:
+		respOut, err := g.handleEmbeddingsRequest(ctx, providerName, p, r.OfEmbeddingsInput)
+		if err != nil {
+			return nil, err
+		}
+		resp.OfEmbeddingsOutput = respOut
 	case r.OfResponsesInput != nil:
 		respOut, err := g.handleResponsesRequest(ctx, providerName, p, r.OfResponsesInput)
 		if err != nil {

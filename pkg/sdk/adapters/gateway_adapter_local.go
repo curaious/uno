@@ -5,6 +5,7 @@ import (
 
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
@@ -48,6 +49,19 @@ func (p *LocalLLMGateway) NewStreamingResponses(ctx context.Context, providerNam
 	}
 
 	return streamResp.ResponsesStreamData, nil
+}
+
+func (p *LocalLLMGateway) CreateEmbeddings(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error) {
+	llmReq := &llm.Request{
+		OfEmbeddingsInput: req,
+	}
+
+	resp, err := p.gateway.HandleRequest(ctx, providerName, p.getKey(providerName), llmReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.OfEmbeddingsOutput, nil
 }
 
 func (p *LocalLLMGateway) getKey(providerName llm.ProviderName) string {

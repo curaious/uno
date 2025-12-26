@@ -12,7 +12,10 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/gateway/providers/base"
+	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_embeddings"
 	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_responses"
+	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
@@ -26,6 +29,7 @@ type ClientOptions struct {
 }
 
 type Client struct {
+	*base.BaseProvider
 	opts *ClientOptions
 }
 
@@ -132,4 +136,41 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 	}()
 
 	return out, nil
+}
+
+func (c *Client) CreateEmbeddings(ctx context.Context, inp *embeddings.Request) (*embeddings.Response, error) {
+	openAiRequest := openai_embeddings.NativeRequestToRequest(inp)
+
+	payload, err := sonic.Marshal(openAiRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.opts.BaseURL+"/embeddings", bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.opts.ApiKey)
+
+	res, err := c.opts.transport.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		var errResp map[string]any
+		err = utils.DecodeJSON(res.Body, &errResp)
+		return nil, errors.New(errResp["error"].(map[string]any)["message"].(string))
+	}
+
+	var openAiResponse *openai_embeddings.Response
+	err = utils.DecodeJSON(res.Body, &openAiResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return openAiResponse.ToNativeResponse(), nil
 }
