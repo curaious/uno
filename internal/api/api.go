@@ -13,6 +13,7 @@ import (
 	"github.com/praveen001/uno/internal/pubsub"
 	"github.com/praveen001/uno/internal/services"
 	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/gateway/middlewares"
 	"github.com/valyala/fasthttp"
 
 	"github.com/praveen001/uno/internal/config"
@@ -62,6 +63,10 @@ func New() *Server {
 
 	// Create shared LLM gateway
 	llmGateway := gateway.NewLLMGateway(configStore)
+	llmGateway.UseMiddleware(
+		middlewares.NewLoggerMiddleware(),
+		middlewares.NewVirtualKeyMiddleware(configStore),
+	)
 	slog.Info("LLM gateway initialized with pubsub")
 
 	s := &Server{

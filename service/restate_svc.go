@@ -25,6 +25,7 @@ import (
 	"github.com/praveen001/uno/pkg/agent-framework/summariser"
 	"github.com/praveen001/uno/pkg/agent-framework/tools"
 	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/gateway/middlewares"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/redis/go-redis/v9"
@@ -115,6 +116,10 @@ func init() {
 
 	// Initialize LLM gateway with shared config store
 	llmGateway = gateway.NewLLMGateway(configStore)
+	llmGateway.UseMiddleware(
+		middlewares.NewLoggerMiddleware(),
+		middlewares.NewVirtualKeyMiddleware(configStore),
+	)
 	slog.Info("LLM gateway initialized with pubsub")
 
 	slog.Info("config", slog.Any("config", conf))

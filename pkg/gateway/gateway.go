@@ -23,19 +23,45 @@ type ConfigStore interface {
 	GetVirtualKey(secretKey string) (*VirtualKeyConfig, error)
 }
 
+type RequestHandler func(ctx context.Context, providerName llm.ProviderName, key string, r *llm.Request) (*llm.Response, error)
+type StreamingRequestHandler func(ctx context.Context, providerName llm.ProviderName, key string, r *llm.Request) (*llm.StreamingResponse, error)
+
+type Middleware interface {
+	HandleRequest(next RequestHandler) RequestHandler
+	HandleStreamingRequest(next StreamingRequestHandler) StreamingRequestHandler
+}
+
 type LLMGateway struct {
 	ConfigStore ConfigStore
+	middlewares []Middleware
 }
 
 func NewLLMGateway(ConfigStore ConfigStore) *LLMGateway {
 	return &LLMGateway{
 		ConfigStore: ConfigStore,
+		middlewares: []Middleware{},
 	}
 }
 
+func (g *LLMGateway) UseMiddleware(middleware ...Middleware) {
+	g.middlewares = append(g.middlewares, middleware...)
+}
+
 func (g *LLMGateway) HandleRequest(ctx context.Context, providerName llm.ProviderName, key string, r *llm.Request) (*llm.Response, error) {
+	// Build the middleware chain
+	handler := g.baseRequestHandler
+	for i := len(g.middlewares) - 1; i >= 0; i-- {
+		handler = g.middlewares[i].HandleRequest(handler)
+	}
+
+	// Execute the handler through the middleware chain
+	return handler(ctx, providerName, key, r)
+}
+
+// baseRequestHandler contains the core request handling logic
+func (g *LLMGateway) baseRequestHandler(ctx context.Context, providerName llm.ProviderName, key string, r *llm.Request) (*llm.Response, error) {
 	// Construct the provider
-	p, err := g.getProvider(ctx, providerName, key)
+	p, err := g.getProvider(ctx, providerName, r, key)
 	if err != nil {
 		return nil, err
 	}
@@ -63,8 +89,20 @@ func (g *LLMGateway) HandleRequest(ctx context.Context, providerName llm.Provide
 }
 
 func (g *LLMGateway) HandleStreamingRequest(ctx context.Context, providerName llm.ProviderName, key string, r *llm.Request) (*llm.StreamingResponse, error) {
+	// Build the middleware chain
+	handler := g.baseStreamingRequestHandler
+	for i := len(g.middlewares) - 1; i >= 0; i-- {
+		handler = g.middlewares[i].HandleStreamingRequest(handler)
+	}
+
+	// Execute the handler through the middleware chain
+	return handler(ctx, providerName, key, r)
+}
+
+// baseStreamingRequestHandler contains the core streaming request handling logic
+func (g *LLMGateway) baseStreamingRequestHandler(ctx context.Context, providerName llm.ProviderName, key string, r *llm.Request) (*llm.StreamingResponse, error) {
 	// Construct the provider
-	p, err := g.getProvider(ctx, providerName, key)
+	p, err := g.getProvider(ctx, providerName, r, key)
 	if err != nil {
 		return nil, err
 	}

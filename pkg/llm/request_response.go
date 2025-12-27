@@ -10,6 +10,18 @@ type Request struct {
 	OfResponsesInput  *responses.Request
 }
 
+func (r *Request) GetRequestedModel() string {
+	if r.OfResponsesInput != nil {
+		return r.OfResponsesInput.Model
+	}
+
+	if r.OfEmbeddingsInput != nil {
+		return r.OfEmbeddingsInput.Model
+	}
+
+	return ""
+}
+
 type Response struct {
 	OfEmbeddingsOutput *embeddings.Response
 	OfResponsesOutput  *responses.Response
