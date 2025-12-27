@@ -130,6 +130,66 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 			}
 		})
 	})
+	r.Handle(http.MethodPost, "/embeddings", func(reqCtx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(reqCtx)
+
+		// Create trace
+		ctx, span := tracer.Start(reqCtx.UserValue("traceCtx").(context.Context), "Controller.Gateway.Responses")
+		defer span.End()
+
+		// Extract virtual key from headers
+		vkBuf := reqCtx.Request.Header.Peek("x-virtual-key")
+		vk := string(vkBuf)
+
+		// Parse request body into openai's embedding input format
+		var openAiRequest *openai_embeddings.Request
+		if err := sonic.Unmarshal(reqCtx.PostBody(), &openAiRequest); err != nil {
+			writeError(reqCtx, stdCtx, "Error unmarshalling the request body", perrors.NewErrInvalidRequest("Error unmarshalling the request body", err))
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
+			return
+		}
+
+		// Convert it into generic embeddings input
+		nativeRequest := openAiRequest.ToNativeRequest()
+
+		// Create a gateway request
+		req := &llm.Request{
+			OfEmbeddingsInput: nativeRequest,
+		}
+
+		frags := strings.Split(nativeRequest.Model, ":")
+		providerName := llm.ProviderName(frags[0])
+		model := frags[1]
+		nativeRequest.Model = model
+
+		out, err := llmGateway.HandleRequest(ctx, providerName, vk, req)
+		if err != nil {
+			writeError(reqCtx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
+			return
+		}
+
+		buf, err := sonic.Marshal(out.OfEmbeddingsOutput)
+		if err != nil {
+			writeError(reqCtx, stdCtx, "Error marshalling response", perrors.NewErrInternalServerError("Error marshalling response", err))
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
+			return
+		}
+
+		if _, err = reqCtx.Write(buf); err != nil {
+			writeError(reqCtx, stdCtx, "Error encoding response", perrors.NewErrInternalServerError("Error encoding response", err))
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			span.End()
+			return
+		}
+	})
 
 	r.Handle(http.MethodPost, "/anthropic/v1/messages", func(ctx *fasthttp.RequestCtx) {
 		stdCtx := requestContext(ctx)
