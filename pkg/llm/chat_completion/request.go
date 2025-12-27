@@ -1,6 +1,11 @@
 package chat_completion
 
-import "github.com/praveen001/uno/pkg/llm/constants"
+import (
+	"errors"
+
+	"github.com/bytedance/sonic"
+	"github.com/praveen001/uno/pkg/llm/constants"
+)
 
 type Request struct {
 	Messages            ChatCompletionMessageUnion `json:"messages"`
@@ -77,6 +82,93 @@ type ChatCompletionMessageUnion struct {
 	OfFunction  *FunctionChatCompletionMessageUnion  `json:",omitzero"`
 }
 
+func (u *ChatCompletionMessageUnion) UnmarshalJSON(data []byte) error {
+	// First, try to unmarshal as a map to check the role field
+	var raw map[string]any
+	if err := sonic.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	role, ok := raw["role"].(string)
+	if !ok {
+		return errors.New("invalid message: missing role field")
+	}
+
+	switch constants.Role(role) {
+	case constants.RoleDeveloper:
+		var msg DeveloperChatCompletionMessageUnion
+		if err := sonic.Unmarshal(data, &msg); err != nil {
+			return err
+		}
+		u.OfDeveloper = &msg
+		return nil
+	case constants.RoleSystem:
+		var msg SystemChatCompletionMessageUnion
+		if err := sonic.Unmarshal(data, &msg); err != nil {
+			return err
+		}
+		u.OfSystem = &msg
+		return nil
+	case constants.RoleUser:
+		var msg UserChatCompletionMessageUnion
+		if err := sonic.Unmarshal(data, &msg); err != nil {
+			return err
+		}
+		u.OfUser = &msg
+		return nil
+	case constants.RoleAssistant:
+		var msg AssistantChatCompletionMessageUnion
+		if err := sonic.Unmarshal(data, &msg); err != nil {
+			return err
+		}
+		u.OfAssistant = &msg
+		return nil
+	case RoleTool:
+		var msg ToolChatCompletionMessageUnion
+		if err := sonic.Unmarshal(data, &msg); err != nil {
+			return err
+		}
+		u.OfTool = &msg
+		return nil
+	default:
+		// Try function role (legacy)
+		var msg FunctionChatCompletionMessageUnion
+		if err := sonic.Unmarshal(data, &msg); err == nil && msg.Role != "" {
+			u.OfFunction = &msg
+			return nil
+		}
+		return errors.New("invalid message: unknown role")
+	}
+}
+
+func (u *ChatCompletionMessageUnion) MarshalJSON() ([]byte, error) {
+	if u.OfDeveloper != nil {
+		return sonic.Marshal(u.OfDeveloper)
+	}
+
+	if u.OfSystem != nil {
+		return sonic.Marshal(u.OfSystem)
+	}
+
+	if u.OfUser != nil {
+		return sonic.Marshal(u.OfUser)
+	}
+
+	if u.OfAssistant != nil {
+		return sonic.Marshal(u.OfAssistant)
+	}
+
+	if u.OfTool != nil {
+		return sonic.Marshal(u.OfTool)
+	}
+
+	if u.OfFunction != nil {
+		return sonic.Marshal(u.OfFunction)
+	}
+
+	return nil, nil
+}
+
 type DeveloperChatCompletionMessageUnion struct {
 	Name    *string                      `json:"name,omitempty"`
 	Role    constants.Role               `json:"role,omitempty"` // "developer"
@@ -120,14 +212,98 @@ type DeveloperMessageContentUnion struct {
 	OfList   []TextPart `json:",omitempty"`
 }
 
+func (u *DeveloperMessageContentUnion) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := sonic.Unmarshal(data, &s); err == nil {
+		u.OfString = &s
+		return nil
+	}
+
+	var list []TextPart
+	if err := sonic.Unmarshal(data, &list); err == nil {
+		u.OfList = list
+		return nil
+	}
+
+	return errors.New("invalid developer message content union")
+}
+
+func (u *DeveloperMessageContentUnion) MarshalJSON() ([]byte, error) {
+	if u.OfString != nil {
+		return sonic.Marshal(u.OfString)
+	}
+
+	if u.OfList != nil {
+		return sonic.Marshal(u.OfList)
+	}
+
+	return nil, nil
+}
+
 type SystemMessageContentUnion struct {
 	OfString *string    `json:",omitempty"`
 	OfList   []TextPart `json:",omitempty"`
 }
 
+func (u *SystemMessageContentUnion) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := sonic.Unmarshal(data, &s); err == nil {
+		u.OfString = &s
+		return nil
+	}
+
+	var list []TextPart
+	if err := sonic.Unmarshal(data, &list); err == nil {
+		u.OfList = list
+		return nil
+	}
+
+	return errors.New("invalid system message content union")
+}
+
+func (u *SystemMessageContentUnion) MarshalJSON() ([]byte, error) {
+	if u.OfString != nil {
+		return sonic.Marshal(u.OfString)
+	}
+
+	if u.OfList != nil {
+		return sonic.Marshal(u.OfList)
+	}
+
+	return nil, nil
+}
+
 type UserMessageContentUnion struct {
 	OfString *string                       `json:",omitempty"`
 	OfList   []UserMessageContentPartUnion `json:",omitempty"`
+}
+
+func (u *UserMessageContentUnion) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := sonic.Unmarshal(data, &s); err == nil {
+		u.OfString = &s
+		return nil
+	}
+
+	var list []UserMessageContentPartUnion
+	if err := sonic.Unmarshal(data, &list); err == nil {
+		u.OfList = list
+		return nil
+	}
+
+	return errors.New("invalid user message content union")
+}
+
+func (u *UserMessageContentUnion) MarshalJSON() ([]byte, error) {
+	if u.OfString != nil {
+		return sonic.Marshal(u.OfString)
+	}
+
+	if u.OfList != nil {
+		return sonic.Marshal(u.OfList)
+	}
+
+	return nil, nil
 }
 
 type AssistantMessageAudio struct {
@@ -139,6 +315,34 @@ type AssistantMessageContentUnion struct {
 	OfList   []AssistantMessageContentPartUnion `json:",omitempty"`
 }
 
+func (u *AssistantMessageContentUnion) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := sonic.Unmarshal(data, &s); err == nil {
+		u.OfString = &s
+		return nil
+	}
+
+	var list []AssistantMessageContentPartUnion
+	if err := sonic.Unmarshal(data, &list); err == nil {
+		u.OfList = list
+		return nil
+	}
+
+	return errors.New("invalid assistant message content union")
+}
+
+func (u *AssistantMessageContentUnion) MarshalJSON() ([]byte, error) {
+	if u.OfString != nil {
+		return sonic.Marshal(u.OfString)
+	}
+
+	if u.OfList != nil {
+		return sonic.Marshal(u.OfList)
+	}
+
+	return nil, nil
+}
+
 type AssistantMessageFunctionCall struct {
 	Name      string `json:"name"`
 	Arguments string `json:"arguments,omitempty"`
@@ -147,6 +351,50 @@ type AssistantMessageFunctionCall struct {
 type AssistantMessageToolCallUnion struct {
 	OfFunction AssistantMessageFunctionToolCall `json:",omitempty"`
 	OfCustom   AssistantMessageCustomToolCall   `json:",omitempty"`
+}
+
+func (u *AssistantMessageToolCallUnion) UnmarshalJSON(data []byte) error {
+	// First, try to unmarshal as a map to check the type field
+	var raw map[string]any
+	if err := sonic.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	toolType, ok := raw["type"].(string)
+	if !ok {
+		return errors.New("invalid tool call: missing type field")
+	}
+
+	switch toolType {
+	case "function":
+		var toolCall AssistantMessageFunctionToolCall
+		if err := sonic.Unmarshal(data, &toolCall); err != nil {
+			return err
+		}
+		u.OfFunction = toolCall
+		return nil
+	case "custom":
+		var toolCall AssistantMessageCustomToolCall
+		if err := sonic.Unmarshal(data, &toolCall); err != nil {
+			return err
+		}
+		u.OfCustom = toolCall
+		return nil
+	default:
+		return errors.New("invalid tool call: unknown type")
+	}
+}
+
+func (u *AssistantMessageToolCallUnion) MarshalJSON() ([]byte, error) {
+	if u.OfFunction.Type != "" {
+		return sonic.Marshal(u.OfFunction)
+	}
+
+	if u.OfCustom.Type != "" {
+		return sonic.Marshal(u.OfCustom)
+	}
+
+	return nil, nil
 }
 
 type AssistantMessageFunctionToolCall struct {
@@ -176,9 +424,81 @@ type ToolMessageContentUnion struct {
 	OfList   []TextPart `json:",omitempty"`
 }
 
+func (u *ToolMessageContentUnion) UnmarshalJSON(data []byte) error {
+	var s string
+	if err := sonic.Unmarshal(data, &s); err == nil {
+		u.OfString = &s
+		return nil
+	}
+
+	var list []TextPart
+	if err := sonic.Unmarshal(data, &list); err == nil {
+		u.OfList = list
+		return nil
+	}
+
+	return errors.New("invalid tool message content union")
+}
+
+func (u *ToolMessageContentUnion) MarshalJSON() ([]byte, error) {
+	if u.OfString != nil {
+		return sonic.Marshal(u.OfString)
+	}
+
+	if u.OfList != nil {
+		return sonic.Marshal(u.OfList)
+	}
+
+	return nil, nil
+}
+
 type AssistantMessageContentPartUnion struct {
 	OfText    *TextPart    `json:",omitempty"`
 	OfRefusal *RefusalPart `json:",omitempty"`
+}
+
+func (u *AssistantMessageContentPartUnion) UnmarshalJSON(data []byte) error {
+	// First, try to unmarshal as a map to check the type field
+	var raw map[string]any
+	if err := sonic.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	partType, ok := raw["type"].(string)
+	if !ok {
+		return errors.New("invalid assistant message content part: missing type field")
+	}
+
+	switch partType {
+	case "text":
+		var part TextPart
+		if err := sonic.Unmarshal(data, &part); err != nil {
+			return err
+		}
+		u.OfText = &part
+		return nil
+	case "refusal":
+		var part RefusalPart
+		if err := sonic.Unmarshal(data, &part); err != nil {
+			return err
+		}
+		u.OfRefusal = &part
+		return nil
+	default:
+		return errors.New("invalid assistant message content part: unknown type")
+	}
+}
+
+func (u *AssistantMessageContentPartUnion) MarshalJSON() ([]byte, error) {
+	if u.OfText != nil {
+		return sonic.Marshal(u.OfText)
+	}
+
+	if u.OfRefusal != nil {
+		return sonic.Marshal(u.OfRefusal)
+	}
+
+	return nil, nil
 }
 
 type UserMessageContentPartUnion struct {
@@ -186,6 +506,72 @@ type UserMessageContentPartUnion struct {
 	OfImageUrl   *ImagePart `json:",omitempty"`
 	OfInputAudio *AudioPart `json:",omitempty"`
 	OfFile       *FilePart  `json:",omitempty"`
+}
+
+func (u *UserMessageContentPartUnion) UnmarshalJSON(data []byte) error {
+	// First, try to unmarshal as a map to check the type field
+	var raw map[string]any
+	if err := sonic.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+
+	partType, ok := raw["type"].(string)
+	if !ok {
+		return errors.New("invalid user message content part: missing type field")
+	}
+
+	switch partType {
+	case "text":
+		var part TextPart
+		if err := sonic.Unmarshal(data, &part); err != nil {
+			return err
+		}
+		u.OfText = &part
+		return nil
+	case "image_url":
+		var part ImagePart
+		if err := sonic.Unmarshal(data, &part); err != nil {
+			return err
+		}
+		u.OfImageUrl = &part
+		return nil
+	case "input_audio":
+		var part AudioPart
+		if err := sonic.Unmarshal(data, &part); err != nil {
+			return err
+		}
+		u.OfInputAudio = &part
+		return nil
+	case "file":
+		var part FilePart
+		if err := sonic.Unmarshal(data, &part); err != nil {
+			return err
+		}
+		u.OfFile = &part
+		return nil
+	default:
+		return errors.New("invalid user message content part: unknown type")
+	}
+}
+
+func (u *UserMessageContentPartUnion) MarshalJSON() ([]byte, error) {
+	if u.OfText != nil {
+		return sonic.Marshal(u.OfText)
+	}
+
+	if u.OfImageUrl != nil {
+		return sonic.Marshal(u.OfImageUrl)
+	}
+
+	if u.OfInputAudio != nil {
+		return sonic.Marshal(u.OfInputAudio)
+	}
+
+	if u.OfFile != nil {
+		return sonic.Marshal(u.OfFile)
+	}
+
+	return nil, nil
 }
 
 type RefusalPart struct {

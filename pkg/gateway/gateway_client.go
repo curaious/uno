@@ -5,6 +5,7 @@ import (
 
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/chat_completion"
 	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
@@ -59,4 +60,8 @@ func (c *LLMClient) NewStreamingResponses(ctx context.Context, in *responses.Req
 func (c *LLMClient) NewEmbedding(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error) {
 	in.Model = c.model
 	return c.LLMGatewayAdapter.NewEmbedding(ctx, c.provider, in)
+}
+
+func (c *LLMClient) NewChatCompletion(ctx context.Context, in *chat_completion.Request) (*chat_completion.Response, error) {
+	return nil, nil
 }
