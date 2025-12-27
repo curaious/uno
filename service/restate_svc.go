@@ -25,7 +25,8 @@ import (
 	"github.com/praveen001/uno/pkg/agent-framework/summariser"
 	"github.com/praveen001/uno/pkg/agent-framework/tools"
 	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/gateway/middlewares"
+	"github.com/praveen001/uno/pkg/gateway/middlewares/logger"
+	"github.com/praveen001/uno/pkg/gateway/middlewares/virtual_key_middleware"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/redis/go-redis/v9"
@@ -114,16 +115,6 @@ func init() {
 		slog.Warn("Failed to start pubsub, config changes won't be live-reloaded", slog.Any("error", err))
 	}
 
-	// Initialize LLM gateway with shared config store
-	llmGateway = gateway.NewLLMGateway(configStore)
-	llmGateway.UseMiddleware(
-		middlewares.NewLoggerMiddleware(),
-		middlewares.NewVirtualKeyMiddleware(configStore),
-	)
-	slog.Info("LLM gateway initialized with pubsub")
-
-	slog.Info("config", slog.Any("config", conf))
-
 	// Initialize Redis
 	redisClient = redis.NewClient(&redis.Options{
 		Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
@@ -135,6 +126,16 @@ func init() {
 	if err := redisClient.Ping(context.Background()).Err(); err != nil {
 		log.Fatalf("failed to connect to redis: %v", err)
 	}
+
+	// Initialize LLM gateway with shared config store
+	llmGateway = gateway.NewLLMGateway(configStore)
+	llmGateway.UseMiddleware(
+		logger.NewLoggerMiddleware(),
+		virtual_key_middleware.NewVirtualKeyMiddleware(configStore, virtual_key_middleware.NewRedisRateLimiterStorage(redisClient, "")),
+	)
+	slog.Info("LLM gateway initialized with pubsub")
+
+	slog.Info("config", slog.Any("config", conf))
 }
 
 // ============================================================================

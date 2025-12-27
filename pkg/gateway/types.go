@@ -19,6 +19,7 @@ type APIKeyConfig struct {
 	ProviderName llm.ProviderName
 	APIKey       string
 	Name         string
+	RateLimits   []RateLimit
 	Enabled      bool
 	IsDefault    bool
 }
@@ -29,4 +30,10 @@ type VirtualKeyConfig struct {
 	SecretKey        string
 	AllowedProviders []llm.ProviderName
 	AllowedModels    []string
+	RateLimits       []RateLimit
+}
+
+type RateLimit struct {
+	Unit  string `json:"unit"`
+	Limit int64  `json:"limit"`
 }

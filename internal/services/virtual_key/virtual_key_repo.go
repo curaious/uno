@@ -52,14 +52,19 @@ func (r *VirtualKeyRepo) Create(ctx context.Context, req *CreateVirtualKeyReques
 	}
 
 	// Create the virtual key
+	rateLimits := RateLimits{}
+	if req.RateLimits != nil {
+		rateLimits = *req.RateLimits
+	}
+
 	query := `
-		INSERT INTO virtual_keys (name, secret_key)
-		VALUES ($1, $2)
-		RETURNING id, name, secret_key, created_at, updated_at
+		INSERT INTO virtual_keys (name, secret_key, rate_limits)
+		VALUES ($1, $2, $3)
+		RETURNING id, name, secret_key, rate_limits, created_at, updated_at
 	`
 
 	var vk VirtualKey
-	err = tx.GetContext(ctx, &vk, query, req.Name, secretKey)
+	err = tx.GetContext(ctx, &vk, query, req.Name, secretKey, rateLimits)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create virtual key: %w", err)
 	}
@@ -104,7 +109,7 @@ func (r *VirtualKeyRepo) Create(ctx context.Context, req *CreateVirtualKeyReques
 func (r *VirtualKeyRepo) GetByID(ctx context.Context, id uuid.UUID) (*VirtualKey, error) {
 	// Get the virtual key
 	query := `
-		SELECT id, name, secret_key, created_at, updated_at
+		SELECT id, name, secret_key, rate_limits, created_at, updated_at
 		FROM virtual_keys
 		WHERE id = $1
 	`
@@ -166,7 +171,7 @@ func (r *VirtualKeyRepo) GetByID(ctx context.Context, id uuid.UUID) (*VirtualKey
 // GetByName retrieves a virtual key by name
 func (r *VirtualKeyRepo) GetByName(ctx context.Context, name string) (*VirtualKey, error) {
 	query := `
-		SELECT id, name, secret_key, created_at, updated_at
+		SELECT id, name, secret_key, rate_limits, created_at, updated_at
 		FROM virtual_keys
 		WHERE name = $1
 	`
@@ -187,7 +192,7 @@ func (r *VirtualKeyRepo) GetByName(ctx context.Context, name string) (*VirtualKe
 // GetBySecretKey retrieves a virtual key by its secret key
 func (r *VirtualKeyRepo) GetBySecretKey(ctx context.Context, secretKey string) (*VirtualKey, error) {
 	query := `
-		SELECT id, name, secret_key, created_at, updated_at
+		SELECT id, name, secret_key, rate_limits, created_at, updated_at
 		FROM virtual_keys
 		WHERE secret_key = $1
 	`
@@ -208,7 +213,7 @@ func (r *VirtualKeyRepo) GetBySecretKey(ctx context.Context, secretKey string) (
 // List retrieves all virtual keys with their providers and models
 func (r *VirtualKeyRepo) List(ctx context.Context) ([]*VirtualKey, error) {
 	query := `
-		SELECT id, name, secret_key, created_at, updated_at
+		SELECT id, name, secret_key, rate_limits, created_at, updated_at
 		FROM virtual_keys
 		ORDER BY created_at DESC
 	`
@@ -248,6 +253,18 @@ func (r *VirtualKeyRepo) Update(ctx context.Context, id uuid.UUID, req *UpdateVi
 		`, *req.Name, id)
 		if err != nil {
 			return nil, fmt.Errorf("failed to update virtual key: %w", err)
+		}
+	}
+
+	// Update rate limits if provided
+	if req.RateLimits != nil {
+		_, err = tx.ExecContext(ctx, `
+			UPDATE virtual_keys
+			SET rate_limits = $1, updated_at = NOW()
+			WHERE id = $2
+		`, *req.RateLimits, id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to update rate limits: %w", err)
 		}
 	}
 

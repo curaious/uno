@@ -167,11 +167,24 @@ func (s *ServiceConfigStore) reloadVirtualKeys() {
 	// Clear and repopulate
 	s.virtualKeys = make(map[string]*gateway.VirtualKeyConfig)
 	for _, virtualKey := range virtualKeys {
-		s.virtualKeys[virtualKey.SecretKey] = &gateway.VirtualKeyConfig{
+		vk := &gateway.VirtualKeyConfig{
 			SecretKey:        virtualKey.SecretKey,
 			AllowedProviders: virtualKey.Providers,
 			AllowedModels:    virtualKey.ModelNames,
+			RateLimits:       []gateway.RateLimit{},
 		}
+
+		if virtualKey.RateLimits != nil {
+			for _, rateLimit := range virtualKey.RateLimits {
+				vk.RateLimits = append(vk.RateLimits, gateway.RateLimit{
+					Unit:  rateLimit.Unit,
+					Limit: rateLimit.Limit,
+				})
+			}
+		}
+
+		s.virtualKeys[virtualKey.SecretKey] = vk
+
 	}
 
 	slog.Debug("Reloaded virtual keys", slog.Int("count", len(virtualKeys)))

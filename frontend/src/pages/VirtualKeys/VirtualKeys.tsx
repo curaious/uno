@@ -1,12 +1,14 @@
 import React, {useEffect, useState} from 'react';
 import {api} from '../../api';
-import {VirtualKey, CreateVirtualKeyRequest, UpdateVirtualKeyRequest, ProviderType, ProviderModelsData} from '../../components/Chat/types';
+import {VirtualKey, CreateVirtualKeyRequest, UpdateVirtualKeyRequest, ProviderType, ProviderModelsData, RateLimit} from '../../components/Chat/types';
 import {Action, Column, DataTable} from '../../components/DataTable/DataTable';
 import {PageContainer, PageHeader, PageSubtitle, PageTitle} from "../../components/shared/Page";
 import {Button} from "../../components/shared/Buttons";
 import {Box, IconButton, Chip, MenuItem} from '@mui/material';
 import Edit from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
+import AddIcon from '@mui/icons-material/Add';
+import RemoveIcon from '@mui/icons-material/Remove';
 import {Input, InputGroup, InputLabel, Select} from '../../components/shared/Input';
 import {SlideDialog} from "../../components/shared/Dialog";
 
@@ -21,7 +23,8 @@ export const VirtualKeys: React.FC = props => {
   const [formData, setFormData] = useState<CreateVirtualKeyRequest>({
     name: '',
     providers: [],
-    model_ids: []
+    model_ids: [],
+    rate_limits: []
   });
   const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
 
@@ -71,7 +74,8 @@ export const VirtualKeys: React.FC = props => {
     setFormData({
       name: '',
       providers: [],
-      model_ids: []
+      model_ids: [],
+      rate_limits: []
     });
     setFormErrors({});
     setShowDialog(true);
@@ -82,7 +86,8 @@ export const VirtualKeys: React.FC = props => {
     setFormData({
       name: virtualKey.name,
       providers: virtualKey.providers,
-      model_ids: virtualKey.model_ids
+      model_ids: virtualKey.model_ids,
+      rate_limits: virtualKey.rate_limits || []
     });
     setFormErrors({});
     setShowDialog(true);
@@ -132,7 +137,8 @@ export const VirtualKeys: React.FC = props => {
         const updateData: UpdateVirtualKeyRequest = {
           name: formData.name,
           providers: formData.providers,
-          model_ids: formData.model_ids && formData.model_ids.length > 0 ? formData.model_ids : undefined
+          model_ids: formData.model_ids && formData.model_ids.length > 0 ? formData.model_ids : undefined,
+          rate_limits: formData.rate_limits && formData.rate_limits.length > 0 ? formData.rate_limits : undefined
         };
         await api.put(`/virtual-keys/${editingVirtualKey.id}`, updateData);
       } else {
@@ -140,7 +146,8 @@ export const VirtualKeys: React.FC = props => {
         const createData: CreateVirtualKeyRequest = {
           name: formData.name,
           providers: formData.providers,
-          model_ids: formData.model_ids && formData.model_ids.length > 0 ? formData.model_ids : undefined
+          model_ids: formData.model_ids && formData.model_ids.length > 0 ? formData.model_ids : undefined,
+          rate_limits: formData.rate_limits && formData.rate_limits.length > 0 ? formData.rate_limits : undefined
         };
         const response = await api.post('/virtual-keys', createData);
         const createdKey: VirtualKey = response.data.data;
@@ -169,7 +176,8 @@ export const VirtualKeys: React.FC = props => {
     setFormData({
       name: '',
       providers: [],
-      model_ids: []
+      model_ids: [],
+      rate_limits: []
     });
     setFormErrors({});
   };
@@ -187,6 +195,34 @@ export const VirtualKeys: React.FC = props => {
     setFormData({
       ...formData,
       model_ids: typeof value === 'string' ? value.split(',') : value
+    });
+  };
+
+  const handleAddRateLimit = () => {
+    setFormData({
+      ...formData,
+      rate_limits: [...(formData.rate_limits || []), { unit: '1h', limit: 100 }]
+    });
+  };
+
+  const handleRemoveRateLimit = (index: number) => {
+    const newRateLimits = [...(formData.rate_limits || [])];
+    newRateLimits.splice(index, 1);
+    setFormData({
+      ...formData,
+      rate_limits: newRateLimits
+    });
+  };
+
+  const handleRateLimitChange = (index: number, field: 'unit' | 'limit', value: string | number) => {
+    const newRateLimits = [...(formData.rate_limits || [])];
+    newRateLimits[index] = {
+      ...newRateLimits[index],
+      [field]: value
+    };
+    setFormData({
+      ...formData,
+      rate_limits: newRateLimits
     });
   };
 
@@ -288,6 +324,28 @@ export const VirtualKeys: React.FC = props => {
             <span>{item.model_ids.length} model{item.model_ids.length !== 1 ? 's' : ''}</span>
           ) : (
             <span style={{ color: '#999' }}>All models</span>
+          )}
+        </div>
+      )
+    },
+    {
+      key: 'rate_limits',
+      label: 'Rate Limits',
+      render: (value, item) => (
+        <div>
+          {item.rate_limits && item.rate_limits.length > 0 ? (
+            <Box display="flex" gap={0.5} flexWrap="wrap">
+              {item.rate_limits.map((rl, idx) => (
+                <Chip
+                  key={idx}
+                  label={`${rl.limit}/${rl.unit}`}
+                  size="small"
+                  variant="outlined"
+                />
+              ))}
+            </Box>
+          ) : (
+            <span style={{ color: '#999' }}>No limits</span>
           )}
         </div>
       )
@@ -431,10 +489,11 @@ export const VirtualKeys: React.FC = props => {
                 </Box>
               )}
               MenuProps={{
-                style: { zIndex: 1500 },
+                style: { zIndex: 1600 },
                 PaperProps: {
-                  style: { zIndex: 1500 }
-                }
+                  style: { zIndex: 1600 }
+                },
+                disablePortal: false
               }}
             >
               {providerTypes.length === 0 ? (
@@ -480,10 +539,11 @@ export const VirtualKeys: React.FC = props => {
                 );
               }}
               MenuProps={{
-                style: { zIndex: 1500, maxHeight: 300 },
+                style: { zIndex: 1600, maxHeight: 300 },
                 PaperProps: {
-                  style: { zIndex: 1500, maxHeight: 300 }
-                }
+                  style: { zIndex: 1600, maxHeight: 300 }
+                },
+                disablePortal: false
               }}
             >
               {availableModels.length === 0 ? (
@@ -505,6 +565,67 @@ export const VirtualKeys: React.FC = props => {
                 ? `${formData.model_ids.length} model${formData.model_ids.length !== 1 ? 's' : ''} selected`
                 : 'Leave empty to allow all models'}
             </p>
+          </InputGroup>
+
+          <InputGroup>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+              <InputLabel>Rate Limits (Optional)</InputLabel>
+              <Button
+                type="button"
+                size="small"
+                onClick={handleAddRateLimit}
+                startIcon={<AddIcon />}
+              >
+                Add Limit
+              </Button>
+            </Box>
+            {formData.rate_limits && formData.rate_limits.length > 0 ? (
+              <Box display="flex" flexDirection="column" gap={1}>
+                {formData.rate_limits.map((rateLimit, index) => (
+                  <Box key={index} display="flex" gap={1} alignItems="flex-start">
+                    <Select
+                      value={rateLimit.unit}
+                      onChange={(e) => handleRateLimitChange(index, 'unit', e.target.value)}
+                      style={{ minWidth: '100px' }}
+                      MenuProps={{
+                        style: { zIndex: 1600 },
+                        PaperProps: {
+                          style: { zIndex: 1600 }
+                        },
+                        disablePortal: false
+                      }}
+                    >
+                      <MenuItem value="1min">1 minute</MenuItem>
+                      <MenuItem value="1h">1 hour</MenuItem>
+                      <MenuItem value="6h">6 hours</MenuItem>
+                      <MenuItem value="12h">12 hours</MenuItem>
+                      <MenuItem value="1d">1 day</MenuItem>
+                      <MenuItem value="1w">1 week</MenuItem>
+                      <MenuItem value="1mo">1 month</MenuItem>
+                    </Select>
+                    <Input
+                      type="number"
+                      value={rateLimit.limit}
+                      onChange={(e) => handleRateLimitChange(index, 'limit', parseInt(e.target.value) || 0)}
+                      placeholder="Limit"
+                      style={{ flex: 1 }}
+                      inputProps={{ min: 1 }}
+                    />
+                    <IconButton
+                      size="small"
+                      onClick={() => handleRemoveRateLimit(index)}
+                      color="error"
+                    >
+                      <RemoveIcon />
+                    </IconButton>
+                  </Box>
+                ))}
+              </Box>
+            ) : (
+              <p style={{color: '#999', fontSize: '0.875rem', marginTop: '4px'}}>
+                No rate limits set. Click "Add Limit" to set rate limits.
+              </p>
+            )}
           </InputGroup>
         </form>
       </SlideDialog>

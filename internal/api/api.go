@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"fmt"
+	"log"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -13,7 +14,9 @@ import (
 	"github.com/praveen001/uno/internal/pubsub"
 	"github.com/praveen001/uno/internal/services"
 	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/gateway/middlewares"
+	"github.com/praveen001/uno/pkg/gateway/middlewares/logger"
+	"github.com/praveen001/uno/pkg/gateway/middlewares/virtual_key_middleware"
+	"github.com/redis/go-redis/v9"
 	"github.com/valyala/fasthttp"
 
 	"github.com/praveen001/uno/internal/config"
@@ -44,6 +47,17 @@ func New() *Server {
 		panic("unable to run migrations")
 	}
 
+	redisClient := redis.NewClient(&redis.Options{
+		Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
+		DB:       10,
+		Username: conf.REDIS_USERNAME,
+		Password: conf.REDIS_PASSWORD,
+	})
+
+	if err := redisClient.Ping(context.Background()).Err(); err != nil {
+		log.Fatalf("failed to connect to redis: %v", err)
+	}
+
 	svc := services.NewServices(conf)
 	slog.Info("services initialized")
 
@@ -64,8 +78,11 @@ func New() *Server {
 	// Create shared LLM gateway
 	llmGateway := gateway.NewLLMGateway(configStore)
 	llmGateway.UseMiddleware(
-		middlewares.NewLoggerMiddleware(),
-		middlewares.NewVirtualKeyMiddleware(configStore),
+		logger.NewLoggerMiddleware(),
+		virtual_key_middleware.NewVirtualKeyMiddleware(
+			configStore,
+			virtual_key_middleware.NewRedisRateLimiterStorage(redisClient, ""),
+		),
 	)
 	slog.Info("LLM gateway initialized with pubsub")
 

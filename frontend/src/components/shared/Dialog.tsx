@@ -51,10 +51,10 @@ const SlideDialogContainer = styled(Box)<{ open: boolean; width?: string }>(({ o
   transition: 'transform 0.3s ease-in-out',
   // Ensure Select/Menu dropdowns appear above the dialog
   '& .MuiPopover-root': {
-    zIndex: '1500 !important',
+    zIndex: '1600 !important',
   },
   '& .MuiMenu-root': {
-    zIndex: '1500 !important',
+    zIndex: '1600 !important',
   },
 }));
 
