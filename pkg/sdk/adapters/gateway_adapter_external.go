@@ -11,6 +11,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/chat_completion"
 	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"go.opentelemetry.io/otel"
@@ -198,4 +199,12 @@ func (p *ExternalLLMGateway) NewEmbedding(ctx context.Context, providerName llm.
 	}
 
 	return &nativeResp, nil
+}
+
+func (p *ExternalLLMGateway) NewChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (*chat_completion.Response, error) {
+	return nil, nil
+}
+
+func (p *ExternalLLMGateway) NewStreamingChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (chan *chat_completion.ResponseChunk, error) {
+	return nil, nil
 }

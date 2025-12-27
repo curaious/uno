@@ -14,6 +14,7 @@ type Provider interface {
 	NewStreamingResponses(ctx context.Context, in *responses.Request) (chan *responses.ResponseChunk, error)
 	NewEmbedding(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error)
 	NewChatCompletion(ctx context.Context, in *chat_completion.Request) (*chat_completion.Response, error)
+	NewStreamingChatCompletion(ctx context.Context, in *chat_completion.Request) (chan *chat_completion.ResponseChunk, error)
 }
 
 type ProviderName string

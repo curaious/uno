@@ -221,3 +221,73 @@ func (c *Client) NewChatCompletion(ctx context.Context, inp *chat_completion.Req
 
 	return openAiResponse.ToNativeResponse(), nil
 }
+
+func (c *Client) NewStreamingChatCompletion(ctx context.Context, inp *chat_completion.Request) (chan *chat_completion.ResponseChunk, error) {
+	openAiRequest := openai_chat_completion.NativeRequestToRequest(inp)
+
+	payload, err := sonic.Marshal(openAiRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.opts.BaseURL+"/chat/completions", bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.opts.ApiKey)
+
+	res, err := c.opts.transport.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		var errResp map[string]any
+		err = utils.DecodeJSON(res.Body, &errResp)
+		if err != nil {
+			return nil, err
+		}
+		if errorObj, ok := errResp["error"].(map[string]any); ok {
+			if message, ok := errorObj["message"].(string); ok {
+				return nil, errors.New(message)
+			}
+		}
+		return nil, errors.New("unknown error occurred")
+	}
+
+	out := make(chan *chat_completion.ResponseChunk)
+
+	go func() {
+		defer res.Body.Close()
+		defer close(out)
+		reader := bufio.NewReader(res.Body)
+
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+
+			line = strings.TrimRight(line, "\r\n")
+			fmt.Println(line)
+
+			if line == "data: [DONE]" {
+				return
+			}
+
+			if strings.HasPrefix(line, "data:") {
+				openAiChatCompletionChunk := &openai_chat_completion.ResponseChunk{}
+				err = sonic.Unmarshal([]byte(strings.TrimPrefix(line, "data:")), openAiChatCompletionChunk)
+				if err != nil {
+					slog.WarnContext(ctx, "unable to unmarshal chat completion response chunk", slog.String("data", line), slog.Any("error", err))
+					continue
+				}
+				out <- openAiChatCompletionChunk.ToNativeResponseChunk()
+			}
+		}
+	}()
+
+	return out, nil
+}

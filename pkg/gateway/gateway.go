@@ -126,6 +126,14 @@ func (g *LLMGateway) baseStreamingRequestHandler(ctx context.Context, providerNa
 
 		resp.ResponsesStreamData = respOut
 		return resp, nil
+	case r.OfChatCompletionInput != nil:
+		respOut, err := g.handleStreamingChatCompletionRequest(ctx, providerName, p, r.OfChatCompletionInput)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.ChatCompletionStreamData = respOut
+		return resp, nil
 	}
 
 	return nil, errors.New("invalid request")

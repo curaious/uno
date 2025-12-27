@@ -23,6 +23,12 @@ type LLMGatewayAdapter interface {
 
 	// NewEmbedding
 	NewEmbedding(ctx context.Context, providerName llm.ProviderName, req *embeddings.Request) (*embeddings.Response, error)
+
+	// NewChatCompletion
+	NewChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (*chat_completion.Response, error)
+
+	// NewStreamingChatCompletion
+	NewStreamingChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (chan *chat_completion.ResponseChunk, error)
 }
 
 // LLMClient wraps an LLMGatewayAdapter and provides a high-level interface
@@ -63,5 +69,11 @@ func (c *LLMClient) NewEmbedding(ctx context.Context, in *embeddings.Request) (*
 }
 
 func (c *LLMClient) NewChatCompletion(ctx context.Context, in *chat_completion.Request) (*chat_completion.Response, error) {
-	return nil, nil
+	in.Model = c.model
+	return c.LLMGatewayAdapter.NewChatCompletion(ctx, c.provider, in)
+}
+
+func (c *LLMClient) NewStreamingChatCompletion(ctx context.Context, in *chat_completion.Request) (chan *chat_completion.ResponseChunk, error) {
+	in.Model = c.model
+	return c.LLMGatewayAdapter.NewStreamingChatCompletion(ctx, c.provider, in)
 }

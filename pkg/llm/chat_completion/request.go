@@ -32,6 +32,7 @@ type Request struct {
 	ReasoningEffort     *string                      `json:"reasoning_effort,omitempty"` // "minimal", "low", "medium", "high"
 	ServiceTier         *string                      `json:"service_tier,omitempty"`     // "auto", "default", "flex", "scale", "priority"
 	Stop                *StopParam                   `json:"stop,omitempty"`
+	Stream              *bool                        `json:"stream,omitempty"`
 	StreamOptions       *StreamOptionParam           `json:"stream_options,omitempty"` // Set only when setting stream=true
 	Verbosity           *string                      `json:"verbosity,omitempty"`      // "low", "medium", "high"
 	FunctionCall        *FunctionCallParam           `json:"function_call,omitempty"`  // Deprecated in favour of `tool_choice`
@@ -41,6 +42,14 @@ type Request struct {
 	ToolChoice          *string                      `json:"tool_choice,omitempty"`
 	Tools               any                          `json:"tools,omitempty"`
 	WebSearchOptions    any                          `json:"web_search_options,omitempty"`
+}
+
+func (s *Request) IsStreamingRequest() bool {
+	if s.Stream == nil {
+		return false
+	}
+
+	return *s.Stream
 }
 
 type AudioParam struct {

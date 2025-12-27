@@ -456,26 +456,64 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 			OfChatCompletionInput: nativeRequest,
 		}
 
-		// Call gateway to handle the gateway request
-		out, err := llmGateway.HandleRequest(stdCtx, llm.ProviderNameOpenAI, vk, req)
+		if !nativeRequest.IsStreamingRequest() {
+			// Call gateway to handle the gateway request
+			out, err := llmGateway.HandleRequest(stdCtx, llm.ProviderNameOpenAI, vk, req)
+			if err != nil {
+				writeError(ctx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
+				return
+			}
+
+			// Convert generic output into openai specific output
+			openAiOut := openai_chat_completion.NativeResponseToResponse(out.OfChatCompletionOutput)
+
+			buf, err := sonic.Marshal(openAiOut)
+			if err != nil {
+				writeError(ctx, stdCtx, "Error marshalling response", perrors.NewErrInternalServerError("Error marshalling response", err))
+				return
+			}
+
+			if _, err = ctx.Write(buf); err != nil {
+				writeError(ctx, stdCtx, "Error encoding response", perrors.NewErrInternalServerError("Error encoding response", err))
+				return
+			}
+
+			return
+		}
+
+		// Handling streaming request
+		out, err := llmGateway.HandleStreamingRequest(ctx, llm.ProviderNameOpenAI, vk, req)
 		if err != nil {
-			writeError(ctx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
+			writeError(ctx, stdCtx, "Error handling LLM Gateway streaming request", perrors.NewErrInternalServerError("Error handling LLM Gateway streaming request", err))
 			return
 		}
 
-		// Convert generic output into openai specific output
-		openAiOut := openai_chat_completion.NativeResponseToResponse(out.OfChatCompletionOutput)
+		ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		loop:
+			for {
+				select {
+				case data, ok := <-out.ChatCompletionStreamData:
+					if !ok {
+						_, _ = fmt.Fprintf(w, "data: [DONE]")
+						break loop
+					}
 
-		buf, err := sonic.Marshal(openAiOut)
-		if err != nil {
-			writeError(ctx, stdCtx, "Error marshalling response", perrors.NewErrInternalServerError("Error marshalling response", err))
-			return
-		}
+					buf, err := sonic.Marshal(data)
+					if err != nil {
+						slog.WarnContext(ctx, "Error encoding response: %v\n", err)
+						continue
+					}
+					fmt.Println(string(buf))
 
-		if _, err = ctx.Write(buf); err != nil {
-			writeError(ctx, stdCtx, "Error encoding response", perrors.NewErrInternalServerError("Error encoding response", err))
-			return
-		}
+					_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
+
+					err = w.Flush()
+					if err != nil {
+						slog.WarnContext(ctx, "Error flushing buffer: %v\n", err)
+					}
+				}
+			}
+		})
 	})
 }
 

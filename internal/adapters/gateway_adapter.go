@@ -5,6 +5,7 @@ import (
 
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/chat_completion"
 	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
@@ -64,4 +65,30 @@ func (p *InternalLLMGateway) NewEmbedding(ctx context.Context, providerName llm.
 	}
 
 	return resp.OfEmbeddingsOutput, nil
+}
+
+func (p *InternalLLMGateway) NewChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (*chat_completion.Response, error) {
+	llmReq := &llm.Request{
+		OfChatCompletionInput: req,
+	}
+
+	resp, err := p.gateway.HandleRequest(ctx, providerName, p.key, llmReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.OfChatCompletionOutput, nil
+}
+
+func (p *InternalLLMGateway) NewStreamingChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (chan *chat_completion.ResponseChunk, error) {
+	llmReq := &llm.Request{
+		OfChatCompletionInput: req,
+	}
+
+	resp, err := p.gateway.HandleStreamingRequest(ctx, providerName, p.key, llmReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.ChatCompletionStreamData, nil
 }

@@ -25,3 +25,7 @@ func (bp *BaseProvider) NewEmbedding(ctx context.Context, in *embeddings.Request
 func (bp *BaseProvider) NewChatCompletion(ctx context.Context, in *chat_completion.Request) (*chat_completion.Response, error) {
 	panic("implement me")
 }
+
+func (bp *BaseProvider) NewStreamingChatCompletion(ctx context.Context, in *chat_completion.Request) (chan *chat_completion.ResponseChunk, error) {
+	panic("implement me")
+}

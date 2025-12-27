@@ -36,7 +36,8 @@ type Response struct {
 }
 
 type StreamingResponse struct {
-	ResponsesStreamData chan *responses.ResponseChunk
+	ResponsesStreamData      chan *responses.ResponseChunk
+	ChatCompletionStreamData chan *chat_completion.ResponseChunk
 }
 
 type Error struct {
