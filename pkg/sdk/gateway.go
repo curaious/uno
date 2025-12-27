@@ -1,6 +1,7 @@
 package sdk
 
 import (
+	internal_adapters "github.com/praveen001/uno/internal/adapters"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/sdk/adapters"
@@ -14,16 +15,29 @@ type LLMOptions struct {
 // NewLLM creates a new LLMClient that provides access to multiple LLM providers.
 func (c *SDK) NewLLM(opts LLMOptions) llm.Provider {
 	return gateway.NewLLMClient(
-		c.getGatewayAdapter(),
+		c.getGatewayAdapter(opts.Provider),
 		opts.Provider,
 		opts.Model,
 	)
 }
 
-func (c *SDK) getGatewayAdapter() gateway.LLMGatewayAdapter {
+func (c *SDK) getGatewayAdapter(providerName llm.ProviderName) gateway.LLMGatewayAdapter {
 	if c.directMode {
-		return adapters.NewLocalLLMGateway(gateway.NewLLMGateway(c.llmConfigs))
+		return internal_adapters.NewInternalLLMGateway(gateway.NewLLMGateway(c.llmConfigs), getKey(c.llmConfigs, providerName))
 	}
 
 	return adapters.NewExternalLLMGateway(c.endpoint, c.virtualKey)
+}
+
+func getKey(cfgStore gateway.ConfigStore, providerName llm.ProviderName) string {
+	providerConfig, err := cfgStore.GetProviderConfig(providerName)
+	if err != nil {
+		return ""
+	}
+
+	if len(providerConfig.ApiKeys) == 0 {
+		return ""
+	}
+
+	return providerConfig.ApiKeys[0].APIKey
 }
