@@ -8,39 +8,39 @@ import (
 )
 
 type Request struct {
-	Messages            ChatCompletionMessageUnion `json:"messages"`
-	Model               string                     `json:"model"`
-	FrequencyPenalty    *float64                   `json:"frequency_penalty,omitempty"`
-	Logprobs            *bool                      `json:"logprobs,omitempty"`
-	MaxCompletionTokens *int64                     `json:"max_completion_tokens,omitempty"`
-	MaxTokens           *int64                     `json:"max_tokens,omitempty"` // Deprecated in favour of `MaxCompletionTokens`
-	N                   *int64                     `json:"n,omitempty"`          // How many choices needs to be generated
-	PresencePenalty     *float64                   `json:"presence_penalty,omitempty"`
-	Seed                *int64                     `json:"seed,omitempty"`
-	Store               *bool                      `json:"store,omitempty"`
-	Temperature         *float64                   `json:"temperature,omitempty"`
-	TopLogprobs         *int64                     `json:"top_logprobs,omitempty"`
-	TopP                *float64                   `json:"top_p,omitempty"`
-	ParallelToolCalls   *bool                      `json:"parallel_tool_calls,omitempty"`
-	PromptCacheKey      *string                    `json:"prompt_cache_key,omitempty"`
-	SafetyIdentifier    *string                    `json:"safety_identifier,omitempty"`
-	User                *string                    `json:"user,omitempty"`
-	Audio               *AudioParam                `json:"audio,omitempty"`
-	LogitBias           map[string]int64           `json:"logit_bias,omitempty"`
-	Metadata            map[string]string          `json:"metadata,omitempty"`
-	Modalities          []string                   `json:"modalities,omitempty"`       // "text", "audio"
-	ReasoningEffort     *string                    `json:"reasoning_effort,omitempty"` // "minimal", "low", "medium", "high"
-	ServiceTier         *string                    `json:"service_tier,omitempty"`     // "auto", "default", "flex", "scale", "priority"
-	Stop                *StopParam                 `json:"stop,omitempty"`
-	StreamOptions       *StreamOptionParam         `json:"stream_options,omitempty"` // Set only when setting stream=true
-	Verbosity           *string                    `json:"verbosity,omitempty"`      // "low", "medium", "high"
-	FunctionCall        *FunctionCallParam         `json:"function_call,omitempty"`  // Deprecated in favour of `tool_choice`
-	Functions           []FunctionsParam           `json:"functions,omitempty"`      // Deprecated in favour of tools
-	Prediction          any                        `json:"prediction,omitempty"`
-	ResponseFormat      any                        `json:"response_format,omitempty"`
-	ToolChoice          *string                    `json:"tool_choice,omitempty"`
-	Tools               any                        `json:"tools,omitempty"`
-	WebSearchOptions    any                        `json:"web_search_options,omitempty"`
+	Messages            []ChatCompletionMessageUnion `json:"messages"`
+	Model               string                       `json:"model"`
+	FrequencyPenalty    *float64                     `json:"frequency_penalty,omitempty"`
+	Logprobs            *bool                        `json:"logprobs,omitempty"`
+	MaxCompletionTokens *int64                       `json:"max_completion_tokens,omitempty"`
+	MaxTokens           *int64                       `json:"max_tokens,omitempty"` // Deprecated in favour of `MaxCompletionTokens`
+	N                   *int64                       `json:"n,omitempty"`          // How many choices needs to be generated
+	PresencePenalty     *float64                     `json:"presence_penalty,omitempty"`
+	Seed                *int64                       `json:"seed,omitempty"`
+	Store               *bool                        `json:"store,omitempty"`
+	Temperature         *float64                     `json:"temperature,omitempty"`
+	TopLogprobs         *int64                       `json:"top_logprobs,omitempty"`
+	TopP                *float64                     `json:"top_p,omitempty"`
+	ParallelToolCalls   *bool                        `json:"parallel_tool_calls,omitempty"`
+	PromptCacheKey      *string                      `json:"prompt_cache_key,omitempty"`
+	SafetyIdentifier    *string                      `json:"safety_identifier,omitempty"`
+	User                *string                      `json:"user,omitempty"`
+	Audio               *AudioParam                  `json:"audio,omitempty"`
+	LogitBias           map[string]int64             `json:"logit_bias,omitempty"`
+	Metadata            map[string]string            `json:"metadata,omitempty"`
+	Modalities          []string                     `json:"modalities,omitempty"`       // "text", "audio"
+	ReasoningEffort     *string                      `json:"reasoning_effort,omitempty"` // "minimal", "low", "medium", "high"
+	ServiceTier         *string                      `json:"service_tier,omitempty"`     // "auto", "default", "flex", "scale", "priority"
+	Stop                *StopParam                   `json:"stop,omitempty"`
+	StreamOptions       *StreamOptionParam           `json:"stream_options,omitempty"` // Set only when setting stream=true
+	Verbosity           *string                      `json:"verbosity,omitempty"`      // "low", "medium", "high"
+	FunctionCall        *FunctionCallParam           `json:"function_call,omitempty"`  // Deprecated in favour of `tool_choice`
+	Functions           []FunctionsParam             `json:"functions,omitempty"`      // Deprecated in favour of tools
+	Prediction          any                          `json:"prediction,omitempty"`
+	ResponseFormat      any                          `json:"response_format,omitempty"`
+	ToolChoice          *string                      `json:"tool_choice,omitempty"`
+	Tools               any                          `json:"tools,omitempty"`
+	WebSearchOptions    any                          `json:"web_search_options,omitempty"`
 }
 
 type AudioParam struct {

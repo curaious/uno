@@ -1,5 +1,7 @@
 package chat_completion
 
+import "github.com/praveen001/uno/pkg/llm/constants"
+
 type Response struct {
 	ID                string   `json:"id"`
 	Choices           []Choice `json:"choices"`
@@ -14,7 +16,19 @@ type Choice struct {
 	FinishReason string         `json:"finish_reason"` // "stop", "length", "content_filter"
 	Index        int64          `json:"index"`
 	Logprobs     ChoiceLogprobs `json:"logprobs"`
-	Text         string         `json:"text"`
+	Message      OutputMessage  `json:"message"`
+}
+
+type OutputMessage struct {
+	Role         constants.Role                   `json:"role"`
+	Refusal      string                           `json:"refusal"`
+	Content      string                           `json:"content"`
+	FunctionCall AssistantMessageFunctionCall     `json:"function_call"`
+	ToolCalls    []ToolChatCompletionMessageUnion `json:"tool_calls"`
+	Audio        OutputMessageAudio               `json:"audio"`
+}
+
+type OutputMessageAudio struct {
 }
 
 type ChoiceLogprobs struct {
