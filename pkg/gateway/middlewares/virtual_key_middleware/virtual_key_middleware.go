@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"slices"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
