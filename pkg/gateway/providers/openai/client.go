@@ -13,8 +13,10 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/gateway/providers/base"
+	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_chat_completion"
 	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_embeddings"
 	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_responses"
+	"github.com/praveen001/uno/pkg/llm/chat_completion"
 	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
@@ -167,6 +169,51 @@ func (c *Client) NewEmbedding(ctx context.Context, inp *embeddings.Request) (*em
 	}
 
 	var openAiResponse *openai_embeddings.Response
+	err = utils.DecodeJSON(res.Body, &openAiResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	return openAiResponse.ToNativeResponse(), nil
+}
+
+func (c *Client) NewChatCompletion(ctx context.Context, inp *chat_completion.Request) (*chat_completion.Response, error) {
+	openAiRequest := openai_chat_completion.NativeRequestToRequest(inp)
+
+	payload, err := sonic.Marshal(openAiRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.opts.BaseURL+"/chat/completions", bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.opts.ApiKey)
+
+	res, err := c.opts.transport.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		var errResp map[string]any
+		err = utils.DecodeJSON(res.Body, &errResp)
+		if err != nil {
+			return nil, err
+		}
+		if errorObj, ok := errResp["error"].(map[string]any); ok {
+			if message, ok := errorObj["message"].(string); ok {
+				return nil, errors.New(message)
+			}
+		}
+		return nil, errors.New("unknown error occurred")
+	}
+
+	var openAiResponse *openai_chat_completion.Response
 	err = utils.DecodeJSON(res.Body, &openAiResponse)
 	if err != nil {
 		return nil, err

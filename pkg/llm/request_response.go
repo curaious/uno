@@ -1,13 +1,15 @@
 package llm
 
 import (
+	"github.com/praveen001/uno/pkg/llm/chat_completion"
 	"github.com/praveen001/uno/pkg/llm/embeddings"
 	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
 type Request struct {
-	OfEmbeddingsInput *embeddings.Request
-	OfResponsesInput  *responses.Request
+	OfEmbeddingsInput     *embeddings.Request
+	OfResponsesInput      *responses.Request
+	OfChatCompletionInput *chat_completion.Request
 }
 
 func (r *Request) GetRequestedModel() string {
@@ -19,13 +21,18 @@ func (r *Request) GetRequestedModel() string {
 		return r.OfEmbeddingsInput.Model
 	}
 
+	if r.OfChatCompletionInput != nil {
+		return r.OfChatCompletionInput.Model
+	}
+
 	return ""
 }
 
 type Response struct {
-	OfEmbeddingsOutput *embeddings.Response
-	OfResponsesOutput  *responses.Response
-	Error              *Error
+	OfEmbeddingsOutput     *embeddings.Response
+	OfResponsesOutput      *responses.Response
+	OfChatCompletionOutput *chat_completion.Response
+	Error                  *Error
 }
 
 type StreamingResponse struct {

@@ -17,6 +17,7 @@ import (
 	"github.com/praveen001/uno/pkg/gateway/providers/anthropic/anthropic_responses"
 	"github.com/praveen001/uno/pkg/gateway/providers/gemini/gemini_embeddings"
 	"github.com/praveen001/uno/pkg/gateway/providers/gemini/gemini_responses"
+	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_chat_completion"
 	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_embeddings"
 	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_responses"
 	"github.com/praveen001/uno/pkg/llm"
@@ -361,6 +362,49 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 
 		// Convert generic output into openai specific output
 		openAiOut := openai_embeddings.NativeResponseToResponse(out.OfEmbeddingsOutput)
+
+		buf, err := sonic.Marshal(openAiOut)
+		if err != nil {
+			writeError(ctx, stdCtx, "Error marshalling response", perrors.NewErrInternalServerError("Error marshalling response", err))
+			return
+		}
+
+		if _, err = ctx.Write(buf); err != nil {
+			writeError(ctx, stdCtx, "Error encoding response", perrors.NewErrInternalServerError("Error encoding response", err))
+			return
+		}
+	})
+	r.Handle(http.MethodPost, "/openai/chat/completions", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+
+		// Extract virtual key from headers
+		vkBuf := ctx.Request.Header.Peek("Authorization")
+		vk := strings.TrimPrefix(string(vkBuf), "Bearer ")
+
+		// Parse request body into openai's chat completion input format
+		var openAiRequest *openai_chat_completion.Request
+		if err := sonic.Unmarshal(ctx.PostBody(), &openAiRequest); err != nil {
+			writeError(ctx, stdCtx, "Error unmarshalling the request body", perrors.NewErrInvalidRequest("Error unmarshalling the request body", err))
+			return
+		}
+
+		// Convert it into generic chat completion input
+		nativeRequest := openAiRequest.ToNativeRequest()
+
+		// Create a gateway request
+		req := &llm.Request{
+			OfChatCompletionInput: nativeRequest,
+		}
+
+		// Call gateway to handle the gateway request
+		out, err := llmGateway.HandleRequest(stdCtx, llm.ProviderNameOpenAI, vk, req)
+		if err != nil {
+			writeError(ctx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
+			return
+		}
+
+		// Convert generic output into openai specific output
+		openAiOut := openai_chat_completion.NativeResponseToResponse(out.OfChatCompletionOutput)
 
 		buf, err := sonic.Marshal(openAiOut)
 		if err != nil {

@@ -83,6 +83,13 @@ func (g *LLMGateway) baseRequestHandler(ctx context.Context, providerName llm.Pr
 		}
 
 		resp.OfResponsesOutput = respOut
+	case r.OfChatCompletionInput != nil:
+		respOut, err := g.handleChatCompletionRequest(ctx, providerName, p, r.OfChatCompletionInput)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.OfChatCompletionOutput = respOut
 	}
 
 	return resp, nil
