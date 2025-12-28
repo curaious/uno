@@ -16,19 +16,19 @@ import (
 )
 
 type LLMHistorySummarizer struct {
-	llm                 llm.Provider
-	instructionProvider core.SystemPromptProvider
-	tokenThreshold      int
-	keepRecentCount     int // Number of recent messages to keep unsummarized
-	parameters          responses.Parameters
+	llm             llm.Provider
+	instruction     core.SystemPromptProvider
+	tokenThreshold  int
+	keepRecentCount int // Number of recent messages to keep unsummarized
+	parameters      responses.Parameters
 }
 
 type LLMHistorySummarizerOptions struct {
-	LLM                 llm.Provider
-	InstructionProvider core.SystemPromptProvider
-	TokenThreshold      int
-	KeepRecentCount     int // Optional: defaults to 5
-	Parameters          responses.Parameters
+	LLM             llm.Provider
+	Instruction     core.SystemPromptProvider
+	TokenThreshold  int
+	KeepRecentCount int // Optional: defaults to 5
+	Parameters      responses.Parameters
 }
 
 func NewLLMHistorySummarizer(opts *LLMHistorySummarizerOptions) *LLMHistorySummarizer {
@@ -38,11 +38,11 @@ func NewLLMHistorySummarizer(opts *LLMHistorySummarizerOptions) *LLMHistorySumma
 	}
 
 	return &LLMHistorySummarizer{
-		llm:                 opts.LLM,
-		instructionProvider: opts.InstructionProvider,
-		tokenThreshold:      opts.TokenThreshold,
-		keepRecentCount:     keepRecentCount,
-		parameters:          opts.Parameters,
+		llm:             opts.LLM,
+		instruction:     opts.Instruction,
+		tokenThreshold:  opts.TokenThreshold,
+		keepRecentCount: keepRecentCount,
+		parameters:      opts.Parameters,
 	}
 }
 
@@ -142,8 +142,8 @@ func (s *LLMHistorySummarizer) Summarize(ctx context.Context, msgIdToRunId map[s
 	// Get instruction for summarization
 	var instruction string
 	var err error
-	if s.instructionProvider != nil {
-		instruction, err = s.instructionProvider.GetPrompt(ctx)
+	if s.instruction != nil {
+		instruction, err = s.instruction.GetPrompt(ctx)
 		if err != nil {
 			return nil, err
 		}

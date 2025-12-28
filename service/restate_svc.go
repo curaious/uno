@@ -164,7 +164,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	//defer span.End()
 	ctx := reStateCtx
 
-	streamChannel := fmt.Sprintf("stream:%s", runID)
+	streamChannel := runID
 
 	slog.Info("agent workflow started", "run_id", runID, "project_id", input.ProjectID, "agent_name", input.AgentName)
 
@@ -248,7 +248,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	}
 
 	// Create instruction provider
-	instructionProvider := prompts.NewWithLoader(
+	instruction := prompts.NewWithLoader(
 		adapters.NewInternalPromptPersistence(svc.Prompt, projectID, agentConfig.PromptName, promptLabel),
 		prompts.WithDefaultResolver(contextData),
 	)
@@ -278,12 +278,12 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 
 	// Create DurableAgent
 	agentOpts := &agents.DurableAgentOptions{
-		Name:                agentConfig.Name,
-		Executor:            executor,
-		MaxLoops:            50,
-		LLM:                 llmClient,
-		Tools:               allTools,
-		InstructionProvider: instructionProvider,
+		Name:        agentConfig.Name,
+		Executor:    executor,
+		MaxLoops:    50,
+		LLM:         llmClient,
+		Tools:       allTools,
+		Instruction: instruction,
 	}
 
 	// If agent has a schema configured, set it as the output format
@@ -467,7 +467,7 @@ func buildSummarizer(agentConfig *agent.AgentWithDetails, projectID uuid.UUID, v
 			summarizerPromptLabel = *agentConfig.LLMSummarizerPromptLabel
 		}
 
-		summarizerInstructionProvider := prompts.NewWithLoader(
+		summarizerInstruction := prompts.NewWithLoader(
 			adapters.NewInternalPromptPersistence(svc.Prompt, projectID, *agentConfig.SummarizerPromptName, summarizerPromptLabel),
 			prompts.WithDefaultResolver(contextData),
 		)
@@ -495,10 +495,10 @@ func buildSummarizer(agentConfig *agent.AgentWithDetails, projectID uuid.UUID, v
 		)
 
 		return summariser.NewLLMHistorySummarizer(&summariser.LLMHistorySummarizerOptions{
-			LLM:                 summarizerLLM,
-			InstructionProvider: summarizerInstructionProvider,
-			TokenThreshold:      tokenThreshold,
-			KeepRecentCount:     keepRecentCount,
+			LLM:             summarizerLLM,
+			Instruction:     summarizerInstruction,
+			TokenThreshold:  tokenThreshold,
+			KeepRecentCount: keepRecentCount,
 		}), nil
 
 	case "sliding_window":

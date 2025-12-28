@@ -325,11 +325,11 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 				)
 
 				summarizer = summariser.NewLLMHistorySummarizer(&summariser.LLMHistorySummarizerOptions{
-					LLM:                 summarizerLLM,
-					InstructionProvider: summarizerInstructionProvider,
-					TokenThreshold:      tokenThreshold,
-					KeepRecentCount:     keepRecentCount,
-					Parameters:          summarizerModelParams,
+					LLM:             summarizerLLM,
+					Instruction:     summarizerInstructionProvider,
+					TokenThreshold:  tokenThreshold,
+					KeepRecentCount: keepRecentCount,
+					Parameters:      summarizerModelParams,
 				})
 
 			case "sliding_window":

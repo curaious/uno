@@ -2,8 +2,10 @@ package agents
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
@@ -21,29 +23,26 @@ import (
 //
 // If no executor is provided, it falls back to NoOpExecutor (no durability).
 type DurableAgent struct {
-	name                string
-	output              any
-	history             core.ChatHistory
-	instruction         string
-	instructionProvider core.SystemPromptProvider
-	tools               []core.Tool
-	llm                 llm.Provider
-	executor            core.DurableExecutor
-	maxLoops            int
-	parameters          responses.Parameters
+	name        string
+	output      any
+	history     core.ChatHistory
+	instruction core.SystemPromptProvider
+	tools       []core.Tool
+	llm         llm.Provider
+	executor    core.DurableExecutor
+	maxLoops    int
+	parameters  responses.Parameters
 }
 
 // DurableAgentOptions configures the DurableAgent.
 type DurableAgentOptions struct {
-	// Existing agent options
-	History             core.ChatHistory
-	Instruction         string
-	InstructionProvider core.SystemPromptProvider
-	Name                string
-	LLM                 llm.Provider
-	Output              any
-	Tools               []core.Tool
-	Parameters          responses.Parameters
+	History     core.ChatHistory
+	Instruction core.SystemPromptProvider
+	Name        string
+	LLM         llm.Provider
+	Output      any
+	Tools       []core.Tool
+	Parameters  responses.Parameters
 
 	// Durability options
 	Executor core.DurableExecutor // If nil, uses NoOpExecutor
@@ -63,20 +62,21 @@ func NewDurableAgent(opts *DurableAgentOptions) (*DurableAgent, error) {
 	}
 
 	return &DurableAgent{
-		name:                opts.Name,
-		output:              opts.Output,
-		history:             opts.History,
-		instruction:         opts.Instruction,
-		instructionProvider: opts.InstructionProvider,
-		tools:               opts.Tools,
-		llm:                 opts.LLM,
-		executor:            executor,
-		maxLoops:            maxLoops,
+		name:        opts.Name,
+		output:      opts.Output,
+		history:     opts.History,
+		instruction: opts.Instruction,
+		tools:       opts.Tools,
+		llm:         opts.LLM,
+		executor:    executor,
+		maxLoops:    maxLoops,
+		parameters:  opts.Parameters,
 	}, nil
 }
 
 // Execute runs the agent with durable execution.
 // Each LLM call and tool execution is checkpointed.
+// Supports human-in-the-loop via the pause/resume pattern.
 func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessageUnion, cb func(chunk *responses.ResponseChunk)) (*ExecutionResult, error) {
 	ctx, span := tracer.Start(ctx, "DurableAgent.Execute")
 	defer span.End()
@@ -89,31 +89,76 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		e.history = history.NewConversationManager(nil, "none", "")
 	}
 
-	finalOutput := []responses.OutputMessageUnion{}
-	var err error
-	runUsage := responses.Usage{}
-
 	// Load the conversation history
-	_, err = e.history.LoadMessages(ctx)
+	_, err := e.history.LoadMessages(ctx)
 	if err != nil {
 		span.RecordError(err)
 		return &ExecutionResult{Status: core.RunStatusError}, err
 	}
 
-	// Add the incoming new message to the conversation
-	e.history.AddMessages(ctx, msgs, nil)
+	// Load run state from meta
+	runId := e.history.GetMessageID()
+	meta := e.history.GetMeta()
+	runState := core.LoadRunStateFromMeta(meta)
+	var rejectedToolCallIds []string
+	var traceid string
+	sc := span.SpanContext()
+	if sc.IsValid() {
+		traceid = sc.TraceID().String()
+	}
+
+	// Initialize state
+	if runState == nil || runState.IsComplete() {
+		// FRESH RUN: No state or previous run completed
+		runState = core.NewRunState()
+		if len(msgs) > 0 {
+			e.history.AddMessages(ctx, msgs, nil)
+		}
+
+		cb(&responses.ResponseChunk{
+			OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
+				RunState: responses.ChunkRunData{
+					Id:      runId,
+					Object:  "run",
+					Status:  "created",
+					TraceID: traceid,
+				},
+			},
+		})
+	} else if runState.IsPaused() {
+		// RESUME: Transition to execute the approved tools
+		// msgs is ignored on resume - we continue from existing messages with pending tools
+		if runState.CurrentStep == core.StepAwaitApproval {
+			// Expected an approval response message
+			if len(msgs) == 0 || msgs[0].OfFunctionCallApprovalResponse == nil {
+				return &ExecutionResult{Status: core.RunStatusError}, errors.New("expected approval response message")
+			}
+			runState.CurrentStep = core.StepExecuteTools
+			rejectedToolCallIds = msgs[0].OfFunctionCallApprovalResponse.RejectedCallIds
+		}
+	}
+
+	cb(&responses.ResponseChunk{
+		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "in_progress",
+				TraceID: traceid,
+			},
+		},
+	})
 
 	// Set up the system instruction
 	instruction := "You are a helpful assistant."
-	if e.instruction != "" {
-		instruction = e.instruction
-	} else if e.instructionProvider != nil {
-		instruction, err = e.instructionProvider.GetPrompt(ctx)
+	if e.instruction != nil {
+		instruction, err = e.instruction.GetPrompt(ctx)
 		if err != nil {
 			return &ExecutionResult{Status: core.RunStatusError}, err
 		}
 	}
 
+	// Collect tool definitions
 	tools := []responses.ToolUnion{}
 	for _, tool := range e.tools {
 		if t := tool.Tool(ctx); t != nil {
@@ -121,196 +166,248 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		}
 	}
 
-	cb(&responses.ResponseChunk{
-		OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
-			RunState: responses.ChunkRunData{
-				Object: "run",
-			},
-		},
-	})
+	finalOutput := []responses.OutputMessageUnion{}
 
-	loopCount := 0
-
-	// Agent executor loop
-	for loopCount < e.maxLoops {
-		loopCount++
-		// Check for cancellation
+	// Main loop - driven by state machine
+	for runState.LoopIteration < e.maxLoops {
+		// Check for cancellation (durable)
 		if cancelled, ok, _ := e.executor.Get(ctx, "cancelled"); ok && cancelled.(bool) {
 			slog.InfoContext(ctx, "agent execution cancelled")
 			return &ExecutionResult{Status: core.RunStatusError}, fmt.Errorf("execution cancelled")
 		}
 
-		// Get the messages from the conversation history
-		convMessages, err := e.history.GetMessages(ctx)
-		if err != nil {
-			span.RecordError(err)
-			return &ExecutionResult{Status: core.RunStatusError}, err
-		}
+		switch runState.NextStep() {
 
-		// DURABLE CHECKPOINT: LLM Call
-		respAny, err := e.executor.Run(ctx, fmt.Sprintf("llm-call-%d", loopCount), func(ctx context.Context) (any, error) {
-			stream, err := e.llm.NewStreamingResponses(ctx, &responses.Request{
-				Instructions: utils.Ptr(instruction),
-				Input: responses.InputUnion{
-					OfInputMessageList: convMessages,
-				},
-				Tools: tools,
-				//OutputFormat: e.output,
-				Parameters: e.parameters,
-			})
+		case core.StepCallLLM:
+			// Get the messages from the conversation history
+			convMessages, err := e.history.GetMessages(ctx)
 			if err != nil {
-				return nil, err
-			}
-
-			acc := Accumulator{}
-			return acc.ReadStream(stream, cb)
-		})
-		if err != nil {
-			span.RecordError(err)
-			return nil, err
-		}
-
-		buf, err := sonic.Marshal(respAny)
-		if err != nil {
-			span.RecordError(err)
-			return nil, err
-		}
-
-		resp := &responses.Response{}
-		if err := sonic.Unmarshal(buf, resp); err != nil {
-			span.RecordError(err)
-			return nil, err
-		}
-
-		finalOutput = resp.Output
-
-		// Track the LLM's usage
-		runUsage.InputTokens += resp.Usage.InputTokens
-		runUsage.OutputTokens += resp.Usage.OutputTokens
-		runUsage.InputTokensDetails.CachedTokens += resp.Usage.InputTokensDetails.CachedTokens
-		runUsage.TotalTokens += resp.Usage.TotalTokens
-
-		// Execute tool calls
-		toolResults := []*responses.FunctionCallOutputMessage{}
-		hasToolCalls := false
-
-		for _, msg := range finalOutput {
-			if msg.OfFunctionCall == nil {
-				continue
-			}
-
-			hasToolCalls = true
-
-			args := map[string]interface{}{}
-			if err := sonic.Unmarshal([]byte(msg.OfFunctionCall.Arguments), &args); err != nil {
+				span.RecordError(err)
 				return &ExecutionResult{Status: core.RunStatusError}, err
 			}
 
-			for _, tool := range e.tools {
-				toolResultAny, err := e.executor.Run(ctx, fmt.Sprintf("tool-%s-%s", msg.OfFunctionCall.ID, msg.OfFunctionCall.Name), func(ctx context.Context) (any, error) {
-					if msg.OfFunctionCall.Name == tool.Tool(ctx).OfFunction.Name {
-						toolResult, err := tool.Execute(ctx, msg.OfFunctionCall)
-						if err != nil {
-							span.RecordError(err)
-							slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
-							return nil, err
-						}
-
-						return toolResult, nil
-					}
-
-					return nil, fmt.Errorf("tool %s not found", msg.OfFunctionCall.Name)
+			// DURABLE CHECKPOINT: LLM Call
+			respAny, err := e.executor.Run(ctx, fmt.Sprintf("llm-call-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
+				stream, err := e.llm.NewStreamingResponses(ctx, &responses.Request{
+					Instructions: utils.Ptr(instruction),
+					Input: responses.InputUnion{
+						OfInputMessageList: convMessages,
+					},
+					Tools:      tools,
+					Parameters: e.parameters,
 				})
 				if err != nil {
-					span.RecordError(err)
-					slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
+					return nil, err
 				}
 
-				buf, err = sonic.Marshal(toolResultAny)
+				acc := Accumulator{}
+				return acc.ReadStream(stream, cb)
+			})
+			if err != nil {
+				span.RecordError(err)
+				return &ExecutionResult{Status: core.RunStatusError}, err
+			}
+
+			// Unmarshal response
+			buf, err := sonic.Marshal(respAny)
+			if err != nil {
+				span.RecordError(err)
+				return &ExecutionResult{Status: core.RunStatusError}, err
+			}
+
+			resp := &responses.Response{}
+			if err := sonic.Unmarshal(buf, resp); err != nil {
+				span.RecordError(err)
+				return &ExecutionResult{Status: core.RunStatusError}, err
+			}
+
+			finalOutput = append(finalOutput, resp.Output...)
+
+			// Track the LLM's usage
+			runState.Usage.InputTokens += resp.Usage.InputTokens
+			runState.Usage.OutputTokens += resp.Usage.OutputTokens
+			runState.Usage.InputTokensDetails.CachedTokens += resp.Usage.InputTokensDetails.CachedTokens
+			runState.Usage.TotalTokens += resp.Usage.TotalTokens
+
+			// Convert output to input messages and add to history
+			inputMsgs := []responses.InputMessageUnion{}
+			for _, outMsg := range resp.Output {
+				inputMsg, err := outMsg.AsInput()
 				if err != nil {
-					span.RecordError(err)
-					return nil, err
+					slog.ErrorContext(ctx, "output msg conversion failed", slog.Any("error", err))
+					return &ExecutionResult{Status: core.RunStatusError}, err
+				}
+				inputMsgs = append(inputMsgs, inputMsg)
+			}
+			e.history.AddMessages(ctx, inputMsgs, resp.Usage)
+
+			// Extract tool calls
+			toolCalls := []responses.FunctionCallMessage{}
+			for _, msg := range resp.Output {
+				if msg.OfFunctionCall != nil {
+					toolCalls = append(toolCalls, *msg.OfFunctionCall)
+				}
+			}
+
+			if len(toolCalls) == 0 {
+				// No tools = done
+				runState.TransitionToComplete()
+			} else {
+				// Partition tools by approval requirement
+				needsApproval, immediate := e.partitionByApproval(ctx, toolCalls)
+
+				// Execute immediate tools first (if any), then handle approval
+				if len(immediate) > 0 {
+					runState.TransitionToExecuteTools(immediate)
+					// Store tools needing approval for after immediate execution
+					if len(needsApproval) > 0 {
+						runState.ToolsAwaitingApproval = needsApproval
+					}
+				} else if len(needsApproval) > 0 {
+					// Only approval-required tools, no immediate ones
+					runState.TransitionToAwaitApproval(needsApproval)
+				}
+			}
+
+		case core.StepExecuteTools:
+			// Execute pending tool calls
+			for _, toolCall := range runState.PendingToolCalls {
+				tool := e.findTool(ctx, toolCall.Name)
+				if tool == nil {
+					slog.ErrorContext(ctx, "tool not found", slog.String("tool_name", toolCall.Name))
+					continue
 				}
 
-				toolResult := &responses.FunctionCallOutputMessage{}
-				if err := sonic.Unmarshal(buf, toolResult); err != nil {
-					span.RecordError(err)
-					return nil, err
+				var toolResult *responses.FunctionCallOutputMessage
+
+				if slices.Contains(rejectedToolCallIds, toolCall.CallID) {
+					// Tool was rejected by human
+					toolResult = &responses.FunctionCallOutputMessage{
+						ID:     toolCall.ID,
+						CallID: toolCall.CallID,
+						Output: responses.FunctionCallOutputContentUnion{
+							OfString: utils.Ptr("Request to call this tool has been declined"),
+						},
+					}
+				} else {
+					// DURABLE CHECKPOINT: Tool execution
+					toolResultAny, err := e.executor.Run(ctx, fmt.Sprintf("tool-%s-%s", toolCall.ID, toolCall.Name), func(ctx context.Context) (any, error) {
+						return tool.Execute(ctx, &toolCall)
+					})
+					if err != nil {
+						span.RecordError(err)
+						slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
+						return &ExecutionResult{Status: core.RunStatusError}, err
+					}
+
+					// Unmarshal tool result
+					buf, err := sonic.Marshal(toolResultAny)
+					if err != nil {
+						span.RecordError(err)
+						return &ExecutionResult{Status: core.RunStatusError}, err
+					}
+
+					toolResult = &responses.FunctionCallOutputMessage{}
+					if err := sonic.Unmarshal(buf, toolResult); err != nil {
+						span.RecordError(err)
+						return &ExecutionResult{Status: core.RunStatusError}, err
+					}
 				}
 
-				toolResults = append(toolResults, toolResult)
 				cb(&responses.ResponseChunk{
 					OfFunctionCallOutput: toolResult,
 				})
+
+				// Add tool result to history
+				e.history.AddMessages(ctx, []responses.InputMessageUnion{
+					{OfFunctionCallOutput: toolResult},
+				}, nil)
 			}
-		}
 
-		inputMsgs := []responses.InputMessageUnion{}
-		for _, outMsg := range resp.Output {
-			inputMsg, err := outMsg.AsInput()
-			if err != nil {
-				slog.ErrorContext(ctx, "output msg conversion failed", slog.Any("error", err))
-				return &ExecutionResult{Status: core.RunStatusError}, err
+			runState.ClearPendingTools()
+
+			// Check if there are tools waiting for approval (queued during immediate execution)
+			if runState.HasToolsAwaitingApproval() {
+				runState.PromoteAwaitingToApproval()
+			} else {
+				runState.TransitionToLLM()
 			}
-			inputMsgs = append(inputMsgs, inputMsg)
-		}
 
-		// Put final output into the conversation
-		e.history.AddMessages(ctx, inputMsgs, resp.Usage)
+		case core.StepAwaitApproval:
+			// Save state and exit - will resume when approval comes
+			e.history.SaveMessages(ctx, runState.ToMeta(traceid))
 
-		// Exit if no tool calls
-		if !hasToolCalls {
-			break
-		}
-
-		// Put tool results into the conversation
-		nativeToolResults := []responses.InputMessageUnion{}
-		for _, toolResult := range toolResults {
-			nativeToolResults = append(nativeToolResults, responses.InputMessageUnion{
-				OfFunctionCallOutput: &responses.FunctionCallOutputMessage{
-					ID:     toolResult.ID,
-					CallID: toolResult.CallID,
-					Output: responses.FunctionCallOutputContentUnion{
-						OfString: toolResult.Output.OfString,
+			// Run paused
+			cb(&responses.ResponseChunk{
+				OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
+					RunState: responses.ChunkRunData{
+						Id:               runId,
+						Object:           "run",
+						Status:           "paused",
+						PendingToolCalls: runState.PendingToolCalls,
+						Usage:            runState.Usage,
+						TraceID:          traceid,
 					},
 				},
 			})
+
+			return &ExecutionResult{
+				Status:           core.RunStatusPaused,
+				PendingApprovals: runState.PendingToolCalls,
+			}, nil
+
+		case core.StepComplete:
+			// Save final state
+			e.history.SaveMessages(ctx, runState.ToMeta(traceid))
+
+			// Run completed
+			cb(&responses.ResponseChunk{
+				OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
+					RunState: responses.ChunkRunData{
+						Id:      runId,
+						Object:  "run",
+						Status:  "completed",
+						Usage:   runState.Usage,
+						TraceID: traceid,
+					},
+				},
+			})
+
+			return &ExecutionResult{
+				Status: core.RunStatusCompleted,
+				Output: finalOutput,
+			}, nil
 		}
-
-		// Put tool results into the conversation
-		e.history.AddMessages(ctx, nativeToolResults, resp.Usage)
 	}
 
-	// Run end
-	cb(&responses.ResponseChunk{
-		OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
-			RunState: responses.ChunkRunData{
-				Object: "run",
-				Usage:  runUsage,
-			},
-		},
-	})
+	// Max loops exceeded
+	return &ExecutionResult{Status: core.RunStatusError}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
+}
 
-	if loopCount >= e.maxLoops {
-		return &ExecutionResult{Status: core.RunStatusError}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
+// partitionByApproval splits tool calls into those needing approval and those that can execute immediately
+func (e *DurableAgent) partitionByApproval(ctx context.Context, toolCalls []responses.FunctionCallMessage) (needsApproval []responses.FunctionCallMessage, immediate []responses.FunctionCallMessage) {
+	for _, toolCall := range toolCalls {
+		tool := e.findTool(ctx, toolCall.Name)
+		if tool != nil && tool.NeedApproval() {
+			needsApproval = append(needsApproval, toolCall)
+		} else {
+			immediate = append(immediate, toolCall)
+		}
 	}
+	return needsApproval, immediate
+}
 
-	// Save the conversation history
-	err = e.history.SaveMessages(ctx, map[string]any{
-		"usage": runUsage,
-	})
-	if err != nil {
-		span.RecordError(err)
-		return &ExecutionResult{Status: core.RunStatusError}, err
+// findTool finds a tool by name
+func (e *DurableAgent) findTool(ctx context.Context, toolName string) core.Tool {
+	for _, tool := range e.tools {
+		if t := tool.Tool(ctx); t != nil && t.OfFunction != nil && t.OfFunction.Name == toolName {
+			return tool
+		}
 	}
-
-	return &ExecutionResult{
-		Status: core.RunStatusCompleted,
-		Output: finalOutput,
-	}, nil
+	return nil
 }
 
 // Cancel signals the agent to stop execution.
 func (e *DurableAgent) Cancel(ctx context.Context, reason string) error {
-	return nil
+	return e.executor.Set(ctx, "cancelled", true)
 }
