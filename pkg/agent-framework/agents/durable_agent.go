@@ -8,6 +8,7 @@ import (
 	"slices"
 
 	"github.com/bytedance/sonic"
+	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/history"
@@ -86,17 +87,28 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	// If history is not enabled, set a default history without persistence.
 	// This is required for the agent loop to work.
 	if e.history == nil {
-		e.history = history.NewConversationManager(nil, "none", "")
+		// DURABLE: Generate message ID deterministically
+		msgIdAny, err := e.executor.Run(ctx, "generate-message-id", func(ctx context.Context) (any, error) {
+			return uuid.NewString(), nil
+		})
+		if err != nil {
+			span.RecordError(err)
+			return &ExecutionResult{Status: core.RunStatusError}, err
+		}
+		msgId := msgIdAny.(string)
+		e.history = history.NewConversationManager(nil, "none", "", history.WithMessageID(msgId))
 	}
 
-	// Load the conversation history
-	_, err := e.history.LoadMessages(ctx)
+	// DURABLE CHECKPOINT: Load the conversation history (DB read)
+	_, err := e.executor.Run(ctx, "load-messages", func(ctx context.Context) (any, error) {
+		return e.history.LoadMessages(ctx)
+	})
 	if err != nil {
 		span.RecordError(err)
 		return &ExecutionResult{Status: core.RunStatusError}, err
 	}
 
-	// Load run state from meta
+	// Load run state from meta (in-memory, no DB call)
 	runId := e.history.GetMessageID()
 	meta := e.history.GetMeta()
 	runState := core.LoadRunStateFromMeta(meta)
@@ -115,15 +127,19 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			e.history.AddMessages(ctx, msgs, nil)
 		}
 
-		cb(&responses.ResponseChunk{
-			OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
-				RunState: responses.ChunkRunData{
-					Id:      runId,
-					Object:  "run",
-					Status:  "created",
-					TraceID: traceid,
+		// DURABLE: Emit run created event (side effect)
+		e.executor.Run(ctx, "emit-run-created", func(ctx context.Context) (any, error) {
+			cb(&responses.ResponseChunk{
+				OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
+					RunState: responses.ChunkRunData{
+						Id:      runId,
+						Object:  "run",
+						Status:  "created",
+						TraceID: traceid,
+					},
 				},
-			},
+			})
+			return nil, nil
 		})
 	} else if runState.IsPaused() {
 		// RESUME: Transition to execute the approved tools
@@ -138,23 +154,33 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		}
 	}
 
-	cb(&responses.ResponseChunk{
-		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
-			RunState: responses.ChunkRunData{
-				Id:      runId,
-				Object:  "run",
-				Status:  "in_progress",
-				TraceID: traceid,
+	// DURABLE: Emit run in progress event (side effect)
+	e.executor.Run(ctx, "emit-run-in-progress", func(ctx context.Context) (any, error) {
+		cb(&responses.ResponseChunk{
+			OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+				RunState: responses.ChunkRunData{
+					Id:      runId,
+					Object:  "run",
+					Status:  "in_progress",
+					TraceID: traceid,
+				},
 			},
-		},
+		})
+		return nil, nil
 	})
 
-	// Set up the system instruction
+	// DURABLE CHECKPOINT: Load system instruction (potential DB read)
 	instruction := "You are a helpful assistant."
 	if e.instruction != nil {
-		instruction, err = e.instruction.GetPrompt(ctx)
+		instructionAny, err := e.executor.Run(ctx, "load-instruction", func(ctx context.Context) (any, error) {
+			return e.instruction.GetPrompt(ctx)
+		})
 		if err != nil {
+			span.RecordError(err)
 			return &ExecutionResult{Status: core.RunStatusError}, err
+		}
+		if instructionAny != nil {
+			instruction = instructionAny.(string)
 		}
 	}
 
@@ -314,8 +340,12 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 					}
 				}
 
-				cb(&responses.ResponseChunk{
-					OfFunctionCallOutput: toolResult,
+				// DURABLE: Emit tool result event (side effect)
+				e.executor.Run(ctx, fmt.Sprintf("emit-tool-result-%s", toolCall.ID), func(ctx context.Context) (any, error) {
+					cb(&responses.ResponseChunk{
+						OfFunctionCallOutput: toolResult,
+					})
+					return nil, nil
 				})
 
 				// Add tool result to history
@@ -334,21 +364,30 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			}
 
 		case core.StepAwaitApproval:
-			// Save state and exit - will resume when approval comes
-			e.history.SaveMessages(ctx, runState.ToMeta(traceid))
+			// DURABLE CHECKPOINT: Save state and exit - will resume when approval comes (DB write)
+			_, err := e.executor.Run(ctx, "save-messages-paused", func(ctx context.Context) (any, error) {
+				return nil, e.history.SaveMessages(ctx, runState.ToMeta(traceid))
+			})
+			if err != nil {
+				span.RecordError(err)
+				return &ExecutionResult{Status: core.RunStatusError}, err
+			}
 
-			// Run paused
-			cb(&responses.ResponseChunk{
-				OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
-					RunState: responses.ChunkRunData{
-						Id:               runId,
-						Object:           "run",
-						Status:           "paused",
-						PendingToolCalls: runState.PendingToolCalls,
-						Usage:            runState.Usage,
-						TraceID:          traceid,
+			// DURABLE: Emit run paused event (side effect)
+			e.executor.Run(ctx, "emit-run-paused", func(ctx context.Context) (any, error) {
+				cb(&responses.ResponseChunk{
+					OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
+						RunState: responses.ChunkRunData{
+							Id:               runId,
+							Object:           "run",
+							Status:           "paused",
+							PendingToolCalls: runState.PendingToolCalls,
+							Usage:            runState.Usage,
+							TraceID:          traceid,
+						},
 					},
-				},
+				})
+				return nil, nil
 			})
 
 			return &ExecutionResult{
@@ -357,20 +396,29 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			}, nil
 
 		case core.StepComplete:
-			// Save final state
-			e.history.SaveMessages(ctx, runState.ToMeta(traceid))
+			// DURABLE CHECKPOINT: Save final state (DB write)
+			_, err := e.executor.Run(ctx, "save-messages-complete", func(ctx context.Context) (any, error) {
+				return nil, e.history.SaveMessages(ctx, runState.ToMeta(traceid))
+			})
+			if err != nil {
+				span.RecordError(err)
+				return &ExecutionResult{Status: core.RunStatusError}, err
+			}
 
-			// Run completed
-			cb(&responses.ResponseChunk{
-				OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
-					RunState: responses.ChunkRunData{
-						Id:      runId,
-						Object:  "run",
-						Status:  "completed",
-						Usage:   runState.Usage,
-						TraceID: traceid,
+			// DURABLE: Emit run completed event (side effect)
+			e.executor.Run(ctx, "emit-run-completed", func(ctx context.Context) (any, error) {
+				cb(&responses.ResponseChunk{
+					OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
+						RunState: responses.ChunkRunData{
+							Id:      runId,
+							Object:  "run",
+							Status:  "completed",
+							Usage:   runState.Usage,
+							TraceID: traceid,
+						},
 					},
-				},
+				})
+				return nil, nil
 			})
 
 			return &ExecutionResult{

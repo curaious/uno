@@ -78,6 +78,12 @@ func WithPersistence(customAdapter ConversationPersistenceAdapter) ConversationM
 	}
 }
 
+func WithMessageID(msgId string) ConversationManagerOptions {
+	return func(cm *CommonConversationManager) {
+		cm.msgId = msgId
+	}
+}
+
 func (cm *CommonConversationManager) AddMessages(ctx context.Context, messages []responses.InputMessageUnion, usage *responses.Usage) {
 	cm.newMessages = append(cm.newMessages, messages...)
 
