@@ -2,7 +2,8 @@ import axios, {AxiosResponse, InternalAxiosRequestConfig} from 'axios';
 import {STORAGE_KEY} from "./contexts/ProjectContext";
 
 export const api = axios.create({
-  baseURL: 'http://localhost:6060/api/agent-server'
+  baseURL: 'http://localhost:6060/api/agent-server',
+  withCredentials: true,
 });
 
 // Request interceptor to automatically add project_id query parameter

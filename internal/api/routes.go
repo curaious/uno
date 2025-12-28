@@ -1,12 +1,16 @@
 package api
 
 import (
+	"log"
 	"log/slog"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/fasthttp/router"
+	"github.com/praveen001/uno/internal/api/authenticator"
 	"github.com/praveen001/uno/internal/api/controllers"
+	"github.com/praveen001/uno/internal/config"
 	"github.com/valyala/fasthttp"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -21,6 +25,13 @@ func (s *Server) initNewRoutes() fasthttp.RequestHandler {
 		_, _ = ctx.Write([]byte("OK"))
 	})
 
+	conf := config.ReadConfig()
+	auth, err := authenticator.New(conf)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	controllers.RegisterAuthRoutes(r, s.services, auth)
 	controllers.RegisterConversationRoutes(r, s.services)
 	controllers.RegisterProjectRoutes(r, s.services)
 	controllers.RegisterProviderRoutes(r, s.services)
@@ -35,10 +46,10 @@ func (s *Server) initNewRoutes() fasthttp.RequestHandler {
 	controllers.RegisterTracesRoutes(r.Group("/api/agent-server"), s.services)
 	controllers.RegisterDurableConverseRoute(r, s.services)
 
-	return s.withMiddlewares(r.Handler)
+	return s.withMiddlewares(r.Handler, auth)
 }
 
-func (s *Server) withMiddlewares(next fasthttp.RequestHandler) fasthttp.RequestHandler {
+func (s *Server) withMiddlewares(next fasthttp.RequestHandler, auth *authenticator.Authenticator) fasthttp.RequestHandler {
 	return func(ctx *fasthttp.RequestCtx) {
 		applyCORS(ctx)
 		if string(ctx.Method()) == fasthttp.MethodOptions {
@@ -57,6 +68,25 @@ func (s *Server) withMiddlewares(next fasthttp.RequestHandler) fasthttp.RequestH
 		})
 		traceCtx := tracePropagator.Extract(ctx, propagation.HeaderCarrier(h))
 		ctx.SetUserValue("traceCtx", traceCtx)
+
+		// Auth check
+		if auth.AuthEnabled() && !isPublicRoute(ctx) {
+			authHeader := strings.TrimPrefix(string(ctx.Request.Header.Peek("Authorization")), "Bearer ")
+			if authHeader == "" {
+				authHeader = string(ctx.Request.Header.Cookie("access_token"))
+			}
+
+			if authHeader == "" {
+				ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+				return
+			}
+
+			if err := auth.VerifyAccessToken(ctx, authHeader); err != nil {
+				ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+				return
+			}
+		}
+
 		next(ctx)
 
 		slog.Info("Finished processing", slog.String("method", string(ctx.Method())), slog.String("request_uri", requestURI), slog.Duration("duration", time.Since(start)))
@@ -65,7 +95,21 @@ func (s *Server) withMiddlewares(next fasthttp.RequestHandler) fasthttp.RequestH
 
 func applyCORS(ctx *fasthttp.RequestCtx) {
 	headers := &ctx.Response.Header
-	headers.Set("Access-Control-Allow-Origin", "*")
+	headers.Set("Access-Control-Allow-Origin", string(ctx.Request.Header.Peek("Origin")))
 	headers.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PATCH")
-	headers.Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Planner-Amg-Id, X-Planner-Channel-Id, X-Service-Id")
+	headers.Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	headers.Set("Access-Control-Allow-Credentials", "true")
+}
+
+func isPublicRoute(ctx *fasthttp.RequestCtx) bool {
+	path := string(ctx.Path())
+
+	switch {
+	case path == "/api/health":
+		return true
+	case strings.HasPrefix(path, "/api/auth"):
+		return true
+	default:
+		return false
+	}
 }

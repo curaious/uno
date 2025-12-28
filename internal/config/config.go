@@ -28,6 +28,13 @@ type Config struct {
 
 	// Otel
 	OTEL_EXPORTER_OTLP_ENDPOINT string
+
+	// Auth
+	STATE_SECRET        string
+	AUTH0_DOMAIN        string
+	AUTH0_CLIENT_ID     string
+	AUTH0_CLIENT_SECRET string
+	AUTH0_CALLBACK_URL  string
 }
 
 func ReadConfig() *Config {
@@ -60,6 +67,12 @@ func ReadConfig() *Config {
 		CLICKHOUSE_USE_TLS:  os.Getenv("CLICKHOUSE_USE_TLS") == "true",
 
 		OTEL_EXPORTER_OTLP_ENDPOINT: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
+
+		STATE_SECRET:        os.Getenv("STATE_SECRET"),
+		AUTH0_DOMAIN:        os.Getenv("AUTH0_DOMAIN"),
+		AUTH0_CLIENT_ID:     os.Getenv("AUTH0_CLIENT_ID"),
+		AUTH0_CLIENT_SECRET: os.Getenv("AUTH0_CLIENT_SECRET"),
+		AUTH0_CALLBACK_URL:  os.Getenv("AUTH0_CALLBACK_URL"),
 	}
 }
 
