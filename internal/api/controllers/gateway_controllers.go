@@ -32,9 +32,7 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 		// Create trace
 		ctx, span := tracer.Start(reqCtx.UserValue("traceCtx").(context.Context), "Controller.Gateway.Responses")
 
-		// Extract virtual key from headers
-		vkBuf := reqCtx.Request.Header.Peek("x-virtual-key")
-		vk := string(vkBuf)
+		vk := extractKey(reqCtx)
 
 		// Parse request body into openai's responses input format
 		var openAiRequest *openai_responses.Request
@@ -137,9 +135,7 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 		ctx, span := tracer.Start(reqCtx.UserValue("traceCtx").(context.Context), "Controller.Gateway.Responses")
 		defer span.End()
 
-		// Extract virtual key from headers
-		vkBuf := reqCtx.Request.Header.Peek("x-virtual-key")
-		vk := string(vkBuf)
+		vk := extractKey(reqCtx)
 
 		// Parse request body into openai's embedding input format
 		var openAiRequest *openai_embeddings.Request
@@ -639,4 +635,27 @@ func GeminiEmbedding(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, ac
 	}
 
 	return
+}
+
+func extractKey(ctx *fasthttp.RequestCtx) string {
+	// Extract virtual key from headers
+	vkBuf := ctx.Request.Header.Peek("x-virtual-key")
+	vk := string(vkBuf)
+
+	if vk == "" {
+		vkBuf = ctx.Request.Header.Peek("Authorization")
+		vk = strings.TrimPrefix(string(vkBuf), "Bearer ")
+	}
+
+	if vk == "" {
+		vkBuf = ctx.Request.Header.Peek("Authorization")
+		vk = string(vkBuf)
+	}
+
+	if vk == "" {
+		vkBuf = ctx.Request.Header.Peek("x-goog-api-key")
+		vk = string(vkBuf)
+	}
+
+	return vk
 }

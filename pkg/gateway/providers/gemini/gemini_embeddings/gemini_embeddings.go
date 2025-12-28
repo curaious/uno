@@ -100,9 +100,11 @@ func (r *Response) ToNativeResponse(model string) *embeddings.Response {
 	if r.Embedding != nil {
 		res.Data = []embeddings.EmbeddingData{
 			{
-				Object:    "embedding",
-				Index:     0,
-				Embedding: r.Embedding.Values,
+				Object: "embedding",
+				Index:  0,
+				Embedding: embeddings.EmbeddingDataUnion{
+					OfFloat: r.Embedding.Values,
+				},
 			},
 		}
 	}
@@ -111,9 +113,11 @@ func (r *Response) ToNativeResponse(model string) *embeddings.Response {
 		data := make([]embeddings.EmbeddingData, len(r.Embeddings))
 		for idx, e := range r.Embeddings {
 			data[idx] = embeddings.EmbeddingData{
-				Object:    "embedding",
-				Index:     idx,
-				Embedding: e.Values,
+				Object: "embedding",
+				Index:  idx,
+				Embedding: embeddings.EmbeddingDataUnion{
+					OfFloat: e.Values,
+				},
 			}
 		}
 		res.Data = data
@@ -134,13 +138,13 @@ func NativeResponseToResponse(in *embeddings.Response) *Response {
 
 	if len(in.Data) == 1 {
 		res.Embedding = &Embedding{
-			Values: in.Data[0].Embedding,
+			Values: in.Data[0].Embedding.OfFloat,
 		}
 	} else if len(in.Data) > 1 {
 		arr := make([]*Embedding, len(in.Data))
 		for idx, d := range in.Data {
 			arr[idx] = &Embedding{
-				Values: d.Embedding,
+				Values: d.Embedding.OfFloat,
 			}
 		}
 		res.Embeddings = arr

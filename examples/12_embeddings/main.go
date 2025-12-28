@@ -1,0 +1,70 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	json "github.com/bytedance/sonic"
+	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/embeddings"
+	"github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+	client, err := sdk.New(&sdk.ClientOptions{
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+			{
+				ProviderName:  llm.ProviderNameOpenAI,
+				BaseURL:       "",
+				CustomHeaders: nil,
+				ApiKeys: []*gateway.APIKeyConfig{
+					{
+						Name:   "Key 1",
+						APIKey: os.Getenv("OPENAI_API_KEY"),
+					},
+				},
+			},
+			{
+				ProviderName:  llm.ProviderNameGemini,
+				BaseURL:       "",
+				CustomHeaders: nil,
+				ApiKeys: []*gateway.APIKeyConfig{
+					{
+						Name:   "Key 1",
+						APIKey: os.Getenv("GEMINI_API_KEY"),
+					},
+				},
+			},
+		}),
+	})
+
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	//model := client.NewLLM(sdk.LLMOptions{
+	//	Provider: llm.ProviderNameOpenAI,
+	//	Model:    "text-embedding-ada-002",
+	//})
+
+	model := client.NewLLM(sdk.LLMOptions{
+		Provider: llm.ProviderNameGemini,
+		Model:    "models/gemini-embedding-001",
+	})
+
+	resp, err := model.NewEmbedding(context.Background(), &embeddings.Request{
+		Input: embeddings.InputUnion{
+			OfString: utils.Ptr("The food was delicious and the waiter..."),
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	b, _ := json.Marshal(resp)
+	fmt.Println(string(b))
+}
