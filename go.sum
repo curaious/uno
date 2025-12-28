@@ -4,6 +4,8 @@ github.com/ClickHouse/ch-go v0.69.0 h1:nO0OJkpxOlN/eaXFj0KzjTz5p7vwP1/y3GN4qc5z/
 github.com/ClickHouse/ch-go v0.69.0/go.mod h1:9XeZpSAT4S0kVjOpaJ5186b7PY/NH/hhF8R6u0WIjwg=
 github.com/ClickHouse/clickhouse-go/v2 v2.41.0 h1:JbLKMXLEkW0NMalMgI+GYb6FVZtpaMVEzQa/HC1ZMRE=
 github.com/ClickHouse/clickhouse-go/v2 v2.41.0/go.mod h1:/RoTHh4aDA4FOCIQggwsiOwO7Zq1+HxQ0inef0Au/7k=
+github.com/a2aproject/a2a-go v0.3.3 h1:NqGDw2c8hCSW3/9MakeeRpw5yCZUUmW2Y/yINV15GwQ=
+github.com/a2aproject/a2a-go v0.3.3/go.mod h1:8C0O6lsfR7zWFEqVZz/+zWCoxe8gSWpknEpqm/Vgj3E=
 github.com/andybalholm/brotli v1.2.0 h1:ukwgCxwYrmACq68yiUqwIWnGY0cTPox/M94sVwToPjQ=
 github.com/andybalholm/brotli v1.2.0/go.mod h1:rzTDkvFWvIrjDXZHkuS16NPggd91W3kUSvPlQ1pLaKY=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=

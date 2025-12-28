@@ -25,6 +25,7 @@ require (
 
 require (
 	github.com/ClickHouse/ch-go v0.69.0 // indirect
+	github.com/a2aproject/a2a-go v0.3.3 // indirect
 	github.com/andybalholm/brotli v1.2.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.1.1 // indirect
