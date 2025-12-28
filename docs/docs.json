@@ -36,7 +36,8 @@
                       "uno-sdk/responses/reasoning",
                       "uno-sdk/responses/structured-output"
                     ]
-                  }
+                  },
+                  "uno-sdk/embeddings/embeddings"
                 ]
               },
               {

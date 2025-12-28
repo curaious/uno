@@ -1,0 +1,122 @@
+---
+title: Embeddings
+---
+
+Uno SDK supports generating text embeddings with various LLM providers like OpenAI and Gemini.
+
+## Instantiate a model
+
+Create an LLM model instance with an embedding model from your provider.
+
+```go
+// OpenAI
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOpenAI,
+    Model:    "text-embedding-ada-002",
+})
+
+// Gemini
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameGemini,
+    Model:    "models/gemini-embedding-001",
+})
+```
+
+## Generate embeddings
+
+Generate embeddings for a single text input.
+
+```go
+resp, err := model.NewEmbedding(context.Background(), &embeddings.Request{
+    Input: embeddings.InputUnion{
+        OfString: utils.Ptr("The food was delicious and the waiter..."),
+    },
+})
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+## Response
+
+The response contains an array of embedding data. Each embedding is a vector of floats (or base64 encoded string).
+
+```go
+for _, data := range resp.Data {
+    // Access float embeddings
+    if data.Embedding.OfFloat != nil {
+        fmt.Println("Embedding vector:", data.Embedding.OfFloat)
+        fmt.Println("Dimensions:", len(data.Embedding.OfFloat))
+    }
+    
+    // Access base64 encoded embeddings
+    if data.Embedding.OfBase64 != nil {
+        fmt.Println("Base64 embedding:", *data.Embedding.OfBase64)
+    }
+}
+
+// Access usage information
+if resp.Usage != nil {
+    fmt.Println("Prompt tokens:", resp.Usage.PromptTokens)
+    fmt.Println("Total tokens:", resp.Usage.TotalTokens)
+}
+```
+
+---
+
+## Batch Embeddings
+
+Generate embeddings for multiple texts in a single request.
+
+```go
+resp, err := model.NewEmbedding(context.Background(), &embeddings.Request{
+    Input: embeddings.InputUnion{
+        OfList: []string{
+            "The food was delicious",
+            "The service was excellent",
+            "Great atmosphere",
+        },
+    },
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Each input text gets its own embedding at the corresponding index
+for _, data := range resp.Data {
+    fmt.Printf("Index %d: %d dimensions\n", data.Index, len(data.Embedding.OfFloat))
+}
+```
+
+## Request Configuration
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| **Input** | `InputUnion` | The text input (single string or list of strings). |
+| **Dimensions** | `*int` | Number of dimensions for the output embeddings. |
+| **EncodingFormat** | `*string` | Format for embeddings: `"float"` or `"base64"`. |
+
+## Response Structure
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **Object** | `string` | Object type identifier. |
+| **Model** | `string` | The model used for generating embeddings. |
+| **Data** | `[]EmbeddingData` | Array of embedding results. |
+| **Usage** | `*Usage` | Token usage statistics. |
+
+### EmbeddingData
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **Index** | `int` | Index of the input text this embedding corresponds to. |
+| **Embedding** | `EmbeddingDataUnion` | The embedding vector (float array or base64 string). |
+
+## Supported Providers
+
+| Provider | Embeddings |
+| :--- | :---: |
+| **OpenAI** | ✅ |
+| **Gemini** | ✅ |
+| **Anthropic** | ❌ |
+
