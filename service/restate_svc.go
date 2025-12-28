@@ -171,10 +171,6 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	// Create RestateExecutor
 	executor := restateExec.NewRestateExecutor(reStateCtx)
 
-	publishStreamEvent(streamChannel, StreamEvent{
-		RunID: runID, Type: "status", Status: "started", Timestamp: now(),
-	})
-
 	// Parse project ID
 	projectID, err := uuid.Parse(input.ProjectID)
 	if err != nil {

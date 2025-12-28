@@ -106,6 +106,9 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 
 		restateClient := ingress.NewClient("http://localhost:8081")
 
+		reqCtx.Response.Header.Set("Content-Type", "text/event-stream")
+		reqCtx.Response.Header.Set("Cache-Control", "no-cache")
+
 		go func() {
 			defer cancel()
 			// To call a service
