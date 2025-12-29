@@ -45,9 +45,7 @@ type CommonConversationManager struct {
 func NewConversationManager(p ConversationPersistenceAdapter, namespace, previousMsgId string, opts ...ConversationManagerOptions) *CommonConversationManager {
 	cm := &CommonConversationManager{
 		ConversationPersistenceAdapter: p,
-		namespace:                      namespace,
 		msgId:                          uuid.NewString(),
-		previousMsgId:                  previousMsgId,
 		msgIdToRunId:                   make(map[string]string),
 	}
 
@@ -114,13 +112,13 @@ func (cm *CommonConversationManager) GetMessages(ctx context.Context) ([]respons
 	return append(cm.oldMessages, cm.newMessages...), nil
 }
 
-func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]responses.InputMessageUnion, error) {
+func (cm *CommonConversationManager) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]responses.InputMessageUnion, error) {
 	ctx, span := convTracer.Start(ctx, "ConversationManager.DB.LoadMessages")
 	defer span.End()
 
 	span.SetAttributes(
-		attribute.String("namespace", cm.namespace),
-		attribute.String("previous_msg_id", cm.previousMsgId),
+		attribute.String("namespace", namespace),
+		attribute.String("previous_msg_id", previousMessageID),
 	)
 
 	if cm.ConversationPersistenceAdapter == nil {
@@ -133,7 +131,7 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 		return cm.oldMessages, nil
 	}
 
-	convMessages, err := cm.ConversationPersistenceAdapter.LoadMessages(ctx, cm.namespace, cm.previousMsgId)
+	convMessages, err := cm.ConversationPersistenceAdapter.LoadMessages(ctx, namespace, previousMessageID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -172,10 +170,12 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context) ([]respon
 	} else {
 		runState := core.LoadRunStateFromMeta(cm.lastMessageMeta)
 		if !runState.IsComplete() {
-			cm.msgId = cm.previousMsgId
+			cm.msgId = previousMessageID
 		}
 	}
 
+	cm.namespace = namespace
+	cm.previousMsgId = previousMessageID
 	cm.convMessages = convMessages
 	cm.oldMessages = messages
 	cm.usage = usage
@@ -242,6 +242,7 @@ func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[
 
 	runState := core.LoadRunStateFromMeta(meta)
 	if runState.IsComplete() {
+		cm.previousMsgId = cm.msgId
 		cm.msgId = uuid.NewString()
 	}
 

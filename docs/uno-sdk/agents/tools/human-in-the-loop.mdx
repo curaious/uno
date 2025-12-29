@@ -122,7 +122,11 @@ approvalResponse := responses.InputMessageUnion{
 }
 
 // Resume execution with the approval response
-result, err := agent.Execute(ctx, []responses.InputMessageUnion{approvalResponse}, callback)
+result, err := agent.Execute(ctx, &agents.AgentInput{
+    Messages: []responses.InputMessageUnion{
+        approvalResponse,
+    },
+})
 ```
 
 ### Handling Rejections
@@ -280,11 +284,11 @@ func main() {
 	})
 
 	// First execution - agent may request to delete a user
-	result, err := agent.Execute(ctx, []responses.InputMessageUnion{
-		responses.UserMessage("Delete user 123"),
-	}, func(chunk *responses.ResponseChunk) {
-		// Handle streaming chunks
-	})
+	result, err := agent.Execute(context.Background(), &agents.AgentInput{
+        Messages: []responses.InputMessageUnion{
+            responses.UserMessage("Delete user 123"),
+        },
+    })
 
 	// Check if approval is needed
 	if result.Status == core.RunStatusPaused {
@@ -300,7 +304,11 @@ func main() {
 		}
 
 		// Resume with approval
-		result, err = agent.Execute(ctx, []responses.InputMessageUnion{approvalResponse}, core.NilCallback)
+		result, err := agent.Execute(ctx, &agents.AgentInput{
+            Messages: []responses.InputMessageUnion{
+                approvalResponse,
+            },
+        })
 	}
 
 	if err != nil {

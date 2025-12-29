@@ -391,16 +391,18 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 
 			_, execErr := agent.Execute(
 				ctx,
-				[]responses.InputMessageUnion{reqPayload.Message},
-				func(message *responses.ResponseChunk) {
-					buf, err := json.Marshal(message)
-					if err != nil {
-						return
-					}
+				&agents.AgentInput{
+					Messages: []responses.InputMessageUnion{reqPayload.Message},
+					Callback: func(message *responses.ResponseChunk) {
+						buf, err := json.Marshal(message)
+						if err != nil {
+							return
+						}
 
-					_, _ = fmt.Fprintf(w, "event: %s\n", message.ChunkType())
-					_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
-					_ = w.Flush()
+						_, _ = fmt.Fprintf(w, "event: %s\n", message.ChunkType())
+						_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
+						_ = w.Flush()
+					},
 				},
 			)
 			if execErr != nil {

@@ -8,7 +8,6 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
@@ -48,9 +47,12 @@ func main() {
 		History:     history,
 	})
 
-	out, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
-		responses.UserMessage("Hello! My name is Alice"),
-	}, core.NilCallback)
+	out, err := agent.Execute(context.Background(), &agents.AgentInput{
+		Namespace: "default",
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("Hello! My name is Alice"),
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,9 +69,11 @@ func main() {
 		History:     history,
 	})
 
-	out, err = agent2.Execute(context.Background(), []responses.InputMessageUnion{
-		responses.UserMessage("What's my name?"),
-	}, core.NilCallback)
+	out, err = agent2.Execute(context.Background(), &agents.AgentInput{
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("What's my name?"),
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

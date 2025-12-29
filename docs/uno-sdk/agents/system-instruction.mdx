@@ -223,9 +223,11 @@ func main() {
     // })
 
     // Execute agent
-    out, err := agent2.Execute(context.Background(), []responses.InputMessageUnion{
-        responses.UserMessage("Hello!"),
-    }, core.NilCallback)
+	out, err := agent2.Execute(context.Background(), &agents.AgentInput{
+        Messages: []responses.InputMessageUnion{
+            responses.UserMessage("Hello!"),
+        },
+    })
     if err != nil {
         log.Fatal(err)
     }

@@ -142,10 +142,6 @@ func init() {
 // Agent Workflow
 // ============================================================================
 
-type RestateContext struct {
-	restate.WorkflowContext
-}
-
 type AgentWorkflow struct{}
 
 // Run executes the agent with durable checkpoints
@@ -317,7 +313,12 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	}
 
 	// Execute the agent
-	result, err := agent.Execute(ctx, []responses.InputMessageUnion{input.Message}, streamCallback)
+	result, err := agent.Execute(ctx, &agents.AgentInput{
+		Namespace:         input.Namespace,
+		PreviousMessageID: input.PreviousMessageID,
+		Messages:          []responses.InputMessageUnion{input.Message},
+		Callback:          streamCallback,
+	})
 
 	if err != nil {
 		publishStreamEvent(streamChannel, StreamEvent{

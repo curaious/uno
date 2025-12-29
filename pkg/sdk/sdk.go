@@ -7,16 +7,20 @@ import (
 	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/services/project"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
 type SDK struct {
-	endpoint   string
-	projectId  uuid.UUID
-	virtualKey string
-	directMode bool
-	llmConfigs gateway.ConfigStore
+	endpoint      string
+	projectId     uuid.UUID
+	virtualKey    string
+	directMode    bool
+	llmConfigs    gateway.ConfigStore
+	restateConfig RestateConfig
+
+	agents map[string]*agents.Agent
 }
 
 type ServerConfig struct {
@@ -30,12 +34,18 @@ type ServerConfig struct {
 	ProjectName string
 }
 
+type RestateConfig struct {
+	Endpoint string
+}
+
 type ClientOptions struct {
 	ServerConfig ServerConfig
 
 	// Set this if you are using the SDK without the LLM Gateway server.
 	// If `LLMConfigs` is set, then `ApiKey` will be ignored.
 	LLMConfigs gateway.ConfigStore
+
+	RestateConfig RestateConfig
 }
 
 func New(opts *ClientOptions) (*SDK, error) {
@@ -44,10 +54,12 @@ func New(opts *ClientOptions) (*SDK, error) {
 	}
 
 	sdk := &SDK{
-		llmConfigs: opts.LLMConfigs,
-		directMode: opts.LLMConfigs != nil,
-		endpoint:   opts.ServerConfig.Endpoint,
-		virtualKey: opts.ServerConfig.VirtualKey,
+		llmConfigs:    opts.LLMConfigs,
+		directMode:    opts.LLMConfigs != nil,
+		endpoint:      opts.ServerConfig.Endpoint,
+		virtualKey:    opts.ServerConfig.VirtualKey,
+		restateConfig: opts.RestateConfig,
+		agents:        map[string]*agents.Agent{},
 	}
 
 	if opts.ServerConfig.ProjectName == "" {

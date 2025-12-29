@@ -1,17 +1,13 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
+	"net/http"
 	"os"
 
-	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/prompts"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
-	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/praveen001/uno/pkg/sdk"
 )
 
@@ -30,6 +26,9 @@ func main() {
 				},
 			},
 		}),
+		RestateConfig: sdk.RestateConfig{
+			Endpoint: "http://localhost:8081",
+		},
 	})
 	if err != nil {
 		log.Fatal(err)
@@ -45,22 +44,27 @@ func main() {
 	}
 
 	history := client.NewConversationManager("default", "")
-	agent := agents.NewAgent(&agents.AgentOptions{
-		Name:        "Hello world agent",
+	agentName := "Hello world agent"
+	_ = client.NewRestateAgent(&sdk.AgentOptions{
+		Name:        agentName,
 		Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}", prompts.WithDefaultResolver(contextData)),
 		LLM:         model,
 		History:     history,
 	})
 
-	out, err := agent.Execute(context.Background(), &agents.AgentInput{
-		Messages: []responses.InputMessageUnion{
-			responses.UserMessage("Hello!"),
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
+	client.StartRestateService("0.0.0.0", "9080") // Do this on the restate service
+	http.ListenAndServe(":8070", client)          // Do this on the application that invokes the restate workflow
 
-	b, _ := sonic.Marshal(out)
-	fmt.Println(string(b))
+	//out, err := agent.Execute(context.Background(), &agents.AgentInput{
+	//	Messages: []responses.InputMessageUnion{
+	//		responses.UserMessage("Hello!"),
+	//	},
+	//	Callback: core.NilCallback,
+	//})
+	//if err != nil {
+	//	log.Fatal(err)
+	//}
+	//
+	//b, _ := sonic.Marshal(out)
+	//fmt.Println(string(b))
 }

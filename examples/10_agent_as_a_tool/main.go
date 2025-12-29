@@ -8,6 +8,7 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/tools"
 	"github.com/praveen001/uno/pkg/gateway"
@@ -69,9 +70,11 @@ func main() {
 		Tools:       []core.Tool{agentTool},
 	})
 
-	out, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
-		responses.UserMessage("Hello!"),
-	}, core.NilCallback)
+	out, err := agent.Execute(context.Background(), &agents.AgentInput{
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("Hello!"),
+		},
+	})
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -14,7 +14,7 @@ type ChatHistory interface {
 	GetMessages(ctx context.Context) ([]responses.InputMessageUnion, error)
 
 	// LoadMessages fetches all the messages of the thread from persistent storage into memory
-	LoadMessages(ctx context.Context) ([]responses.InputMessageUnion, error)
+	LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]responses.InputMessageUnion, error)
 
 	// SaveMessages saves the messages to persistent storage
 	SaveMessages(ctx context.Context, meta map[string]any) error

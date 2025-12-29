@@ -10,6 +10,7 @@ import (
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
@@ -135,10 +136,10 @@ func main() {
 	})
 
 	// First execution - agent may request to delete a user
-	result, err := agent.Execute(ctx, []responses.InputMessageUnion{
-		responses.UserMessage("Delete user 123"),
-	}, func(chunk *responses.ResponseChunk) {
-		// Handle streaming chunks
+	result, err := agent.Execute(ctx, &agents.AgentInput{
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("Delete user 123"),
+		},
 	})
 
 	// Check if approval is needed
@@ -155,7 +156,9 @@ func main() {
 		}
 
 		// Resume with approval
-		result, err = agent.Execute(ctx, []responses.InputMessageUnion{approvalResponse}, core.NilCallback)
+		result, err = agent.Execute(ctx, &agents.AgentInput{
+			Messages: []responses.InputMessageUnion{approvalResponse},
+		})
 	}
 
 	if err != nil {

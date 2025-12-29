@@ -24,16 +24,16 @@ func NewAgentTool(t *responses.ToolUnion, agent *agents.Agent) *AgentTool {
 }
 
 func (t *AgentTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
-	result, err := t.agent.Execute(ctx,
-		[]responses.InputMessageUnion{
+	result, err := t.agent.Execute(ctx, &agents.AgentInput{
+		Messages: []responses.InputMessageUnion{
 			{
 				OfEasyInput: &responses.EasyMessage{
 					Content: responses.EasyInputContentUnion{OfString: &params.Arguments},
 				},
 			},
 		},
-		core.NilCallback,
-	)
+		Callback: core.NilCallback,
+	})
 	if err != nil {
 		return nil, err
 	}

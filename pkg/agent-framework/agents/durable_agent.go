@@ -15,7 +15,12 @@ import (
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/constants"
 	"github.com/praveen001/uno/pkg/llm/responses"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+)
+
+var (
+	tracer = otel.Tracer("DurableAgent")
 )
 
 // DurableAgent wraps an Agent with durable execution capabilities.
@@ -78,11 +83,16 @@ func NewDurableAgent(opts *DurableAgentOptions) (*DurableAgent, error) {
 // Execute runs the agent with durable execution.
 // Each LLM call and tool execution is checkpointed.
 // Supports human-in-the-loop via the pause/resume pattern.
-func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessageUnion, cb func(chunk *responses.ResponseChunk)) (*ExecutionResult, error) {
+func (e *DurableAgent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, error) {
 	ctx, span := tracer.Start(ctx, "DurableAgent.Execute")
 	defer span.End()
 
 	span.SetAttributes(attribute.String("agent.name", e.name))
+
+	cb := in.Callback
+	if cb == nil {
+		cb = core.NilCallback
+	}
 
 	// If history is not enabled, set a default history without persistence.
 	// This is required for the agent loop to work.
@@ -93,7 +103,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		})
 		if err != nil {
 			span.RecordError(err)
-			return &ExecutionResult{Status: core.RunStatusError}, err
+			return &AgentOutput{Status: core.RunStatusError}, err
 		}
 		msgId := msgIdAny.(string)
 		e.history = history.NewConversationManager(nil, "none", "", history.WithMessageID(msgId))
@@ -101,11 +111,11 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 
 	// DURABLE CHECKPOINT: Load the conversation history (DB read)
 	_, err := e.executor.Run(ctx, "load-messages", func(ctx context.Context) (any, error) {
-		return e.history.LoadMessages(ctx)
+		return e.history.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
 	})
 	if err != nil {
 		span.RecordError(err)
-		return &ExecutionResult{Status: core.RunStatusError}, err
+		return &AgentOutput{Status: core.RunStatusError}, err
 	}
 
 	// Load run state from meta (in-memory, no DB call)
@@ -123,8 +133,8 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	if runState == nil || runState.IsComplete() {
 		// FRESH RUN: No state or previous run completed
 		runState = core.NewRunState()
-		if len(msgs) > 0 {
-			e.history.AddMessages(ctx, msgs, nil)
+		if len(in.Messages) > 0 {
+			e.history.AddMessages(ctx, in.Messages, nil)
 		}
 
 		// DURABLE: Emit run created event (side effect)
@@ -146,11 +156,11 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		// msgs is ignored on resume - we continue from existing messages with pending tools
 		if runState.CurrentStep == core.StepAwaitApproval {
 			// Expected an approval response message
-			if len(msgs) == 0 || msgs[0].OfFunctionCallApprovalResponse == nil {
-				return &ExecutionResult{Status: core.RunStatusError}, errors.New("expected approval response message")
+			if len(in.Messages) == 0 || in.Messages[0].OfFunctionCallApprovalResponse == nil {
+				return &AgentOutput{Status: core.RunStatusError}, errors.New("expected approval response message")
 			}
 			runState.CurrentStep = core.StepExecuteTools
-			rejectedToolCallIds = msgs[0].OfFunctionCallApprovalResponse.RejectedCallIds
+			rejectedToolCallIds = in.Messages[0].OfFunctionCallApprovalResponse.RejectedCallIds
 		}
 	}
 
@@ -177,7 +187,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		})
 		if err != nil {
 			span.RecordError(err)
-			return &ExecutionResult{Status: core.RunStatusError}, err
+			return &AgentOutput{Status: core.RunStatusError}, err
 		}
 		if instructionAny != nil {
 			instruction = instructionAny.(string)
@@ -199,7 +209,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 		// Check for cancellation (durable)
 		if cancelled, ok, _ := e.executor.Get(ctx, "cancelled"); ok && cancelled.(bool) {
 			slog.InfoContext(ctx, "agent execution cancelled")
-			return &ExecutionResult{Status: core.RunStatusError}, fmt.Errorf("execution cancelled")
+			return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("execution cancelled")
 		}
 
 		switch runState.NextStep() {
@@ -209,7 +219,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			convMessages, err := e.history.GetMessages(ctx)
 			if err != nil {
 				span.RecordError(err)
-				return &ExecutionResult{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError}, err
 			}
 
 			// DURABLE CHECKPOINT: LLM Call
@@ -231,20 +241,20 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			})
 			if err != nil {
 				span.RecordError(err)
-				return &ExecutionResult{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError}, err
 			}
 
 			// Unmarshal response
 			buf, err := sonic.Marshal(respAny)
 			if err != nil {
 				span.RecordError(err)
-				return &ExecutionResult{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError}, err
 			}
 
 			resp := &responses.Response{}
 			if err := sonic.Unmarshal(buf, resp); err != nil {
 				span.RecordError(err)
-				return &ExecutionResult{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError}, err
 			}
 
 			finalOutput = append(finalOutput, resp.Output...)
@@ -261,7 +271,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 				inputMsg, err := outMsg.AsInput()
 				if err != nil {
 					slog.ErrorContext(ctx, "output msg conversion failed", slog.Any("error", err))
-					return &ExecutionResult{Status: core.RunStatusError}, err
+					return &AgentOutput{Status: core.RunStatusError}, err
 				}
 				inputMsgs = append(inputMsgs, inputMsg)
 			}
@@ -323,20 +333,20 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 					if err != nil {
 						span.RecordError(err)
 						slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
-						return &ExecutionResult{Status: core.RunStatusError}, err
+						return &AgentOutput{Status: core.RunStatusError}, err
 					}
 
 					// Unmarshal tool result
 					buf, err := sonic.Marshal(toolResultAny)
 					if err != nil {
 						span.RecordError(err)
-						return &ExecutionResult{Status: core.RunStatusError}, err
+						return &AgentOutput{Status: core.RunStatusError}, err
 					}
 
 					toolResult = &responses.FunctionCallOutputMessage{}
 					if err := sonic.Unmarshal(buf, toolResult); err != nil {
 						span.RecordError(err)
-						return &ExecutionResult{Status: core.RunStatusError}, err
+						return &AgentOutput{Status: core.RunStatusError}, err
 					}
 				}
 
@@ -370,7 +380,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			})
 			if err != nil {
 				span.RecordError(err)
-				return &ExecutionResult{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError}, err
 			}
 
 			// DURABLE: Emit run paused event (side effect)
@@ -390,7 +400,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 				return nil, nil
 			})
 
-			return &ExecutionResult{
+			return &AgentOutput{
 				Status:           core.RunStatusPaused,
 				PendingApprovals: runState.PendingToolCalls,
 			}, nil
@@ -402,7 +412,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 			})
 			if err != nil {
 				span.RecordError(err)
-				return &ExecutionResult{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError}, err
 			}
 
 			// DURABLE: Emit run completed event (side effect)
@@ -421,7 +431,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 				return nil, nil
 			})
 
-			return &ExecutionResult{
+			return &AgentOutput{
 				Status: core.RunStatusCompleted,
 				Output: finalOutput,
 			}, nil
@@ -429,7 +439,7 @@ func (e *DurableAgent) Execute(ctx context.Context, msgs []responses.InputMessag
 	}
 
 	// Max loops exceeded
-	return &ExecutionResult{Status: core.RunStatusError}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
+	return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
 }
 
 // partitionByApproval splits tool calls into those needing approval and those that can execute immediately

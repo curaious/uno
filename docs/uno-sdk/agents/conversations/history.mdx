@@ -80,9 +80,11 @@ agent := client.NewAgent(&sdk.AgentOptions{
 })
 
 // First agent run
-resp1, err := agent.Execute(context.Background(), []responses.InputMessageUnion{
-    responses.UserMessage("My name is Alice"),
-}, core.NilCallback)
+resp1, err := agent.Execute(context.Background(), &agents.AgentInput{
+    Messages: []responses.InputMessageUnion{
+        responses.UserMessage("My name is Alice"),
+    },
+})
 if err != nil {
     log.Fatal(err)
 }
@@ -96,9 +98,11 @@ agent2 := client.NewAgent(&sdk.AgentOptions{
     History:     history,
 })
 
-resp2, err := agent2.Execute(context.Background(), []responses.InputMessageUnion{
-    responses.UserMessage("What's my name?"),
-}, core.NilCallback)
+resp2, err := agent2.Execute(context.Background(), &agents.AgentInput{
+    Messages: []responses.InputMessageUnion{
+        responses.UserMessage("What's my name?"),
+    },
+})
 if err != nil {
     log.Fatal(err)
 }
