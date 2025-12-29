@@ -1,3 +1,357 @@
 ---
 title: Restate
 ---
+
+Durable agent execution ensures that your agents can survive process crashes, restarts, or failures without losing progress. Using [Restate](https://restate.dev), each step of the agent's execution (LLM calls, tool executions) is checkpointed, allowing the agent to resume from exactly where it left off after a failure.
+
+## Why Durable Execution?
+
+Traditional agents run in-memory. If your process crashes during:
+- A long-running LLM call
+- An external API request in a tool
+- A multi-step conversation with many tool calls
+
+...all progress is lost, and the entire execution must restart from scratch.
+
+With durable execution:
+- **Checkpoint Every Step**: Each LLM call and tool execution is automatically saved
+- **Automatic Recovery**: After a crash, the agent resumes from the last checkpoint
+- **Exactly-Once Guarantees**: Tool executions are never duplicated, even after retries
+- **Long-Running Workflows**: Agents can run for hours or days without risk
+
+## Prerequisites
+
+1. **Restate Server**: You need a running Restate server. Follow the [Restate installation guide](https://docs.restate.dev/get_started/quickstart) to set one up.
+
+2. **Go SDK**: Install the Uno SDK with Restate support:
+```bash
+go get github.com/praveen001/uno
+```
+
+## Creating a Durable Agent
+
+To create a durable agent, use `NewRestateAgent()` instead of `NewAgent()`:
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    "os"
+
+    "github.com/praveen001/uno/pkg/agent-framework/prompts"
+    "github.com/praveen001/uno/pkg/gateway"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    // Initialize SDK with Restate configuration
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {
+                        Name:   "Key 1",
+                        APIKey: os.Getenv("OPENAI_API_KEY"),
+                    },
+                },
+            },
+        }),
+        RestateConfig: sdk.RestateConfig{
+            Endpoint: "http://localhost:8081", // Restate server endpoint
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    contextData := map[string]any{
+        "name": "Bob",
+    }
+
+    history := client.NewConversationManager("default", "")
+    
+    // Create a durable agent with NewRestateAgent
+    agentName := "Hello world agent"
+    agent := client.NewRestateAgent(&sdk.AgentOptions{
+        Name:        agentName,
+        Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}", prompts.WithDefaultResolver(contextData)),
+        LLM:         model,
+        History:     history,
+    })
+
+    // See deployment options below...
+}
+```
+
+## Deployment Options
+
+There are two ways to deploy durable agents:
+
+### Option 1: Single Process (Development/Testing)
+
+Run both the Restate service handler and the application code in the same process. This is simpler but less resilient since both components share the same process lifecycle.
+
+```go
+func main() {
+    // ... client and agent setup from above ...
+
+    // Start Restate service in a goroutine
+    client.StartRestateService("0.0.0.0", "9080")
+    
+    // Start HTTP server for invoking the workflow
+    http.ListenAndServe(":8070", client)
+}
+```
+
+With this setup:
+- The Restate service runs on `http://localhost:9080`
+- Your application server runs on `http://localhost:8070`
+- Both are in the same process
+
+**Note**: If this process crashes, both components restart together. True durability requires separate processes (Option 2).
+
+### Option 2: Separate Processes (Production)
+
+For production deployments, run the Restate service and application in separate processes. This provides true fault isolation—if your application crashes, the Restate service continues running and can recover the workflow.
+
+#### Application Process
+
+```go
+// application/main.go
+package main
+
+import (
+    "context"
+    "log"
+    "net/http"
+    "os"
+
+    "github.com/praveen001/uno/pkg/agent-framework/agents"
+    "github.com/praveen001/uno/pkg/agent-framework/prompts"
+    "github.com/praveen001/uno/pkg/gateway"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/llm/responses"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {
+                        Name:   "Key 1",
+                        APIKey: os.Getenv("OPENAI_API_KEY"),
+                    },
+                },
+            },
+        }),
+        RestateConfig: sdk.RestateConfig{
+            Endpoint: "http://localhost:8081", // Restate server
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    history := client.NewConversationManager("default", "")
+    
+    // Register the agent
+    agentName := "my-agent"
+    _ = client.NewRestateAgent(&sdk.AgentOptions{
+        Name:        agentName,
+        Instruction: client.Prompt("You are a helpful assistant."),
+        LLM:         model,
+        History:     history,
+    })
+
+    // Start application server
+    log.Println("Application server starting on :8070")
+    http.ListenAndServe(":8070", client)
+}
+```
+
+#### Restate Service Process
+
+```go
+// restate-service/main.go
+package main
+
+import (
+    "log"
+    "os"
+
+    "github.com/praveen001/uno/pkg/agent-framework/prompts"
+    "github.com/praveen001/uno/pkg/gateway"
+    "github.com/praveen001/uno/pkg/llm"
+    "github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {
+                        Name:   "Key 1",
+                        APIKey: os.Getenv("OPENAI_API_KEY"),
+                    },
+                },
+            },
+        }),
+        RestateConfig: sdk.RestateConfig{
+            Endpoint: "http://localhost:8081",
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    history := client.NewConversationManager("default", "")
+    
+    // Register the SAME agent with the SAME configuration
+    agentName := "my-agent"
+    _ = client.NewRestateAgent(&sdk.AgentOptions{
+        Name:        agentName,
+        Instruction: client.Prompt("You are a helpful assistant."),
+        LLM:         model,
+        History:     history,
+    })
+
+    // Start only the Restate service
+    log.Println("Restate service starting on :9080")
+    client.StartRestateService("0.0.0.0", "9080")
+    
+    // Block forever
+    select {}
+}
+```
+
+**Important**: Both processes must register the agent with the **exact same name and configuration**. This ensures the Restate service can execute the agent with the correct setup.
+
+#### Running the Services
+
+```bash
+# Terminal 1: Start the Restate service
+cd restate-service
+go run main.go
+
+# Terminal 2: Start the application
+cd application
+go run main.go
+```
+
+## Registering the Deployment with Restate Server
+
+After starting your Restate service (on port 9080), you must register it with the Restate server so it can discover and invoke your agent workflows.
+
+### Using the Restate CLI
+
+```bash
+# Install Restate CLI (if not already installed)
+npm install -g @restatedev/restate
+
+# Register the deployment
+restate deployments register http://localhost:9080
+```
+
+### Using the Admin API
+
+```bash
+curl localhost:9070/deployments --json '{"uri": "http://localhost:9080"}'
+```
+
+### Using the Restate UI
+
+Navigate to your Restate server's UI (typically `http://localhost:9070`) and register the deployment through the web interface.
+
+**Note**: If running Restate in Docker, replace `localhost` with `host.docker.internal`:
+
+```bash
+restate deployments register http://host.docker.internal:9080
+```
+
+### Automatic Registration
+
+For production environments, consider automating deployment registration:
+
+- **Kubernetes**: Use the [Restate Kubernetes Operator](https://github.com/restatedev/restate-operator) for automatic registration and lifecycle management
+- **CI/CD Pipeline**: Add deployment registration as a step in your CI/CD pipeline
+- **FaaS Platforms**: AWS Lambda, Vercel, and other FaaS platforms automatically handle versioning through version-specific ARNs/URLs
+
+See the [Restate deployment documentation](https://docs.restate.dev/services/versioning#registering-a-deployment) for more details.
+
+## Invoking a Durable Agent
+
+Once your deployment is registered, you can invoke the agent through the application server:
+
+```go
+// Client code
+import (
+    "bytes"
+    "context"
+    "encoding/json"
+    "fmt"
+    "net/http"
+
+    "github.com/praveen001/uno/pkg/llm/responses"
+)
+
+func invokeDurableAgent() {
+    input := map[string]any{
+        "messages": []responses.InputMessageUnion{
+            responses.UserMessage("Hello, what can you help me with?"),
+        },
+        "namespace": "default",
+        "previous_message_id": "",
+    }
+
+    body, _ := json.Marshal(input)
+    
+    // Call the application server which invokes the Restate workflow
+    resp, err := http.Post(
+        "http://localhost:8070?agent=my-agent",
+        "application/json",
+        bytes.NewReader(body),
+    )
+    if err != nil {
+        panic(err)
+    }
+    defer resp.Body.Close()
+
+    // Read streaming response
+    // The agent execution is now durable and will survive crashes
+}
+```
+
+## Example: Complete Durable Agent
+
+See the complete working example in the repository: [`examples/13_durable_agent/main.go`](https://github.com/praveen001/uno/tree/main/examples/13_durable_agent)
+
+## Learn More
+
+- [Restate Documentation](https://docs.restate.dev)
+- [Restate Service Versioning](https://docs.restate.dev/services/versioning)
+- [Restate Kubernetes Operator](https://github.com/restatedev/restate-operator)
+- [Durable Execution Concepts](https://docs.restate.dev/concepts/durable_execution)
