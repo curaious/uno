@@ -18,7 +18,8 @@
                 "group": "SDK",
                 "icon": "code",
                 "pages": [
-                  "uno-sdk/setting-up"
+                  "uno-sdk/setting-up",
+                  "uno-sdk/multiple-keys"
                 ]
               },
               {

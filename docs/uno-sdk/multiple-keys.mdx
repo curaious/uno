@@ -1,0 +1,69 @@
+---
+title: Managing Multiple Keys
+---
+
+Uno supports managing multiple API keys for a single provider. This is useful for:
+- **Load Balancing:** Distribute requests across multiple API keys to avoid rate limits.
+- **Redundancy:** Ensure high availability by having fallback keys.
+- **Cost Management:** Allocate traffic based on usage quotas or costs associated with different keys.
+
+## Weighted Random Selection
+
+When multiple API keys are configured for a provider, Uno uses **weighted random selection** to choose which key to use for each request.
+
+Each API key can be assigned a `Weight`. The probability of a key being selected is proportional to its weight relative to the sum of all weights for that provider.
+
+### How it Works
+
+1.  Uno retrieves all enabled API keys for the requested provider.
+2.  It extracts the `Weight` from each `APIKeyConfig`.
+3.  If multiple keys exist, it performs a weighted random selection.
+4.  The request is then executed using the selected API key.
+
+If all keys have the same weight (e.g., all set to `1` or not specified), the selection becomes uniformly random.
+
+## Configuration Example
+
+When using the Uno SDK in direct mode, you can configure multiple keys using the `InMemoryConfigStore`.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+	// Define multiple API keys for OpenAI with different weights
+	openAIConfig := &gateway.ProviderConfig{
+		ProviderName: llm.ProviderNameOpenAI,
+		ApiKeys: []*gateway.APIKeyConfig{
+			{
+				APIKey: "sk-openai-key-1",
+				Weight: 70, // This key will be used ~70% of the time
+			},
+			{
+				APIKey: "sk-openai-key-2",
+				Weight: 30, // This key will be used ~30% of the time
+			},
+		},
+	}
+
+	// Initialize the config store
+	configStore := sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{openAIConfig})
+
+	// Create the Uno client
+	uno, err := sdk.New(&sdk.ClientOptions{
+		LLMConfigs: configStore,
+	})
+	if err != nil {
+		log.Fatalf("failed to create uno client: %v", err)
+	}
+}
+```
