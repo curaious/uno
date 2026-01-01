@@ -72,10 +72,6 @@ func (c *SDK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func (c *SDK) Handler() http.Handler {
-	return c
-}
-
 func (c *SDK) NewAgent(options *AgentOptions) *agents.Agent {
 	agent := agents.NewAgent(&agents.AgentOptions{
 		Name:        options.Name,

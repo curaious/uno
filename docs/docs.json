@@ -64,6 +64,7 @@
                       "uno-sdk/agents/conversations/summarization"
                     ]
                   },
+                  "uno-sdk/agents/serving-agents/serving-agents-http",
                   {
                     "group": "Durable Execution",
                     "expanded": true,
@@ -76,7 +77,7 @@
             ]
           },
             {
-                "tab": "LLM Gateway",
+                "tab": "Uno Gateway",
                 "icon": "route",
                 "groups": [
                     {
