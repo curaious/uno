@@ -2,7 +2,8 @@ import axios from 'axios';
 import { Trace, TraceListResponse, TraceQueryParams, ServiceStats } from './types';
 
 const tracesApi = axios.create({
-  baseURL: 'http://localhost:6060/api/agent-server'
+  baseURL: 'http://localhost:6060/api/agent-server',
+  withCredentials: true,
 });
 
 export async function listTraces(params: TraceQueryParams = {}): Promise<TraceListResponse> {
