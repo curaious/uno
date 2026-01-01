@@ -24,7 +24,7 @@ func NewInternalPromptPersistence(svc *prompt.PromptService, projectID uuid.UUID
 	}
 }
 
-func (p *InternalPromptPersistence) GetPrompt(ctx context.Context) (string, error) {
+func (p *InternalPromptPersistence) LoadPrompt(ctx context.Context) (string, error) {
 	// Get prompt version by label
 	version, err := p.svc.GetPromptVersionByLabel(ctx, p.projectID, p.name, p.label)
 	if err != nil {

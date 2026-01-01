@@ -12,9 +12,11 @@ import (
 var promptTracer = otel.Tracer("PromptManager")
 
 type PromptLoader interface {
-	// GetPrompt returns loads the prompt from the source and returns it as string
-	GetPrompt(ctx context.Context) (string, error)
+	// LoadPrompt loads the prompt from the source and returns it as string
+	LoadPrompt(ctx context.Context) (string, error)
 }
+
+type PromptResolverFn func(string, map[string]any) (string, error)
 
 type StringLoader struct {
 	String string
@@ -26,78 +28,51 @@ func NewStringLoader(str string) *StringLoader {
 	}
 }
 
-func (sl *StringLoader) GetPrompt(ctx context.Context) (string, error) {
+func (sl *StringLoader) LoadPrompt(ctx context.Context) (string, error) {
 	return sl.String, nil
 }
 
 type SimplePrompt struct {
-	loader    PromptLoader
-	Resolvers []PromptResolverFn
+	loader   PromptLoader
+	resolver PromptResolverFn
 }
 
-func New(prompt string, resolvers ...PromptResolverFn) *SimplePrompt {
-	return NewWithLoader(NewStringLoader(prompt), resolvers...)
+func New(prompt string, opts ...PromptOption) *SimplePrompt {
+	return NewWithLoader(NewStringLoader(prompt), opts...)
 }
 
-func NewWithLoader(loader PromptLoader, resolvers ...PromptResolverFn) *SimplePrompt {
-	return &SimplePrompt{
-		loader:    loader,
-		Resolvers: resolvers,
+func NewWithLoader(loader PromptLoader, opts ...PromptOption) *SimplePrompt {
+	sp := &SimplePrompt{
+		loader:   loader,
+		resolver: DefaultResolver,
+	}
+
+	for _, op := range opts {
+		op(sp)
+	}
+
+	return sp
+}
+
+type PromptOption func(*SimplePrompt)
+
+func WithResolver(resolverFn PromptResolverFn) PromptOption {
+	return func(sp *SimplePrompt) {
+		sp.resolver = resolverFn
 	}
 }
 
-func (sp *SimplePrompt) WithResolver(fn PromptResolverFn) *SimplePrompt {
-	sp.Resolvers = append(sp.Resolvers, fn)
-	return sp
-}
-
-func (sp *SimplePrompt) WithDefaultResolver(data map[string]any) *SimplePrompt {
-	sp.Resolvers = append(sp.Resolvers, NewDefaultResolver(data))
-	return sp
-}
-
-func (sp *SimplePrompt) GetPrompt(ctx context.Context) (string, error) {
-	promptStr, err := sp.loader.GetPrompt(ctx)
+func (sp *SimplePrompt) GetPrompt(ctx context.Context, data map[string]any) (string, error) {
+	prompt, err := sp.loader.LoadPrompt(ctx)
 	if err != nil {
 		return "", err
 	}
 
-	if sp.Resolvers != nil {
-		var err error
-		for _, resolver := range sp.Resolvers {
-			promptStr, err = resolver(promptStr)
-			if err != nil {
-				return "", err
-			}
-		}
+	if data == nil {
+		return prompt, nil
 	}
 
-	return promptStr, nil
-}
-
-type PromptResolver func(*SimplePrompt)
-
-type PromptResolverFn func(string) (string, error)
-
-func WithResolver(resolver PromptResolverFn) PromptResolverFn {
-	return resolver
-}
-
-func WithDefaultResolver(data map[string]any) PromptResolverFn {
-	return NewDefaultResolver(data)
-}
-
-type DefaultResolver struct{}
-
-func NewDefaultResolver(data map[string]any) PromptResolverFn {
-	return func(s string) (string, error) {
-		tmpl, err := stringToTemplate(s)
-		if err != nil {
-			return "", err
-		}
-
-		return utils.ExecuteTemplate(tmpl, data)
-	}
+	return sp.resolver(prompt, data)
 }
 
 func stringToTemplate(promptStr string) (*template.Template, error) {
@@ -105,4 +80,13 @@ func stringToTemplate(promptStr string) (*template.Template, error) {
 	promptStr = re.ReplaceAllString(promptStr, "{{ .$1 }}")
 
 	return template.New("file_prompt").Parse(promptStr)
+}
+
+func DefaultResolver(prompt string, data map[string]any) (string, error) {
+	tmpl, err := stringToTemplate(prompt)
+	if err != nil {
+		return prompt, err
+	}
+
+	return utils.ExecuteTemplate(tmpl, data)
 }

@@ -5,5 +5,5 @@ import (
 )
 
 type SystemPromptProvider interface {
-	GetPrompt(ctx context.Context) (string, error)
+	GetPrompt(ctx context.Context, data map[string]any) (string, error)
 }

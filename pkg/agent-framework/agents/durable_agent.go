@@ -183,7 +183,7 @@ func (e *DurableAgent) Execute(ctx context.Context, in *AgentInput) (*AgentOutpu
 	instruction := "You are a helpful assistant."
 	if e.instruction != nil {
 		instructionAny, err := e.executor.Run(ctx, "load-instruction", func(ctx context.Context) (any, error) {
-			return e.instruction.GetPrompt(ctx)
+			return e.instruction.GetPrompt(ctx, in.RunContext)
 		})
 		if err != nil {
 			span.RecordError(err)

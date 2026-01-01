@@ -61,6 +61,7 @@ type AgentInput struct {
 	Namespace         string
 	PreviousMessageID string
 	Messages          []responses.InputMessageUnion
+	RunContext        map[string]any
 	Callback          func(chunk *responses.ResponseChunk)
 }
 

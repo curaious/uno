@@ -29,7 +29,7 @@ func NewExternalPromptPersistence(endpoint string, projectID uuid.UUID, name str
 	}
 }
 
-func (p *ExternalPromptPersistence) GetPrompt(ctx context.Context) (string, error) {
+func (p *ExternalPromptPersistence) LoadPrompt(ctx context.Context) (string, error) {
 	// Read the prompt from file
 	url := fmt.Sprintf("%s/api/agent-server/prompts/%s/label/%s?project_id=%s", p.Endpoint, p.name, p.label, p.projectID)
 
@@ -63,7 +63,7 @@ func NewLangfusePromptProvider(endpoint, username, password string, name string,
 	}
 }
 
-func (p *LangfusePromptPersistence) GetPrompt(ctx context.Context) (string, error) {
+func (p *LangfusePromptPersistence) LoadPrompt(ctx context.Context) (string, error) {
 	// Get the prompt from Langfuse
 	promptResp, err := p.client.GetPrompt(p.name, p.label)
 	if err != nil {

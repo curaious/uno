@@ -257,7 +257,6 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 
 		instructionProvider := prompts.NewWithLoader(
 			adapters.NewInternalPromptPersistence(svc.Prompt, projectID, agentConfig.PromptName, promptLabel),
-			prompts.WithDefaultResolver(contextData),
 		)
 
 		conversationManagerOpts := []history.ConversationManagerOptions{}
@@ -290,7 +289,6 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 
 				summarizerInstructionProvider := prompts.NewWithLoader(
 					adapters.NewInternalPromptPersistence(svc.Prompt, projectID, *agentConfig.SummarizerPromptName, summarizerPromptLabel),
-					prompts.WithDefaultResolver(contextData),
 				)
 
 				tokenThreshold := 500
@@ -392,7 +390,10 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 			_, execErr := agent.Execute(
 				ctx,
 				&agents.AgentInput{
-					Messages: []responses.InputMessageUnion{reqPayload.Message},
+					Namespace:         reqPayload.Namespace,
+					PreviousMessageID: reqPayload.PreviousMessageID,
+					Messages:          []responses.InputMessageUnion{reqPayload.Message},
+					RunContext:        contextData,
 					Callback: func(message *responses.ResponseChunk) {
 						buf, err := json.Marshal(message)
 						if err != nil {
