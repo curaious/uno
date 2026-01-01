@@ -87,7 +87,7 @@ var (
 	svc            *services.Services
 	llmGateway     *gateway.LLMGateway
 	mcpServerCache = &sync.Map{} // session/serverID -> *tools.MCPServer
-	tracer         = otel.Tracer("AgentWorkflow.Service")
+	tracer         = otel.Tracer("AgentBuilderWorkflow.Service")
 )
 
 func init() {
@@ -142,11 +142,11 @@ func init() {
 // Agent Workflow
 // ============================================================================
 
-type AgentWorkflow struct{}
+type AgentBuilderWorkflow struct{}
 
 // Run executes the agent with durable checkpoints
 // Fetches all config from DB like converse.go does
-func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInput) (AgentRunOutput, error) {
+func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInput) (AgentRunOutput, error) {
 	runID := restate.Key(reStateCtx)
 
 	//h := http.Header{}
@@ -156,7 +156,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	// Create a new span context with the custom trace ID
 	//spanCtx := otel.GetTextMapPropagator().Extract(reStateCtx, carrier)
 	//ctx := context.WithValue(spanCtx, "restateContent", reStateCtx)
-	//ctx, span := tracer.Start(ctx, "AgentWorkflow.Run")
+	//ctx, span := tracer.Start(ctx, "AgentBuilderWorkflow.Run")
 	//defer span.End()
 	ctx := reStateCtx
 
@@ -333,7 +333,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 }
 
 // GetStatus returns the current workflow state
-func (AgentWorkflow) GetStatus(ctx restate.WorkflowSharedContext) (AgentStatus, error) {
+func (AgentBuilderWorkflow) GetStatus(ctx restate.WorkflowSharedContext) (AgentStatus, error) {
 	status, _ := restate.Get[string](ctx, "status")
 	currentStep, _ := restate.Get[string](ctx, "current_step")
 	loopCount, _ := restate.Get[int](ctx, "loop_count")
@@ -352,7 +352,7 @@ func (AgentWorkflow) GetStatus(ctx restate.WorkflowSharedContext) (AgentStatus, 
 }
 
 // Cancel signals the workflow to stop
-func (AgentWorkflow) Cancel(ctx restate.WorkflowSharedContext, reason string) error {
+func (AgentBuilderWorkflow) Cancel(ctx restate.WorkflowSharedContext, reason string) error {
 	runID := restate.Key(ctx)
 	slog.Info("cancel requested", "run_id", runID, "reason", reason)
 

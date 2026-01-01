@@ -238,9 +238,6 @@ func main() {
     // Start only the Restate service
     log.Println("Restate service starting on :9080")
     client.StartRestateService("0.0.0.0", "9080")
-    
-    // Block forever
-    select {}
 }
 ```
 

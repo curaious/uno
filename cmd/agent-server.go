@@ -24,7 +24,7 @@ var agentServerCmd = &cobra.Command{
 
 		go func() {
 			if err := server.NewRestate().
-				Bind(restate.Reflect(service.AgentWorkflow{})).
+				Bind(restate.Reflect(service.AgentBuilderWorkflow{})).
 				Start(context.Background(), "0.0.0.0:9080"); err != nil {
 				log.Fatal(err)
 			}

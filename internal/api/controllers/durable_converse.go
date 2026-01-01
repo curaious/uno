@@ -113,7 +113,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 			defer cancel()
 			// To call a service
 			_, err := ingress.Workflow[*service.AgentRunInput, *service.AgentRunOutput](
-				restateClient, "AgentWorkflow", channel, "Run").
+				restateClient, "AgentBuilderWorkflow", channel, "Run").
 				Request(ctx, &in, restate.WithHeaders(carrier))
 			if err != nil {
 				return
