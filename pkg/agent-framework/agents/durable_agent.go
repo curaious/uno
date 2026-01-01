@@ -216,8 +216,18 @@ func (e *DurableAgent) Execute(ctx context.Context, in *AgentInput) (*AgentOutpu
 
 		case core.StepCallLLM:
 			// Get the messages from the conversation history
-			convMessages, err := e.history.GetMessages(ctx)
+			convMessagesAny, err := e.executor.Run(ctx, fmt.Sprintf("get-messages-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
+				return e.history.GetMessages(ctx)
+			})
+
+			buf, err := sonic.Marshal(convMessagesAny)
 			if err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			var convMessages []responses.InputMessageUnion
+			if err := sonic.Unmarshal(buf, &convMessages); err != nil {
 				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError}, err
 			}
@@ -245,7 +255,7 @@ func (e *DurableAgent) Execute(ctx context.Context, in *AgentInput) (*AgentOutpu
 			}
 
 			// Unmarshal response
-			buf, err := sonic.Marshal(respAny)
+			buf, err = sonic.Marshal(respAny)
 			if err != nil {
 				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError}, err
