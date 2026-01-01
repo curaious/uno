@@ -242,7 +242,6 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 	// Create instruction provider
 	instruction := prompts.NewWithLoader(
 		adapters.NewInternalPromptPersistence(svc.Prompt, projectID, agentConfig.PromptName, promptLabel),
-		prompts.WithDefaultResolver(contextData),
 	)
 
 	// Build conversation manager options
@@ -318,6 +317,7 @@ func (w AgentWorkflow) Run(reStateCtx restate.WorkflowContext, input AgentRunInp
 		PreviousMessageID: input.PreviousMessageID,
 		Messages:          []responses.InputMessageUnion{input.Message},
 		Callback:          streamCallback,
+		RunContext:        contextData,
 	})
 
 	if err != nil {
@@ -466,7 +466,6 @@ func buildSummarizer(agentConfig *agent.AgentWithDetails, projectID uuid.UUID, v
 
 		summarizerInstruction := prompts.NewWithLoader(
 			adapters.NewInternalPromptPersistence(svc.Prompt, projectID, *agentConfig.SummarizerPromptName, summarizerPromptLabel),
-			prompts.WithDefaultResolver(contextData),
 		)
 
 		tokenThreshold := 500
