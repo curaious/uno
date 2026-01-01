@@ -1,8 +1,10 @@
-import React from 'react';
-import {styled, Tooltip} from '@mui/material';
+import React, { useState } from 'react';
+import {styled, Tooltip, Popover, Box, Typography, Divider} from '@mui/material';
 import {useNavigate} from 'react-router';
 import ApiIcon from '@mui/icons-material/Api';
+import LogoutIcon from '@mui/icons-material/Logout';
 import {useAppContext, AppType} from '../../contexts/AppContext';
+import {useAuth} from '../../contexts/AuthContext';
 
 // Custom Agent Framework Icon - Robot/Agent with Framework Structure
 const AgentFrameworkIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -76,9 +78,104 @@ const AppIconButton = styled('button')<{ active: boolean }>(({ theme, active }) 
   },
 }));
 
+const Spacer = styled('div')({
+  flex: 1,
+});
+
+const UserAvatar = styled('button')(({ theme }) => ({
+  width: 36,
+  height: 36,
+  borderRadius: '50%',
+  border: '2px solid rgba(255, 255, 255, 0.15)',
+  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  color: '#fff',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  fontSize: 14,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  transition: 'all 0.2s ease',
+  marginBottom: 12,
+  '&:hover': {
+    border: '2px solid rgba(255, 255, 255, 0.4)',
+    transform: 'scale(1.05)',
+  },
+}));
+
+const UserPopover = styled(Popover)(({ theme }) => ({
+  '& .MuiPaper-root': {
+    background: 'oklch(18% .006 285.885)',
+    border: '1px solid rgba(255, 255, 255, 0.1)',
+    borderRadius: 12,
+    padding: 0,
+    minWidth: 220,
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+  },
+}));
+
+const UserInfo = styled(Box)(({ theme }) => ({
+  padding: '16px',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 4,
+}));
+
+const UserName = styled(Typography)({
+  color: '#fff',
+  fontSize: 14,
+  fontWeight: 600,
+  lineHeight: 1.3,
+});
+
+const UserEmail = styled(Typography)({
+  color: 'rgba(255, 255, 255, 0.5)',
+  fontSize: 12,
+  lineHeight: 1.3,
+});
+
+const UserRole = styled(Box)({
+  marginTop: 4,
+  display: 'inline-flex',
+  alignItems: 'center',
+  background: 'rgba(102, 126, 234, 0.15)',
+  color: '#667eea',
+  fontSize: 10,
+  fontWeight: 600,
+  textTransform: 'uppercase',
+  letterSpacing: '0.5px',
+  padding: '3px 8px',
+  borderRadius: 4,
+  width: 'fit-content',
+});
+
+const LogoutButton = styled('button')(({ theme }) => ({
+  width: '100%',
+  padding: '12px 16px',
+  border: 'none',
+  background: 'transparent',
+  color: 'rgba(255, 255, 255, 0.7)',
+  cursor: 'pointer',
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  fontSize: 13,
+  transition: 'all 0.2s ease',
+  '&:hover': {
+    background: 'rgba(239, 68, 68, 0.1)',
+    color: '#ef4444',
+  },
+  '& svg': {
+    fontSize: 18,
+  },
+}));
+
 export const MiniSidebar: React.FC = () => {
   const { selectedApp, setSelectedApp } = useAppContext();
+  const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const [anchorEl, setAnchorEl] = useState<HTMLButtonElement | null>(null);
 
   const handleAppSwitch = (app: AppType) => {
     setSelectedApp(app);
@@ -89,6 +186,29 @@ export const MiniSidebar: React.FC = () => {
       navigate('/agent-framework/projects');
     }
   };
+
+  const handleUserClick = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handlePopoverClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    handlePopoverClose();
+    logout();
+  };
+
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(part => part[0])
+      .join('')
+      .slice(0, 2);
+  };
+
+  const open = Boolean(anchorEl);
 
   return (
     <MiniSidebarContainer>
@@ -110,6 +230,42 @@ export const MiniSidebar: React.FC = () => {
           <AgentFrameworkIcon />
         </AppIconButton>
       </Tooltip>
+      
+      <Spacer />
+      
+      {user && (
+        <>
+          <Tooltip title={user.name} placement="right" arrow>
+            <UserAvatar onClick={handleUserClick} aria-label="User menu">
+              {getInitials(user.name)}
+            </UserAvatar>
+          </Tooltip>
+          <UserPopover
+            open={open}
+            anchorEl={anchorEl}
+            onClose={handlePopoverClose}
+            anchorOrigin={{
+              vertical: 'bottom',
+              horizontal: 'right',
+            }}
+            transformOrigin={{
+              vertical: 'bottom',
+              horizontal: 'left',
+            }}
+          >
+            <UserInfo>
+              <UserName>{user.name}</UserName>
+              <UserEmail>{user.email}</UserEmail>
+              {user.role && <UserRole>{user.role}</UserRole>}
+            </UserInfo>
+            <Divider sx={{ borderColor: 'rgba(255, 255, 255, 0.08)' }} />
+            <LogoutButton onClick={handleLogout}>
+              <LogoutIcon />
+              Sign out
+            </LogoutButton>
+          </UserPopover>
+        </>
+      )}
     </MiniSidebarContainer>
   );
 };
