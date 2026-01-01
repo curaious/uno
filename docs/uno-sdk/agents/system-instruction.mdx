@@ -34,9 +34,15 @@ agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Personalized Assistant",
     Instruction: client.Prompt(
         "You are a helpful assistant. You are interacting with {{name}}, who is a {{role}}.",
-        prompts.WithDefaultResolver(contextData),
     ),
     LLM: model,
+})
+
+agent.Execute(context.Background(), &agents.AgentInput{
+	RunContext: map[string]any{
+	    "name": "Bob",
+		"role": "admin",
+	},
 })
 ```
 
@@ -49,21 +55,13 @@ You can create custom resolvers for more complex template resolution logic:
 ```go
 import "github.com/praveen001/uno/pkg/agent-framework/prompts"
 
-customResolver := func(promptStr string) (string, error) {
-    // Your custom resolution logic
-    // For example, fetch data from a database or API
-    data := map[string]any{
-        "userName": getUserName(),
-        "timestamp": time.Now().Format(time.RFC3339),
-    }
-    
-    // Use the default resolver with your data
-    return prompts.WithDefaultResolver(data)(promptStr)
+customResolver := func(promptStr string, data map[string]any) (string, error) {
+    // Your logic to resolve the prompt into the final system format
 }
 
 agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Dynamic Assistant",
-    Instruction: client.Prompt("Hello {{userName}}, current time is {{timestamp}}", customResolver),
+    Instruction: client.Prompt("Hello {{userName}}, current time is {{timestamp}}", prompts.WithResolver(customResolver)),
     LLM:         model,
 })
 ```
@@ -91,19 +89,22 @@ agent := client.NewAgent(&sdk.AgentOptions{
 You can combine remote prompts with resolvers for dynamic content:
 
 ```go
-contextData := map[string]any{
-    "environment": "production",
-    "version": "1.0.0",
-}
-
 agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Versioned Assistant",
     Instruction: client.RemotePrompt(
         "assistant-prompt",
         "production",
-        prompts.WithDefaultResolver(contextData),
     ),
     LLM: model,
+})
+
+contextData := map[string]any{
+    "environment": "production",
+    "version": "1.0.0",
+}
+
+agent.Execute(context.Background(), &agents.AgentInput{
+	RunContext: contextData,
 })
 ```
 
@@ -116,7 +117,7 @@ type CustomLoader struct {
     // Your custom fields
 }
 
-func (l *CustomLoader) GetPrompt(ctx context.Context) (string, error) {
+func (l *CustomLoader) LoadPrompt(ctx context.Context) (string, error) {
     // Load prompt from your custom source
     // e.g., database, file system, external API, etc.
     return "Your prompt content", nil
@@ -129,26 +130,6 @@ agent := client.NewAgent(&sdk.AgentOptions{
     LLM:         model,
 })
 ```
-
-## Multiple Resolvers
-
-You can chain multiple resolvers to apply different transformations:
-
-```go
-resolver1 := prompts.WithDefaultResolver(map[string]any{"name": "Alice"})
-resolver2 := func(s string) (string, error) {
-    // Additional processing
-    return strings.ToUpper(s), nil
-}
-
-agent := client.NewAgent(&sdk.AgentOptions{
-    Name:        "Multi-Resolver Assistant",
-    Instruction: client.Prompt("Hello {{name}}", resolver1, resolver2),
-    LLM:         model,
-})
-```
-
-Resolvers are applied in order, with each resolver receiving the output of the previous one.
 
 ## Complete Example
 
@@ -202,15 +183,10 @@ func main() {
     })
 
     // Example 2: Template with variables
-    contextData := map[string]any{
-        "userName": "Bob",
-        "userRole": "developer",
-    }
     agent2 := client.NewAgent(&sdk.AgentOptions{
         Name:        "Personalized Assistant",
         Instruction: client.Prompt(
             "You are a helpful assistant for {{userName}}, who is a {{userRole}}.",
-            prompts.WithDefaultResolver(contextData),
         ),
         LLM: model,
     })
@@ -227,6 +203,10 @@ func main() {
         Messages: []responses.InputMessageUnion{
             responses.UserMessage("Hello!"),
         },
+        RunContext: map[string]any{
+            "userName": "Bob",
+            "userRole": "developer",
+        },
     })
     if err != nil {
         log.Fatal(err)
@@ -239,8 +219,6 @@ func main() {
 ## Notes
 
 - Template variables use the syntax `{{variable}}` which is automatically converted to Go template format
-- Resolvers are applied in the order they are provided
-- The `WithDefaultResolver` function creates a resolver that uses Go templates with the provided data map
 - Remote prompts require the SDK client to be initialized with `endpoint` and `projectName`
-- Custom prompt loaders must implement the `PromptLoader` interface with a `GetPrompt(ctx context.Context) (string, error)` method
+- Custom prompt loaders must implement the `PromptLoader` interface with a `LoadPrompt(ctx context.Context) (string, error)` method
 

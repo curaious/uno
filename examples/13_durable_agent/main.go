@@ -5,7 +5,6 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/praveen001/uno/pkg/agent-framework/prompts"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/sdk"
@@ -39,15 +38,11 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	contextData := map[string]any{
-		"name": "Bob",
-	}
-
 	history := client.NewConversationManager("default", "")
 	agentName := "Hello world agent"
 	_ = client.NewRestateAgent(&sdk.AgentOptions{
 		Name:        agentName,
-		Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}", prompts.WithDefaultResolver(contextData)),
+		Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}"),
 		LLM:         model,
 		History:     history,
 	})

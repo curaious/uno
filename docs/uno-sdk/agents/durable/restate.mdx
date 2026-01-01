@@ -73,17 +73,13 @@ func main() {
         Model:    "gpt-4o-mini",
     })
 
-    contextData := map[string]any{
-        "name": "Bob",
-    }
-
     history := client.NewConversationManager("default", "")
     
     // Create a durable agent with NewRestateAgent
     agentName := "Hello world agent"
     agent := client.NewRestateAgent(&sdk.AgentOptions{
         Name:        agentName,
-        Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}", prompts.WithDefaultResolver(contextData)),
+        Instruction: client.Prompt("You are helpful assistant."),
         LLM:         model,
         History:     history,
     })
@@ -319,12 +315,13 @@ import (
 )
 
 func invokeDurableAgent() {
-    input := map[string]any{
-        "messages": []responses.InputMessageUnion{
+    input := agents.AgentInput{
+        Messages: []responses.InputMessageUnion{
             responses.UserMessage("Hello, what can you help me with?"),
         },
-        "namespace": "default",
-        "previous_message_id": "",
+        Namespace: "default",
+        PreviousMessageID: "",
+		RunContext: map[string]any{},
     }
 
     body, _ := json.Marshal(input)
