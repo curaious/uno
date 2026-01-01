@@ -2,6 +2,7 @@ package sdk
 
 import (
 	internal_adapters "github.com/praveen001/uno/internal/adapters"
+	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/sdk/adapters"
@@ -39,5 +40,15 @@ func getKey(cfgStore gateway.ConfigStore, providerName llm.ProviderName) string 
 		return ""
 	}
 
-	return providerConfig.ApiKeys[0].APIKey
+	if len(providerConfig.ApiKeys) == 1 {
+		return providerConfig.ApiKeys[0].APIKey
+	}
+
+	// Weight random selection
+	weights := make([]int, len(providerConfig.ApiKeys))
+	for idx, key := range providerConfig.ApiKeys {
+		weights[idx] = key.Weight
+	}
+
+	return providerConfig.ApiKeys[utils.WeightedRandomIndex(weights)].APIKey
 }

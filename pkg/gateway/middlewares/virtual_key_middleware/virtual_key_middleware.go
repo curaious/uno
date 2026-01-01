@@ -7,6 +7,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"go.opentelemetry.io/otel"
@@ -145,8 +146,17 @@ func (middleware *VirtualKeyMiddleware) getDirectKey(ctx context.Context, provid
 		return key, err
 	}
 
-	// Todo: support for key rotation
-	return providerConfig.ApiKeys[0].APIKey, nil
+	if len(providerConfig.ApiKeys) == 1 {
+		return providerConfig.ApiKeys[0].APIKey, nil
+	}
+
+	// Weight random selection
+	weights := make([]int, len(providerConfig.ApiKeys))
+	for idx, key := range providerConfig.ApiKeys {
+		weights[idx] = key.Weight
+	}
+
+	return providerConfig.ApiKeys[utils.WeightedRandomIndex(weights)].APIKey, nil
 }
 
 // checkRateLimits validates all rate limits for a virtual key.

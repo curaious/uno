@@ -20,6 +20,7 @@ type APIKeyConfig struct {
 	APIKey       string
 	Name         string
 	RateLimits   []RateLimit
+	Weight       int
 	Enabled      bool
 	IsDefault    bool
 }
