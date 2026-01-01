@@ -1,5 +1,5 @@
 import React from 'react';
-import {BrowserRouter} from "react-router";
+import {BrowserRouter, Route, Routes, Navigate} from "react-router";
 import CssBaseline from '@mui/material/CssBaseline';
 
 import '@fontsource/roboto/300.css';
@@ -13,8 +13,10 @@ import {Sidebar} from "./components/Sidebar/Sidebar";
 import {MainContent} from "./components/MainContent/MainContent";
 import {ProjectProvider, useProjectContext} from "./contexts/ProjectContext";
 import {AppProvider, useAppContext} from "./contexts/AppContext";
+import {AuthProvider, useAuth} from "./contexts/AuthContext";
 import {MiniSidebar} from "./components/MiniSidebar/MiniSidebar";
 import {NoProjects} from "./components/NoProjects/NoProjects";
+import LoginPage from "./pages/Login/Login";
 
 const darkTheme = createTheme({
   palette: {
@@ -120,11 +122,28 @@ const darkTheme = createTheme({
 
 const AppContent: React.FC = () => {
   const { selectedApp } = useAppContext();
-  const { projects, loading } = useProjectContext();
+  const { projects, loading: projectsLoading } = useProjectContext();
+  const { isAuthenticated, loading: authLoading } = useAuth();
   
+  if (authLoading) {
+    return null; // Or a loading spinner
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <>
+        <CssBaseline/>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </>
+    );
+  }
+
   // For agent-framework, hide sidebar if no projects exist
   const shouldShowSidebar = selectedApp === 'llm-gateway' || (selectedApp === 'agent-framework' && projects.length > 0);
-  const shouldShowNoProjects = selectedApp === 'agent-framework' && !loading && projects.length === 0;
+  const shouldShowNoProjects = selectedApp === 'agent-framework' && !projectsLoading && projects.length === 0;
 
   if (shouldShowNoProjects) {
     return (
@@ -154,11 +173,13 @@ function App() {
   return (
     <ThemeProvider theme={darkTheme}>
       <AppProvider>
-        <ProjectProvider>
-          <BrowserRouter>
-            <AppContent/>
-          </BrowserRouter>
-        </ProjectProvider>
+        <AuthProvider>
+          <ProjectProvider>
+            <BrowserRouter>
+              <AppContent/>
+            </BrowserRouter>
+          </ProjectProvider>
+        </AuthProvider>
       </AppProvider>
     </ThemeProvider>
   );

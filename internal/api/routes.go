@@ -81,10 +81,14 @@ func (s *Server) withMiddlewares(next fasthttp.RequestHandler, auth *authenticat
 				return
 			}
 
-			if err := auth.VerifyAccessToken(ctx, authHeader); err != nil {
+			claims, err := auth.VerifyAccessToken(ctx, authHeader)
+			if err != nil {
 				ctx.SetStatusCode(fasthttp.StatusUnauthorized)
 				return
 			}
+
+			// Store user claims in context for downstream handlers
+			ctx.SetUserValue("userClaims", claims)
 		}
 
 		next(ctx)
@@ -104,12 +108,22 @@ func applyCORS(ctx *fasthttp.RequestCtx) {
 func isPublicRoute(ctx *fasthttp.RequestCtx) bool {
 	path := string(ctx.Path())
 
+	// Public auth routes
+	publicAuthRoutes := []string{
+		"/api/agent-server/auth/login",
+		"/api/agent-server/auth/callback",
+		"/api/agent-server/auth/enabled",
+	}
+
 	switch {
 	case path == "/api/health":
 		return true
-	case strings.HasPrefix(path, "/api/auth"):
-		return true
 	default:
+		for _, route := range publicAuthRoutes {
+			if path == route {
+				return true
+			}
+		}
 		return false
 	}
 }

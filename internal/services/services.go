@@ -14,6 +14,7 @@ import (
 	provider2 "github.com/praveen001/uno/internal/services/provider"
 	schema2 "github.com/praveen001/uno/internal/services/schema"
 	traces2 "github.com/praveen001/uno/internal/services/traces"
+	user2 "github.com/praveen001/uno/internal/services/user"
 	virtual_key2 "github.com/praveen001/uno/internal/services/virtual_key"
 )
 
@@ -28,6 +29,7 @@ type Services struct {
 	Conversation *conversation2.ConversationService
 	VirtualKey   *virtual_key2.VirtualKeyService
 	Traces       *traces2.TracesService
+	User         *user2.UserService
 }
 
 func NewServices(conf *config.Config) *Services {
@@ -62,5 +64,6 @@ func NewServices(conf *config.Config) *Services {
 		MCPServer:    mcp_server2.NewMCPServerService(mcp_server2.NewMCPServerRepo(dbconn)),
 		Conversation: conversation2.NewConversationService(conversation2.NewConversationRepo(dbconn)),
 		Traces:       tracesSvc,
+		User:         user2.NewUserService(user2.NewUserRepo(dbconn)),
 	}
 }

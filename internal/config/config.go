@@ -30,6 +30,7 @@ type Config struct {
 	OTEL_EXPORTER_OTLP_ENDPOINT string
 
 	// Auth
+	JWT_SECRET          string
 	STATE_SECRET        string
 	AUTH0_DOMAIN        string
 	AUTH0_CLIENT_ID     string
@@ -68,6 +69,7 @@ func ReadConfig() *Config {
 
 		OTEL_EXPORTER_OTLP_ENDPOINT: os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"),
 
+		JWT_SECRET:          getEnvOrDefault("JWT_SECRET", "change-me-in-production"),
 		STATE_SECRET:        os.Getenv("STATE_SECRET"),
 		AUTH0_DOMAIN:        os.Getenv("AUTH0_DOMAIN"),
 		AUTH0_CLIENT_ID:     os.Getenv("AUTH0_CLIENT_ID"),

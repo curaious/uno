@@ -6,6 +6,7 @@ import (
 	"errors"
 	"time"
 
+	"github.com/bytedance/sonic"
 	"github.com/fasthttp/router"
 	"github.com/praveen001/uno/internal/api/authenticator"
 	"github.com/praveen001/uno/internal/services"
@@ -13,14 +14,128 @@ import (
 	"golang.org/x/oauth2"
 )
 
+type LoginRequest struct {
+	Email    string `json:"email"`
+	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	Token string       `json:"token"`
+	User  UserResponse `json:"user"`
+}
+
+type UserResponse struct {
+	ID    string `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+	Role  string `json:"role"`
+}
+
 func RegisterAuthRoutes(r *router.Router, svc *services.Services, auth *authenticator.Authenticator) {
-	r.GET("/api/auth/enabled", func(ctx *fasthttp.RequestCtx) {
+	r.GET("/api/agent-server/auth/enabled", func(ctx *fasthttp.RequestCtx) {
 		writeResponse(ctx, requestContext(ctx), "success", map[string]any{
-			"auth_enabled": auth.AuthEnabled(),
+			"auth_enabled":  auth.AuthEnabled(),
+			"auth0_enabled": auth.Auth0Enabled(),
 		})
 	})
 
-	r.GET("/api/auth/login", func(ctx *fasthttp.RequestCtx) {
+	// Login with email/password
+	r.POST("/api/agent-server/auth/login", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+
+		var req LoginRequest
+		if err := sonic.Unmarshal(ctx.PostBody(), &req); err != nil {
+			writeError(ctx, stdCtx, "Invalid request body", err)
+			return
+		}
+
+		if req.Email == "" || req.Password == "" {
+			writeError(ctx, stdCtx, "Email and password are required", errors.New("missing credentials"))
+			return
+		}
+
+		// Authenticate user
+		user, err := svc.User.Authenticate(stdCtx, req.Email, req.Password)
+		if err != nil {
+			ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+			writeError(ctx, stdCtx, "Invalid credentials", err)
+			return
+		}
+
+		// Generate JWT token
+		token, err := auth.GenerateToken(user.ID, user.Email, user.Name, string(user.Role))
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to generate token", err)
+			return
+		}
+
+		// Set token as HTTP-only cookie
+		var cookie fasthttp.Cookie
+		cookie.SetKey("access_token")
+		cookie.SetValue(token)
+		cookie.SetPath("/")
+		cookie.SetHTTPOnly(true)
+		cookie.SetSecure(false) // Set to true in production (HTTPS)
+		cookie.SetSameSite(fasthttp.CookieSameSiteLaxMode)
+		cookie.SetExpire(time.Now().Add(24 * time.Hour))
+		ctx.Response.Header.SetCookie(&cookie)
+
+		writeResponse(ctx, stdCtx, "success", LoginResponse{
+			Token: token,
+			User: UserResponse{
+				ID:    user.ID,
+				Name:  user.Name,
+				Email: user.Email,
+				Role:  string(user.Role),
+			},
+		})
+	})
+
+	// Get current user info
+	r.GET("/api/agent-server/auth/me", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+
+		claims, ok := ctx.UserValue("userClaims").(*authenticator.UserClaims)
+		if !ok || claims == nil {
+			ctx.SetStatusCode(fasthttp.StatusUnauthorized)
+			writeError(ctx, stdCtx, "Unauthorized", errors.New("no user claims"))
+			return
+		}
+
+		// Fetch full user from database
+		user, err := svc.User.GetByID(stdCtx, claims.UserID)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to get user", err)
+			return
+		}
+
+		writeResponse(ctx, stdCtx, "success", UserResponse{
+			ID:    user.ID,
+			Name:  user.Name,
+			Email: user.Email,
+			Role:  string(user.Role),
+		})
+	})
+
+	// Logout endpoint
+	r.POST("/api/agent-server/auth/logout", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+
+		// Clear the access_token cookie
+		var cookie fasthttp.Cookie
+		cookie.SetKey("access_token")
+		cookie.SetValue("")
+		cookie.SetPath("/")
+		cookie.SetHTTPOnly(true)
+		cookie.SetExpire(time.Now().Add(-1 * time.Hour))
+		ctx.Response.Header.SetCookie(&cookie)
+
+		writeResponse(ctx, stdCtx, "success", map[string]any{
+			"message": "Logged out successfully",
+		})
+	})
+
+	r.GET("/api/agent-server/auth/auth0/login", func(ctx *fasthttp.RequestCtx) {
 		stdCtx := requestContext(ctx)
 
 		csrf := make([]byte, 16)
@@ -43,7 +158,7 @@ func RegisterAuthRoutes(r *router.Router, svc *services.Services, auth *authenti
 		ctx.Redirect(url, fasthttp.StatusTemporaryRedirect)
 	})
 
-	r.GET("/api/auth/callback", func(ctx *fasthttp.RequestCtx) {
+	r.GET("/api/agent-server/auth/auth0/callback", func(ctx *fasthttp.RequestCtx) {
 		stdCtx := requestContext(ctx)
 		encodedState := ctx.URI().QueryArgs().Peek("state")
 		code := ctx.URI().QueryArgs().Peek("code")
