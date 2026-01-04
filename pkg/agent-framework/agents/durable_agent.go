@@ -12,6 +12,7 @@ import (
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/history"
+	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/constants"
 	"github.com/praveen001/uno/pkg/llm/responses"
@@ -34,6 +35,7 @@ type DurableAgent struct {
 	history     core.ChatHistory
 	instruction core.SystemPromptProvider
 	tools       []core.Tool
+	mcpServers  []*mcpclient.MCPClient
 	llm         llm.Provider
 	executor    core.DurableExecutor
 	maxLoops    int
@@ -48,6 +50,7 @@ type DurableAgentOptions struct {
 	LLM         llm.Provider
 	Output      any
 	Tools       []core.Tool
+	McpServers  []*mcpclient.MCPClient
 	Parameters  responses.Parameters
 
 	// Durability options
@@ -73,11 +76,33 @@ func NewDurableAgent(opts *DurableAgentOptions) (*DurableAgent, error) {
 		history:     opts.History,
 		instruction: opts.Instruction,
 		tools:       opts.Tools,
+		mcpServers:  opts.McpServers,
 		llm:         opts.LLM,
 		executor:    executor,
 		maxLoops:    maxLoops,
 		parameters:  opts.Parameters,
 	}, nil
+}
+
+func (e *DurableAgent) prepare(ctx context.Context, in *AgentInput) error {
+	// If mcp clients are provided, connect to them and fetch the tools
+	var mcpTools []core.Tool
+	if e.mcpServers != nil {
+		for _, mcpServer := range e.mcpServers {
+			if err := mcpServer.Init(ctx, in.RunContext); err != nil {
+				return err
+			}
+
+			mcpTools = append(mcpTools, mcpServer.GetTools()...)
+		}
+	}
+	e.tools = append(e.tools, mcpTools...)
+
+	if in.Callback == nil {
+		in.Callback = core.NilCallback
+	}
+
+	return nil
 }
 
 // Execute runs the agent with durable execution.
@@ -89,10 +114,11 @@ func (e *DurableAgent) Execute(ctx context.Context, in *AgentInput) (*AgentOutpu
 
 	span.SetAttributes(attribute.String("agent.name", e.name))
 
-	cb := in.Callback
-	if cb == nil {
-		cb = core.NilCallback
+	if err := e.prepare(ctx, in); err != nil {
+		return nil, err
 	}
+
+	cb := in.Callback
 
 	// If history is not enabled, set a default history without persistence.
 	// This is required for the agent loop to work.
@@ -196,7 +222,7 @@ func (e *DurableAgent) Execute(ctx context.Context, in *AgentInput) (*AgentOutpu
 
 	// Collect tool definitions
 	tools := []responses.ToolUnion{}
-	for _, tool := range e.tools {
+	for _, tool := range append(e.tools) {
 		if t := tool.Tool(ctx); t != nil {
 			tools = append(tools, *t)
 		}

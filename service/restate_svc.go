@@ -20,10 +20,10 @@ import (
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/history"
+	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/praveen001/uno/pkg/agent-framework/prompts"
 	restateExec "github.com/praveen001/uno/pkg/agent-framework/providers/restate"
 	"github.com/praveen001/uno/pkg/agent-framework/summariser"
-	"github.com/praveen001/uno/pkg/agent-framework/tools"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/gateway/middlewares/logger"
 	"github.com/praveen001/uno/pkg/gateway/middlewares/virtual_key_middleware"
@@ -227,8 +227,11 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 		agentConfig.ModelName,
 	)
 
+	// Tools
+	allTools := []core.Tool{}
+
 	// Fetch and connect to MCP servers
-	allTools, err := fetchAndConnectMCPServers(ctx, projectID, agentConfig, input.SessionID, contextData)
+	mcpServers, err := fetchAndConnectMCPServers(ctx, projectID, agentConfig, input.SessionID, contextData)
 	if err != nil {
 		slog.Warn("some MCP servers failed", "error", err)
 	}
@@ -274,6 +277,7 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 		MaxLoops:    50,
 		LLM:         llmClient,
 		Tools:       allTools,
+		McpServers:  mcpServers,
 		Instruction: instruction,
 	}
 
@@ -370,83 +374,56 @@ func (AgentBuilderWorkflow) Cancel(ctx restate.WorkflowSharedContext, reason str
 // Helper Functions
 // ============================================================================
 
-func fetchAndConnectMCPServers(ctx context.Context, projectID uuid.UUID, agentConfig *agent.AgentWithDetails, sessionID string, contextData map[string]any) ([]core.Tool, error) {
+func fetchAndConnectMCPServers(ctx context.Context, projectID uuid.UUID, agentConfig *agent.AgentWithDetails, sessionID string, contextData map[string]any) ([]*mcpclient.MCPClient, error) {
 	if len(agentConfig.MCPServers) == 0 {
 		return nil, nil
 	}
 
 	mcpServerIDsToFetch := []uuid.UUID{}
-	mcpServerCacheMap := make(map[uuid.UUID]*tools.MCPServer)
+	agentMcpConfigs := map[uuid.UUID]*agent.AgentMCPServerDetail{}
 
 	// Check cache first
 	for _, agentMCP := range agentConfig.MCPServers {
-		cacheKey := fmt.Sprintf("%s/%s", sessionID, agentMCP.MCPServerID)
-		if cached, ok := mcpServerCache.Load(cacheKey); ok {
-			mcpServer := cached.(*tools.MCPServer)
-			if err := mcpServer.Client.Ping(ctx); err == nil {
-				mcpServerCacheMap[agentMCP.MCPServerID] = mcpServer
-				continue
-			}
-			mcpServerCache.Delete(cacheKey)
-		}
 		mcpServerIDsToFetch = append(mcpServerIDsToFetch, agentMCP.MCPServerID)
+		agentMcpConfigs[agentMCP.MCPServerID] = agentMCP
 	}
 
 	// Fetch uncached servers from DB
+	mcpServers := make([]*mcpclient.MCPClient, len(mcpServerIDsToFetch))
 	if len(mcpServerIDsToFetch) > 0 {
 		mcpServerConfigs, err := svc.MCPServer.GetByIDs(ctx, projectID, mcpServerIDsToFetch)
 		if err != nil {
 			slog.Warn("Failed to fetch MCP servers", "error", err)
 		} else {
-			for _, mcpServerID := range mcpServerIDsToFetch {
+			for idx, mcpServerID := range mcpServerIDsToFetch {
 				mcpServerConfig, exists := mcpServerConfigs[mcpServerID]
 				if !exists {
 					continue
 				}
 
-				// Process headers with template
-				headers := make(map[string]string)
-				if mcpServerConfig.Headers != nil {
-					for k, v := range mcpServerConfig.Headers {
-						headers[k] = utils.TryAndParseAsTemplate(v, contextData)
+				options := []mcpclient.McpServerOption{}
+				if mcpServerConfig.Headers != nil && len(mcpServerConfig.Headers) > 0 {
+					options = append(options, mcpclient.WithHeaders(mcpServerConfig.Headers))
+				}
+
+				agentMcpConfig, ok := agentMcpConfigs[mcpServerID]
+				if ok {
+					if agentMcpConfig.ToolFilters != nil && len(agentMcpConfig.ToolFilters) > 0 {
+						options = append(options, mcpclient.WithToolFilter(agentMcpConfig.ToolFilters...))
 					}
 				}
 
-				mcpServer, err := tools.NewMCPServer(ctx, mcpServerConfig.Endpoint, headers)
+				mcpServer, err := mcpclient.NewSSEClient(context.Background(), mcpServerConfig.Endpoint, options...)
 				if err != nil {
-					slog.Warn("Failed to connect to MCP server",
-						"server_id", mcpServerID.String(),
-						"endpoint", mcpServerConfig.Endpoint,
-						"error", err,
-					)
+					slog.WarnContext(ctx, "Failed to connect to MCP server", slog.String("server_id", mcpServerID.String()), slog.Any("error", err))
 					continue
 				}
-
-				cacheKey := fmt.Sprintf("%s/%s", sessionID, mcpServerID)
-				mcpServerCache.Store(cacheKey, mcpServer)
-				mcpServerCacheMap[mcpServerID] = mcpServer
+				mcpServers[idx] = mcpServer
 			}
 		}
 	}
 
-	// Collect tools from all servers
-	var allTools []core.Tool
-	for _, agentMCP := range agentConfig.MCPServers {
-		mcpServer, exists := mcpServerCacheMap[agentMCP.MCPServerID]
-		if !exists {
-			continue
-		}
-
-		var toolFilters []string
-		if len(agentMCP.ToolFilters) > 0 {
-			toolFilters = agentMCP.ToolFilters
-		}
-
-		mcpTools := mcpServer.GetTools(tools.WithMcpToolFilter(toolFilters...))
-		allTools = append(allTools, mcpTools...)
-	}
-
-	return allTools, nil
+	return mcpServers, nil
 }
 
 func buildSummarizer(agentConfig *agent.AgentWithDetails, projectID uuid.UUID, virtualKey string, contextData map[string]any) (core.HistorySummarizer, error) {

@@ -1,0 +1,147 @@
+package mcpclient
+
+import (
+	"context"
+	"slices"
+
+	"github.com/mark3labs/mcp-go/client"
+	"github.com/mark3labs/mcp-go/mcp"
+	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/agent-framework/core"
+)
+
+type MCPClient struct {
+	Endpoint string            `json:"-"`
+	Headers  map[string]string `json:"-"`
+
+	Client                *client.Client `json:"-"`
+	Tools                 []mcp.Tool     `json:"-"`
+	Meta                  *mcp.Meta      `json:"-"`
+	ToolFilter            []string       `json:"-"`
+	ApprovalRequiredTools []string       `json:"-"`
+}
+
+func NewInProcessMCPServer(ctx context.Context, client *client.Client, headers map[string]any) (*MCPClient, error) {
+	err := client.Start(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = client.Initialize(ctx, mcp.InitializeRequest{
+		Request: mcp.Request{},
+		Params:  mcp.InitializeParams{},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	tools, err := client.ListTools(ctx, mcp.ListToolsRequest{
+		PaginatedRequest: mcp.PaginatedRequest{},
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &MCPClient{
+		Tools:  tools.Tools,
+		Client: client,
+		Meta: &mcp.Meta{
+			AdditionalFields: headers,
+		},
+	}, nil
+}
+
+func NewSSEClient(ctx context.Context, endpoint string, options ...McpServerOption) (*MCPClient, error) {
+	srv := &MCPClient{
+		Endpoint: endpoint,
+	}
+
+	for _, option := range options {
+		option(srv)
+	}
+
+	return srv, nil
+}
+
+type McpServerOption func(*MCPClient)
+
+func WithHeaders(headers map[string]string) McpServerOption {
+	return func(server *MCPClient) {
+		server.Headers = headers
+	}
+}
+
+func WithToolFilter(toolFilter ...string) McpServerOption {
+	return func(srv *MCPClient) {
+		srv.ToolFilter = toolFilter
+	}
+}
+
+func WithApprovalRequiredTools(tools ...string) McpServerOption {
+	return func(srv *MCPClient) {
+		srv.ApprovalRequiredTools = tools
+	}
+}
+
+func (srv *MCPClient) Init(ctx context.Context, runContext map[string]any) error {
+	// resolve the headers with run context
+	headers := map[string]string{}
+	for k, v := range srv.Headers {
+		headers[k] = utils.TryAndParseAsTemplate(v, runContext)
+	}
+
+	client, err := client.NewSSEMCPClient(
+		srv.Endpoint,
+		client.WithHeaders(headers),
+	)
+	if err != nil {
+		return err
+	}
+
+	err = client.Start(ctx)
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Initialize(ctx, mcp.InitializeRequest{
+		Request: mcp.Request{},
+		Params:  mcp.InitializeParams{},
+	})
+	if err != nil {
+		return err
+	}
+
+	tools, err := client.ListTools(ctx, mcp.ListToolsRequest{
+		PaginatedRequest: mcp.PaginatedRequest{},
+	})
+	if err != nil {
+		return err
+	}
+
+	srv.Client = client
+	srv.Tools = tools.Tools
+
+	return nil
+}
+
+func (srv *MCPClient) GetTools(opts ...McpServerOption) []core.Tool {
+	mcpTools := []core.Tool{}
+
+	for _, o := range opts {
+		o(srv)
+	}
+
+	for _, tool := range srv.Tools {
+		if len(srv.ToolFilter) > 0 && !slices.Contains(srv.ToolFilter, tool.Name) {
+			continue
+		}
+		requiresApproval := false
+		if len(srv.ApprovalRequiredTools) > 0 && slices.Contains(srv.ApprovalRequiredTools, tool.Name) {
+			requiresApproval = true
+		}
+
+		mcpTools = append(mcpTools, NewMcpTool(tool, srv.Client, srv.Meta, requiresApproval))
+	}
+
+	return mcpTools
+}

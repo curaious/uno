@@ -8,7 +8,7 @@ import (
 
 	"github.com/bytedance/sonic"
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
-	"github.com/praveen001/uno/pkg/agent-framework/tools"
+	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
@@ -40,7 +40,7 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	mcpClient, err := tools.NewMCPServer(context.Background(), "http://localhost:9001/sse", nil)
+	mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse", nil)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func main() {
 		Name:        "Hello world agent",
 		Instruction: client.Prompt("You are helpful assistant."),
 		LLM:         model,
-		Tools:       mcpClient.GetTools(),
+		McpServers:  []*mcpclient.MCPClient{mcpClient},
 	})
 
 	out, err := agent.Execute(context.Background(), &agents.AgentInput{

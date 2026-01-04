@@ -10,6 +10,7 @@ import (
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
+	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
@@ -24,6 +25,7 @@ type AgentOptions struct {
 	History     core.ChatHistory
 	Parameters  responses.Parameters
 	Instruction core.SystemPromptProvider
+	McpServers  []*mcpclient.MCPClient
 }
 
 func (c *SDK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -81,6 +83,7 @@ func (c *SDK) NewAgent(options *AgentOptions) *agents.Agent {
 		Output:      options.Output,
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
 	})
 
 	c.agents[options.Name] = agent

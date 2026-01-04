@@ -8,7 +8,7 @@ import (
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/praveen001/uno/internal/services"
 	"github.com/praveen001/uno/internal/services/mcp_server"
-	"github.com/praveen001/uno/pkg/agent-framework/tools"
+	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/valyala/fasthttp"
 
 	"github.com/praveen001/uno/internal/perrors"
@@ -153,9 +153,15 @@ func RegisterMCPServerRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		srv, err := tools.NewMCPServer(stdCtx, server.Endpoint, server.Headers)
+		srv, err := mcpclient.NewSSEClient(stdCtx, server.Endpoint, mcpclient.WithHeaders(server.Headers))
 		if err != nil {
 			writeError(ctx, stdCtx, "Failed to create MCP client", perrors.NewErrInternalServerError("Failed to create MCP client", errors.New("could not create MCP client")))
+			return
+		}
+
+		err = srv.Init(ctx, nil)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to initialize MCP Client", perrors.NewErrInternalServerError("Failed to initialize MCP client", err))
 			return
 		}
 

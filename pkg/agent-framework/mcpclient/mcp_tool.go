@@ -1,10 +1,8 @@
-package tools
+package mcpclient
 
 import (
 	"context"
 	"errors"
-	"net/http"
-	"slices"
 
 	"github.com/bytedance/sonic"
 	"github.com/mark3labs/mcp-go/client"
@@ -19,122 +17,6 @@ import (
 var (
 	tracer = otel.Tracer("MCPTool")
 )
-
-type MCPServer struct {
-	Client                *client.Client `json:"-"`
-	Tools                 []mcp.Tool     `json:"-"`
-	Meta                  *mcp.Meta      `json:"-"`
-	ToolFilter            []string       `json:"-"`
-	ApprovalRequiredTools []string       `json:"-"`
-}
-
-func NewInProcessMCPServer(ctx context.Context, client *client.Client, headers map[string]any) (*MCPServer, error) {
-	err := client.Start(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	_, err = client.Initialize(ctx, mcp.InitializeRequest{
-		Request: mcp.Request{},
-		Params:  mcp.InitializeParams{},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	tools, err := client.ListTools(ctx, mcp.ListToolsRequest{
-		PaginatedRequest: mcp.PaginatedRequest{},
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &MCPServer{
-		Tools:  tools.Tools,
-		Client: client,
-		Meta: &mcp.Meta{
-			AdditionalFields: headers,
-		},
-	}, nil
-}
-
-func NewMCPServer(ctx context.Context, endpoint string, headers map[string]string) (*MCPServer, error) {
-	client, err := client.NewSSEMCPClient(
-		endpoint,
-		client.WithHeaders(headers),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	err = client.Start(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	h := http.Header{}
-	for k, v := range headers {
-		h.Add(k, v)
-	}
-
-	_, err = client.Initialize(ctx, mcp.InitializeRequest{
-		Request: mcp.Request{},
-		Params:  mcp.InitializeParams{},
-		Header:  h,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	tools, err := client.ListTools(ctx, mcp.ListToolsRequest{
-		PaginatedRequest: mcp.PaginatedRequest{},
-		Header:           h,
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	return &MCPServer{
-		Tools:  tools.Tools,
-		Client: client,
-	}, nil
-}
-
-func (srv *MCPServer) GetTools(opts ...McpToolOption) []core.Tool {
-	mcpTools := []core.Tool{}
-
-	for _, o := range opts {
-		o(srv)
-	}
-
-	for _, tool := range srv.Tools {
-		if len(srv.ToolFilter) > 0 && !slices.Contains(srv.ToolFilter, tool.Name) {
-			continue
-		}
-		requiresApproval := false
-		if len(srv.ApprovalRequiredTools) > 0 && slices.Contains(srv.ApprovalRequiredTools, tool.Name) {
-			requiresApproval = true
-		}
-
-		mcpTools = append(mcpTools, NewMcpTool(tool, srv.Client, srv.Meta, requiresApproval))
-	}
-
-	return mcpTools
-}
-
-type McpToolOption func(*MCPServer)
-
-func WithMcpToolFilter(toolFilter ...string) McpToolOption {
-	return func(srv *MCPServer) {
-		srv.ToolFilter = toolFilter
-	}
-}
-
-func WithMcpApprovalRequiredTools(tools ...string) McpToolOption {
-	return func(srv *MCPServer) {
-		srv.ApprovalRequiredTools = tools
-	}
-}
 
 type McpTool struct {
 	*core.BaseTool

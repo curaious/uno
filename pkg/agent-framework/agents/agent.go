@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/praveen001/uno/pkg/agent-framework/core"
+	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/constants"
 	"github.com/praveen001/uno/pkg/llm/responses"
@@ -15,6 +16,7 @@ type Agent struct {
 	history     core.ChatHistory
 	instruction core.SystemPromptProvider
 	tools       []core.Tool
+	mcpServers  []*mcpclient.MCPClient
 	llm         llm.Provider
 	parameters  responses.Parameters
 	runtime     AgentRuntime
@@ -25,11 +27,12 @@ type AgentOptions struct {
 	Instruction core.SystemPromptProvider
 	Parameters  responses.Parameters
 
-	Name    string
-	LLM     llm.Provider
-	Output  map[string]any
-	Tools   []core.Tool
-	Runtime AgentRuntime
+	Name       string
+	LLM        llm.Provider
+	Output     map[string]any
+	Tools      []core.Tool
+	McpServers []*mcpclient.MCPClient
+	Runtime    AgentRuntime
 }
 
 func NewAgent(opts *AgentOptions) *Agent {
@@ -51,6 +54,7 @@ func NewAgent(opts *AgentOptions) *Agent {
 		history:     opts.History,
 		instruction: opts.Instruction,
 		tools:       opts.Tools,
+		mcpServers:  opts.McpServers,
 		llm:         opts.LLM,
 		parameters:  opts.Parameters,
 		runtime:     opts.Runtime,
