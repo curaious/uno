@@ -72,20 +72,11 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 			return
 		}
 
-		var agent *agents.Agent
-		agentCacheKey := fmt.Sprintf("agent-%s-%s", agentName, projectID.String())
-
-		agentAny, exists := agentCache.Get(agentCacheKey)
-		if !exists {
-			agent, err = buildAgent(ctx, svc, llmGateway, projectID, agentName)
-			if err != nil {
-				writeError(reqCtx, ctx, "Error occurred while building the agent", err)
-				span.End()
-				return
-			}
-			agentCache.Set(agentCacheKey, agent)
-		} else {
-			agent = agentAny.(*agents.Agent)
+		agent, err := buildAgent(ctx, svc, llmGateway, projectID, agentName)
+		if err != nil {
+			writeError(reqCtx, ctx, "Error occurred while building the agent", err)
+			span.End()
+			return
 		}
 
 		// Parse request body first to get message_id for trace ID
@@ -380,8 +371,6 @@ func buildAgent(ctx context.Context, svc *services.Services, llmGateway *gateway
 	if agentConfig.EnableHistory {
 		agentOpts.History = history.NewConversationManager(
 			adapters.NewInternalConversationPersistence(svc.Conversation, projectID),
-			"",
-			"",
 			conversationManagerOpts...,
 		)
 	}

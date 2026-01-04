@@ -2,12 +2,26 @@ package agents
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"log/slog"
+	"slices"
 
+	"github.com/bytedance/sonic"
+	"github.com/google/uuid"
+	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
+	"github.com/praveen001/uno/pkg/agent-framework/history"
 	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/constants"
 	"github.com/praveen001/uno/pkg/llm/responses"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+var (
+	tracer = otel.Tracer("Agent")
 )
 
 type Agent struct {
@@ -20,6 +34,7 @@ type Agent struct {
 	llm         llm.Provider
 	parameters  responses.Parameters
 	runtime     AgentRuntime
+	maxLoops    int
 }
 
 type AgentOptions struct {
@@ -33,9 +48,15 @@ type AgentOptions struct {
 	Tools      []core.Tool
 	McpServers []*mcpclient.MCPClient
 	Runtime    AgentRuntime
+	MaxLoops   int
 }
 
 func NewAgent(opts *AgentOptions) *Agent {
+	maxLoops := opts.MaxLoops
+	if maxLoops <= 0 {
+		maxLoops = 50
+	}
+
 	if opts.Output != nil {
 		format := map[string]any{
 			"type":   "json_schema",
@@ -58,7 +79,22 @@ func NewAgent(opts *AgentOptions) *Agent {
 		llm:         opts.LLM,
 		parameters:  opts.Parameters,
 		runtime:     opts.Runtime,
+		maxLoops:    maxLoops,
 	}
+}
+
+func (e *Agent) PrepareTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
+	coreTools := e.tools
+	if e.mcpServers != nil {
+		for _, mcpServer := range e.mcpServers {
+			if err := mcpServer.Init(ctx, runContext); err != nil {
+				return nil, fmt.Errorf("failed to initialize MCP server: %w", err)
+			}
+			coreTools = append(coreTools, mcpServer.GetTools()...)
+		}
+	}
+
+	return coreTools, nil
 }
 
 type AgentInput struct {
@@ -85,10 +121,404 @@ func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, erro
 	return runtime.Run(ctx, e, in)
 }
 
+func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executor core.DurableExecutor) (*AgentOutput, error) {
+	ctx, span := tracer.Start(ctx, "Agent.Execute")
+	defer span.End()
+
+	span.SetAttributes(attribute.String("agent.name", e.name))
+
+	tools, err := e.PrepareTools(ctx, in.RunContext)
+	if err != nil {
+		return nil, err
+	}
+
+	toolDefs := make([]responses.ToolUnion, len(tools))
+	for idx, coreTool := range tools {
+		toolDefs[idx] = *coreTool.Tool(ctx)
+	}
+
+	cb := in.Callback
+	if cb == nil {
+		cb = core.NilCallback
+	}
+
+	// If history is not enabled, set a default history without persistence.
+	// This is required for the agent loop to work.
+	chatHistory := e.history
+	if chatHistory == nil {
+		// DURABLE: Generate message ID deterministically
+		msgIdAny, err := executor.Run(ctx, "generate-message-id", func(ctx context.Context) (any, error) {
+			return uuid.NewString(), nil
+		})
+		if err != nil {
+			span.RecordError(err)
+			return &AgentOutput{Status: core.RunStatusError}, err
+		}
+		msgId := msgIdAny.(string)
+		chatHistory = history.NewConversationManager(nil, history.WithMessageID(msgId))
+	}
+
+	// DURABLE CHECKPOINT: Load the conversation history (DB read)
+	_, err = executor.Run(ctx, "load-messages", func(ctx context.Context) (any, error) {
+		return chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
+	})
+	if err != nil {
+		span.RecordError(err)
+		return &AgentOutput{Status: core.RunStatusError}, err
+	}
+
+	// Load run state from meta (in-memory, no DB call)
+	runId := chatHistory.GetMessageID()
+	meta := chatHistory.GetMeta()
+	runState := core.LoadRunStateFromMeta(meta)
+	var rejectedToolCallIds []string
+	var traceid string
+	sc := span.SpanContext()
+	if sc.IsValid() {
+		traceid = sc.TraceID().String()
+	}
+
+	// Initialize state
+	if runState == nil || runState.IsComplete() {
+		// FRESH RUN: No state or previous run completed
+		runState = core.NewRunState()
+		if len(in.Messages) > 0 {
+			chatHistory.AddMessages(ctx, in.Messages, nil)
+		}
+
+		// DURABLE: Emit run created event (side effect)
+		executor.Run(ctx, "emit-run-created", func(ctx context.Context) (any, error) {
+			cb(&responses.ResponseChunk{
+				OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
+					RunState: responses.ChunkRunData{
+						Id:      runId,
+						Object:  "run",
+						Status:  "created",
+						TraceID: traceid,
+					},
+				},
+			})
+			return nil, nil
+		})
+	} else if runState.IsPaused() {
+		// RESUME: Transition to execute the approved tools
+		// msgs is ignored on resume - we continue from existing messages with pending tools
+		if runState.CurrentStep == core.StepAwaitApproval {
+			// Expected an approval response message
+			if len(in.Messages) == 0 || in.Messages[0].OfFunctionCallApprovalResponse == nil {
+				return &AgentOutput{Status: core.RunStatusError}, errors.New("expected approval response message")
+			}
+			runState.CurrentStep = core.StepExecuteTools
+			rejectedToolCallIds = in.Messages[0].OfFunctionCallApprovalResponse.RejectedCallIds
+		}
+	}
+
+	// DURABLE: Emit run in progress event (side effect)
+	executor.Run(ctx, "emit-run-in-progress", func(ctx context.Context) (any, error) {
+		cb(&responses.ResponseChunk{
+			OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+				RunState: responses.ChunkRunData{
+					Id:      runId,
+					Object:  "run",
+					Status:  "in_progress",
+					TraceID: traceid,
+				},
+			},
+		})
+		return nil, nil
+	})
+
+	// DURABLE CHECKPOINT: Load system instruction (potential DB read)
+	instruction := "You are a helpful assistant."
+	if e.instruction != nil {
+		instructionAny, err := executor.Run(ctx, "load-instruction", func(ctx context.Context) (any, error) {
+			return e.instruction.GetPrompt(ctx, in.RunContext)
+		})
+		if err != nil {
+			span.RecordError(err)
+			return &AgentOutput{Status: core.RunStatusError}, err
+		}
+		if instructionAny != nil {
+			instruction = instructionAny.(string)
+		}
+	}
+
+	// Apply structured output format if configured
+	parameters := e.parameters
+	if e.output != nil {
+		format := map[string]any{
+			"type":   "json_schema",
+			"name":   "structured_output",
+			"strict": false,
+			"schema": e.output,
+		}
+		parameters.Text = &responses.TextFormat{
+			Format: format,
+		}
+	}
+
+	finalOutput := []responses.OutputMessageUnion{}
+
+	// Main loop - driven by state machine
+	for runState.LoopIteration < e.maxLoops {
+		// Check for cancellation (durable)
+		if cancelled, ok, _ := executor.Get(ctx, "cancelled"); ok && cancelled.(bool) {
+			slog.InfoContext(ctx, "agent execution cancelled")
+			return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("execution cancelled")
+		}
+
+		switch runState.NextStep() {
+
+		case core.StepCallLLM:
+			// Get the messages from the conversation history
+			convMessagesAny, err := executor.Run(ctx, fmt.Sprintf("get-messages-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
+				return chatHistory.GetMessages(ctx)
+			})
+
+			buf, err := sonic.Marshal(convMessagesAny)
+			if err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			var convMessages []responses.InputMessageUnion
+			if err := sonic.Unmarshal(buf, &convMessages); err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			// DURABLE CHECKPOINT: LLM Call
+			respAny, err := executor.Run(ctx, fmt.Sprintf("llm-call-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
+				stream, err := e.llm.NewStreamingResponses(ctx, &responses.Request{
+					Instructions: utils.Ptr(instruction),
+					Input: responses.InputUnion{
+						OfInputMessageList: convMessages,
+					},
+					Tools:      toolDefs,
+					Parameters: parameters,
+				})
+				if err != nil {
+					return nil, err
+				}
+
+				acc := Accumulator{}
+				return acc.ReadStream(stream, cb)
+			})
+			if err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			// Unmarshal response
+			buf, err = sonic.Marshal(respAny)
+			if err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			resp := &responses.Response{}
+			if err := sonic.Unmarshal(buf, resp); err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			finalOutput = append(finalOutput, resp.Output...)
+
+			// Track the LLM's usage
+			runState.Usage.InputTokens += resp.Usage.InputTokens
+			runState.Usage.OutputTokens += resp.Usage.OutputTokens
+			runState.Usage.InputTokensDetails.CachedTokens += resp.Usage.InputTokensDetails.CachedTokens
+			runState.Usage.TotalTokens += resp.Usage.TotalTokens
+
+			// Convert output to input messages and add to history
+			inputMsgs := []responses.InputMessageUnion{}
+			for _, outMsg := range resp.Output {
+				inputMsg, err := outMsg.AsInput()
+				if err != nil {
+					slog.ErrorContext(ctx, "output msg conversion failed", slog.Any("error", err))
+					return &AgentOutput{Status: core.RunStatusError}, err
+				}
+				inputMsgs = append(inputMsgs, inputMsg)
+			}
+			chatHistory.AddMessages(ctx, inputMsgs, resp.Usage)
+
+			// Extract tool calls
+			toolCalls := []responses.FunctionCallMessage{}
+			for _, msg := range resp.Output {
+				if msg.OfFunctionCall != nil {
+					toolCalls = append(toolCalls, *msg.OfFunctionCall)
+				}
+			}
+
+			if len(toolCalls) == 0 {
+				// No tools = done
+				runState.TransitionToComplete()
+			} else {
+				// Partition tools by approval requirement
+				needsApproval, immediate := partitionByApproval(ctx, tools, toolCalls)
+
+				// Execute immediate tools first (if any), then handle approval
+				if len(immediate) > 0 {
+					runState.TransitionToExecuteTools(immediate)
+					// Store tools needing approval for after immediate execution
+					if len(needsApproval) > 0 {
+						runState.ToolsAwaitingApproval = needsApproval
+					}
+				} else if len(needsApproval) > 0 {
+					// Only approval-required tools, no immediate ones
+					runState.TransitionToAwaitApproval(needsApproval)
+				}
+			}
+
+		case core.StepExecuteTools:
+			// Execute pending tool calls
+			for _, toolCall := range runState.PendingToolCalls {
+				tool := findTool(ctx, tools, toolCall.Name)
+				if tool == nil {
+					slog.ErrorContext(ctx, "tool not found", slog.String("tool_name", toolCall.Name))
+					continue
+				}
+
+				var toolResult *responses.FunctionCallOutputMessage
+
+				if slices.Contains(rejectedToolCallIds, toolCall.CallID) {
+					// Tool was rejected by human
+					toolResult = &responses.FunctionCallOutputMessage{
+						ID:     toolCall.ID,
+						CallID: toolCall.CallID,
+						Output: responses.FunctionCallOutputContentUnion{
+							OfString: utils.Ptr("Request to call this tool has been declined"),
+						},
+					}
+				} else {
+					// DURABLE CHECKPOINT: Tool execution
+					toolResultAny, err := executor.Run(ctx, fmt.Sprintf("tool-%s-%s", toolCall.ID, toolCall.Name), func(ctx context.Context) (any, error) {
+						return tool.Execute(ctx, &toolCall)
+					})
+					if err != nil {
+						span.RecordError(err)
+						slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
+						return &AgentOutput{Status: core.RunStatusError}, err
+					}
+
+					// Unmarshal tool result
+					buf, err := sonic.Marshal(toolResultAny)
+					if err != nil {
+						span.RecordError(err)
+						return &AgentOutput{Status: core.RunStatusError}, err
+					}
+
+					toolResult = &responses.FunctionCallOutputMessage{}
+					if err := sonic.Unmarshal(buf, toolResult); err != nil {
+						span.RecordError(err)
+						return &AgentOutput{Status: core.RunStatusError}, err
+					}
+				}
+
+				// DURABLE: Emit tool result event (side effect)
+				executor.Run(ctx, fmt.Sprintf("emit-tool-result-%s", toolCall.ID), func(ctx context.Context) (any, error) {
+					cb(&responses.ResponseChunk{
+						OfFunctionCallOutput: toolResult,
+					})
+					return nil, nil
+				})
+
+				// Add tool result to history
+				chatHistory.AddMessages(ctx, []responses.InputMessageUnion{
+					{OfFunctionCallOutput: toolResult},
+				}, nil)
+			}
+
+			runState.ClearPendingTools()
+
+			// Check if there are tools waiting for approval (queued during immediate execution)
+			if runState.HasToolsAwaitingApproval() {
+				runState.PromoteAwaitingToApproval()
+			} else {
+				runState.TransitionToLLM()
+			}
+
+		case core.StepAwaitApproval:
+			// DURABLE CHECKPOINT: Save state and exit - will resume when approval comes (DB write)
+			_, err := executor.Run(ctx, "save-messages-paused", func(ctx context.Context) (any, error) {
+				return nil, chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
+			})
+			if err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			// DURABLE: Emit run paused event (side effect)
+			executor.Run(ctx, "emit-run-paused", func(ctx context.Context) (any, error) {
+				cb(&responses.ResponseChunk{
+					OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
+						RunState: responses.ChunkRunData{
+							Id:               runId,
+							Object:           "run",
+							Status:           "paused",
+							PendingToolCalls: runState.PendingToolCalls,
+							Usage:            runState.Usage,
+							TraceID:          traceid,
+						},
+					},
+				})
+				return nil, nil
+			})
+
+			return &AgentOutput{
+				Status:           core.RunStatusPaused,
+				PendingApprovals: runState.PendingToolCalls,
+			}, nil
+
+		case core.StepComplete:
+			// DURABLE CHECKPOINT: Save final state (DB write)
+			_, err := executor.Run(ctx, "save-messages-complete", func(ctx context.Context) (any, error) {
+				return nil, chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
+			})
+			if err != nil {
+				span.RecordError(err)
+				return &AgentOutput{Status: core.RunStatusError}, err
+			}
+
+			// DURABLE: Emit run completed event (side effect)
+			executor.Run(ctx, "emit-run-completed", func(ctx context.Context) (any, error) {
+				cb(&responses.ResponseChunk{
+					OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
+						RunState: responses.ChunkRunData{
+							Id:      runId,
+							Object:  "run",
+							Status:  "completed",
+							Usage:   runState.Usage,
+							TraceID: traceid,
+						},
+					},
+				})
+				return nil, nil
+			})
+
+			return &AgentOutput{
+				Status: core.RunStatusCompleted,
+				Output: finalOutput,
+			}, nil
+		}
+	}
+
+	// Max loops exceeded
+	return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
+}
+
+// Cancel signals the agent to stop execution (requires a durable executor with state).
+func (e *Agent) Cancel(ctx context.Context, executor core.DurableExecutor, reason string) error {
+	if executor == nil {
+		return fmt.Errorf("cancel requires a durable executor")
+	}
+	return executor.Set(ctx, "cancelled", true)
+}
+
 // partitionByApproval splits tool calls into those needing approval and those that can execute immediately
-func (e *Agent) partitionByApproval(ctx context.Context, toolCalls []responses.FunctionCallMessage) (needsApproval []responses.FunctionCallMessage, immediate []responses.FunctionCallMessage) {
+func partitionByApproval(ctx context.Context, tools []core.Tool, toolCalls []responses.FunctionCallMessage) (needsApproval []responses.FunctionCallMessage, immediate []responses.FunctionCallMessage) {
 	for _, toolCall := range toolCalls {
-		tool := e.findTool(ctx, toolCall.Name)
+		tool := findTool(ctx, tools, toolCall.Name)
 		if tool != nil && tool.NeedApproval() {
 			needsApproval = append(needsApproval, toolCall)
 		} else {
@@ -99,8 +529,8 @@ func (e *Agent) partitionByApproval(ctx context.Context, toolCalls []responses.F
 }
 
 // findTool finds a tool by name
-func (e *Agent) findTool(ctx context.Context, toolName string) core.Tool {
-	for _, tool := range e.tools {
+func findTool(ctx context.Context, tools []core.Tool, toolName string) core.Tool {
+	for _, tool := range tools {
 		if t := tool.Tool(ctx); t != nil && t.OfFunction != nil && t.OfFunction.Name == toolName {
 			return tool
 		}

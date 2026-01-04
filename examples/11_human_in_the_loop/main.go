@@ -132,7 +132,7 @@ func main() {
 			NewGetUserTool(),
 			NewDeleteUserTool(),
 		},
-		History: client.NewConversationManager("default", ""),
+		History: client.NewConversationManager(),
 	})
 
 	// First execution - agent may request to delete a user
@@ -157,7 +157,9 @@ func main() {
 
 		// Resume with approval
 		result, err = agent.Execute(ctx, &agents.AgentInput{
-			Messages: []responses.InputMessageUnion{approvalResponse},
+			Namespace:         "default",
+			PreviousMessageID: "",
+			Messages:          []responses.InputMessageUnion{approvalResponse},
 		})
 	}
 

@@ -6,11 +6,9 @@ import (
 	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
-func (c *SDK) NewConversationManager(namespace, previousMsgId string, opts ...history.ConversationManagerOptions) core.ChatHistory {
+func (c *SDK) NewConversationManager(opts ...history.ConversationManagerOptions) core.ChatHistory {
 	return history.NewConversationManager(
 		c.getConversationPersistence(),
-		namespace,
-		previousMsgId,
 		opts...,
 	)
 }

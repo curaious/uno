@@ -20,8 +20,8 @@ type AgentRuntime interface {
 }
 
 // LocalRuntime executes agents in-process with no durability.
-// It uses DurableAgent with NoOpExecutor, providing the same
-// agent loop logic but without crash recovery.
+// It uses the agent's ExecuteWithExecutor method with NoOpExecutor,
+// providing the same agent loop logic but without crash recovery.
 type LocalRuntime struct{}
 
 // DefaultRuntime returns the default runtime (LocalRuntime).
@@ -30,28 +30,12 @@ func DefaultRuntime() AgentRuntime {
 	return &LocalRuntime{}
 }
 
-// Run executes the agent using DurableAgent with NoOpExecutor.
-// This provides the same agent loop as DurableAgent but without durability.
+// Run executes the agent using ExecuteWithExecutor with NoOpExecutor.
+// This provides the agent loop without durability.
+// The agent instance is reused across multiple runs (cached MCP connections, resolved tools).
 func (r *LocalRuntime) Run(ctx context.Context, agent *Agent, in *AgentInput) (*AgentOutput, error) {
-	// Create DurableAgent from agent config with NoOpExecutor
-	durableAgent, err := NewDurableAgent(&DurableAgentOptions{
-		Name:        agent.name,
-		LLM:         agent.llm,
-		Tools:       agent.tools,
-		McpServers:  agent.mcpServers,
-		Instruction: agent.instruction,
-		History:     agent.history,
-		Output:      agent.output,
-		Parameters:  agent.parameters,
-		Executor:    core.NewNoOpExecutor(), // No durability
-		MaxLoops:    50,
-	})
-	if err != nil {
-		return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("failed to create durable agent: %w", err)
-	}
-
-	// Execute the ONE agent loop
-	return durableAgent.Execute(ctx, in)
+	// Execute directly on the agent with no durability
+	return agent.ExecuteWithExecutor(ctx, in, core.NewNoOpExecutor())
 }
 
 // WorkflowInput is the input structure for the Restate workflow.
@@ -61,6 +45,7 @@ type WorkflowInput struct {
 	Namespace         string
 	PreviousMessageID string
 	Messages          []responses.InputMessageUnion
+	RunContext        map[string]any
 }
 
 // RestateRuntime executes agents via Restate workflows for durability.
@@ -88,6 +73,7 @@ func (r *RestateRuntime) Run(ctx context.Context, agent *Agent, in *AgentInput) 
 		Namespace:         in.Namespace,
 		PreviousMessageID: in.PreviousMessageID,
 		Messages:          in.Messages,
+		RunContext:        in.RunContext,
 	}
 
 	in.Callback = nil
@@ -104,10 +90,11 @@ func (r *RestateRuntime) Run(ctx context.Context, agent *Agent, in *AgentInput) 
 type AgentWorkflow struct{}
 
 // Run executes the agent inside a Restate workflow context.
-// It looks up the agent config from the registry and creates a DurableAgent
+// It looks up the agent from the registry and uses ExecuteWithExecutor
 // with RestateExecutor for crash recovery.
+// The agent is cached in the registry, so MCP connections are reused.
 func (w AgentWorkflow) Run(restateCtx restate.WorkflowContext, input *WorkflowInput) (*AgentOutput, error) {
-	// Lookup agent config from registry
+	// Lookup agent from registry (cached, with prepared MCP connections)
 	agent := GetAgent(input.AgentName)
 	if agent == nil {
 		return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("agent not found: %s", input.AgentName)
@@ -116,29 +103,13 @@ func (w AgentWorkflow) Run(restateCtx restate.WorkflowContext, input *WorkflowIn
 	// Create RestateExecutor from workflow context
 	executor := restateExec.NewRestateExecutor(restateCtx)
 
-	// Create DurableAgent with RestateExecutor for durability
-	durableAgent, err := NewDurableAgent(&DurableAgentOptions{
-		Name:        agent.name,
-		LLM:         agent.llm,
-		Tools:       agent.tools,
-		McpServers:  agent.mcpServers,
-		Instruction: agent.instruction,
-		History:     agent.history,
-		Output:      agent.output,
-		Parameters:  agent.parameters,
-		Executor:    executor, // WITH durability via Restate
-		MaxLoops:    50,
-	})
-	if err != nil {
-		return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("failed to create durable agent: %w", err)
-	}
-
-	// Execute the SAME agent loop with durability
+	// Execute using the SAME agent instance with durability
 	// Note: The callback won't work across process boundaries, so we use a no-op callback
 	// For streaming, we'd need Redis pub/sub or similar mechanism
-	return durableAgent.Execute(restateCtx, &AgentInput{
+	return agent.ExecuteWithExecutor(restateCtx, &AgentInput{
 		Namespace:         input.Namespace,
 		PreviousMessageID: input.PreviousMessageID,
 		Messages:          input.Messages,
-	})
+		RunContext:        input.RunContext,
+	}, executor)
 }

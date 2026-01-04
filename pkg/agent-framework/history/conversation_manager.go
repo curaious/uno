@@ -42,7 +42,7 @@ type CommonConversationManager struct {
 	summaries  *core.SummaryResult
 }
 
-func NewConversationManager(p ConversationPersistenceAdapter, namespace, previousMsgId string, opts ...ConversationManagerOptions) *CommonConversationManager {
+func NewConversationManager(p ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *CommonConversationManager {
 	cm := &CommonConversationManager{
 		ConversationPersistenceAdapter: p,
 		msgId:                          uuid.NewString(),

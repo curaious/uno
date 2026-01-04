@@ -35,7 +35,7 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	history := client.NewConversationManager("default", "")
+	history := client.NewConversationManager()
 	agentName := "SampleAgent"
 	_ = client.NewAgent(&sdk.AgentOptions{
 		Name:        agentName,

@@ -39,7 +39,7 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	history := client.NewConversationManager("default", "")
+	history := client.NewConversationManager()
 	agent := agents.NewAgent(&agents.AgentOptions{
 		Name:        "Hello world agent",
 		Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}"),
@@ -54,6 +54,8 @@ func main() {
 		RunContext: map[string]any{
 			"name": "Bob",
 		},
+		Namespace:         "default",
+		PreviousMessageID: "",
 	})
 	if err != nil {
 		log.Fatal(err)

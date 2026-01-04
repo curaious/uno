@@ -100,6 +100,7 @@ func (c *SDK) NewRestateAgent(options *AgentOptions) *agents.Agent {
 		Output:      options.Output,
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
 		Runtime:     agents.NewRestateRuntime(c.restateConfig.Endpoint),
 	})
 

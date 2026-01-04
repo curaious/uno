@@ -39,7 +39,7 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	history := client.NewConversationManager("default", "")
+	history := client.NewConversationManager()
 	agent := agents.NewAgent(&agents.AgentOptions{
 		Name:        "Hello world agent",
 		Instruction: client.Prompt("You are helpful assistant."),

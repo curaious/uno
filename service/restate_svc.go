@@ -270,10 +270,9 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 		"history_enabled", agentConfig.EnableHistory,
 	)
 
-	// Create DurableAgent
-	agentOpts := &agents.DurableAgentOptions{
+	// Create Agent
+	agentOpts := &agents.AgentOptions{
 		Name:        agentConfig.Name,
-		Executor:    executor,
 		MaxLoops:    50,
 		LLM:         llmClient,
 		Tools:       allTools,
@@ -293,19 +292,11 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 	if agentConfig.EnableHistory {
 		agentOpts.History = history.NewConversationManager(
 			adapters.NewInternalConversationPersistence(svc.Conversation, projectID),
-			input.Namespace,
-			input.PreviousMessageID,
 			conversationManagerOpts...,
 		)
 	}
 
-	agent, err := agents.NewDurableAgent(agentOpts)
-	if err != nil {
-		publishStreamEvent(streamChannel, StreamEvent{
-			RunID: runID, Type: "error", Error: err.Error(), Timestamp: now(),
-		})
-		return AgentRunOutput{}, fmt.Errorf("failed to create agent: %w", err)
-	}
+	agent := agents.NewAgent(agentOpts)
 
 	// Streaming callback
 	streamCallback := func(chunk *responses.ResponseChunk) {
@@ -315,14 +306,14 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 		})
 	}
 
-	// Execute the agent
-	result, err := agent.Execute(ctx, &agents.AgentInput{
+	// Execute the agent with the RestateExecutor for durability
+	result, err := agent.ExecuteWithExecutor(ctx, &agents.AgentInput{
 		Namespace:         input.Namespace,
 		PreviousMessageID: input.PreviousMessageID,
 		Messages:          []responses.InputMessageUnion{input.Message},
 		Callback:          streamCallback,
 		RunContext:        contextData,
-	})
+	}, executor)
 
 	if err != nil {
 		publishStreamEvent(streamChannel, StreamEvent{
