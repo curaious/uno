@@ -27,6 +27,11 @@
     "openai"
   ],
   "author": "Praveen",
-  "license": "MIT"
+  "license": "MIT",
+  "packageManager": "pnpm@9.0.0",
+  "scripts": {
+    "build": "pnpm -r build",
+    "dev": "pnpm --filter web dev"
+  }
 }
 

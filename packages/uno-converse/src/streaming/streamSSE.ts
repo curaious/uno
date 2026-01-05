@@ -1,12 +1,36 @@
+/**
+ * Options for the SSE stream callbacks
+ */
 export interface SSEStreamOptions {
+  /** Called for each data chunk received */
   onChunk: (data: string) => void;
+  /** Called when an error occurs */
   onError?: (error: Error) => void;
+  /** Called when the stream completes */
   onComplete?: () => void;
 }
 
 /**
- * Streams SSE (Server-Sent Events) from a URL.
+ * Streams Server-Sent Events (SSE) from a URL.
  * Parses SSE frames and calls onChunk for each data payload.
+ *
+ * @param url - The URL to stream from
+ * @param requestOptions - Fetch request options
+ * @param callbacks - SSE event callbacks
+ * @param abortSignal - Optional signal to abort the stream
+ *
+ * @example
+ * ```ts
+ * await streamSSE(
+ *   'https://api.example.com/stream',
+ *   { method: 'POST', body: JSON.stringify({ message: 'Hello' }) },
+ *   {
+ *     onChunk: (data) => console.log('Received:', data),
+ *     onComplete: () => console.log('Done'),
+ *     onError: (err) => console.error('Error:', err),
+ *   }
+ * );
+ * ```
  */
 export async function streamSSE(
   url: string,
@@ -68,3 +92,4 @@ export async function streamSSE(
     callbacks.onError?.(error as Error);
   }
 }
+

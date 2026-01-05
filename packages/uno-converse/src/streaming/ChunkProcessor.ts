@@ -2,25 +2,47 @@ import {
   ChunkType,
   ContentType,
   ConversationMessage,
-  FunctionCallMessage, FunctionCallOutputMessage, ImageGenerationCallMessage,
+  FunctionCallMessage,
+  FunctionCallOutputMessage,
+  ImageGenerationCallMessage,
   InputMessage,
   MessageUnion,
   ReasoningMessage,
-  ResponseChunk
-} from "../../types/types";
+  ResponseChunk,
+} from '../types';
 
+/**
+ * Callback invoked when the conversation state changes
+ */
 export type OnChangeCallback = (conversation: ConversationMessage) => void;
 
 /**
  * Processes streaming chunks from the LLM response.
  * Builds up messages incrementally as chunks arrive.
+ *
+ * @example
+ * ```ts
+ * const processor = new ChunkProcessor(
+ *   'conv-123',
+ *   'thread-456',
+ *   (conversation) => {
+ *     // Update UI with new conversation state
+ *     setConversation(conversation);
+ *   }
+ * );
+ *
+ * // Process incoming chunks
+ * processor.processChunk(jsonData);
+ *
+ * // Get final conversation when done
+ * const finalConversation = processor.getConversation();
+ * ```
  */
 export class ChunkProcessor {
   private messages: MessageUnion[] = [];
   private currentOutputItem: MessageUnion | null = null;
   private _onChange: OnChangeCallback;
   private conversation: ConversationMessage;
-  private receivedContent: boolean = false;
 
   constructor(
     conversationId: string,
@@ -37,10 +59,16 @@ export class ChunkProcessor {
     this._onChange = onChange;
   }
 
+  /**
+   * Get all processed messages
+   */
   getMessages(): MessageUnion[] {
     return this.messages;
   }
 
+  /**
+   * Get the current conversation state
+   */
   getConversation(): ConversationMessage {
     return this.conversation;
   }
@@ -50,6 +78,9 @@ export class ChunkProcessor {
     this._onChange({ ...this.conversation });
   }
 
+  /**
+   * Process a raw JSON chunk from the SSE stream
+   */
   processChunk(data: string): void {
     try {
       const chunk: ResponseChunk = JSON.parse(data);
@@ -77,7 +108,6 @@ export class ChunkProcessor {
         break;
 
       case ChunkType.ChunkTypeResponseCompleted:
-        // Could extract usage info from chunk.response?.usage here
         if (chunk.response?.usage) {
           this.conversation.meta.usage = chunk.response.usage;
           this.emitChange();
@@ -102,7 +132,6 @@ export class ChunkProcessor {
 
       // Text deltas
       case ChunkType.ChunkTypeOutputTextDelta:
-        this.receivedContent = true;
         this.handleOutputTextDelta(chunk);
         break;
 
@@ -133,10 +162,10 @@ export class ChunkProcessor {
         break;
 
       case ChunkType.ChunkTypeFunctionCallOutput:
-        this.handleFunctionCallOutput(chunk)
+        this.handleFunctionCallOutput(chunk);
         break;
 
-        // Image Generation Calls
+      // Image Generation Calls
       case ChunkType.ChunkTypeImageGenerationCallInProgress:
         break;
 
@@ -176,7 +205,7 @@ export class ChunkProcessor {
         this.currentOutputItem = {
           id: chunk.item.id,
           type: "reasoning",
-          summary: [], // Initialize summary as empty array
+          summary: [],
         } as ReasoningMessage;
         break;
 
@@ -185,7 +214,8 @@ export class ChunkProcessor {
           id: chunk.item.id,
           type: "image_generation_call",
           status: chunk.item.status,
-        } as ImageGenerationCallMessage
+        } as ImageGenerationCallMessage;
+        break;
     }
 
     if (this.currentOutputItem) {
@@ -259,9 +289,8 @@ export class ChunkProcessor {
   }
 
   private handleFunctionCallOutput(chunk: ResponseChunk): void {
-    this.currentOutputItem = chunk as any as FunctionCallOutputMessage;
+    this.currentOutputItem = chunk as unknown as FunctionCallOutputMessage;
     this.messages.push(this.currentOutputItem);
-    console.log("chunk", this.currentOutputItem);
     this.emitChange();
   }
 
@@ -269,11 +298,11 @@ export class ChunkProcessor {
     if (!this.currentOutputItem || this.currentOutputItem.type !== "image_generation_call") return;
 
     const image = this.currentOutputItem as ImageGenerationCallMessage;
-    image.result = chunk.partial_image_b64!
-    image.quality = chunk.quality!
-    image.size = chunk.size!
-    image.output_format = chunk.output_format!
-    image.background = chunk.background!
+    image.result = chunk.partial_image_b64!;
+    image.quality = chunk.quality!;
+    image.size = chunk.size!;
+    image.output_format = chunk.output_format!;
+    image.background = chunk.background!;
 
     this.emitChange();
   }

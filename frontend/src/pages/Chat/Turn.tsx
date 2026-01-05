@@ -13,10 +13,11 @@ import {
   ContentType,
   ConversationMessage,
   FunctionCallMessage,
-  MessageType, MessageUnion,
+  MessageType,
+  MessageUnion,
   Role,
-  Usage
-} from "../../lib/converse/types/types";
+  Usage,
+} from "@praveen001/uno-converse";
 import {getTrace} from "../Traces/api";
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownAlt';
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';

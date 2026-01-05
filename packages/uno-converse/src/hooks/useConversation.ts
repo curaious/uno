@@ -1,80 +1,269 @@
-import {useCallback, useEffect, useRef, useState} from 'react';
-import {v4 as uuidv4} from 'uuid';
-import {api} from '../../../api';
-import {ChunkProcessor, ConversationMessage, ConverseConfig} from './streaming';
-import {streamSSE} from './useSSEStream';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { ChunkProcessor } from '../streaming/ChunkProcessor';
+import { streamSSE } from '../streaming/streamSSE';
 import {
   Conversation,
+  ConversationMessage,
+  ConverseConfig,
   MessageType,
   MessageUnion,
-  Thread
-} from '../types/types';
+  Thread,
+} from '../types';
 
+/**
+ * Simple ID generator for message IDs
+ */
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`;
+}
+
+/**
+ * API client interface for Uno Agent Server.
+ * Implement this interface to connect to your Uno server.
+ */
+export interface UnoApiClient {
+  /**
+   * Base URL of the Uno Agent Server (e.g., 'https://api.example.com')
+   */
+  baseUrl: string;
+
+  /**
+   * Fetch conversations for a namespace
+   */
+  getConversations(namespace: string): Promise<Conversation[]>;
+
+  /**
+   * Fetch threads for a conversation
+   */
+  getThreads(conversationId: string, namespace: string): Promise<Thread[]>;
+
+  /**
+   * Fetch messages for a thread
+   */
+  getMessages(threadId: string, namespace: string): Promise<ConversationMessage[]>;
+
+  /**
+   * Get message details by ID
+   */
+  getMessage(messageId: string, namespace: string): Promise<ConversationMessage | null>;
+
+  /**
+   * Optional headers to include in streaming requests
+   */
+  headers?: Record<string, string>;
+}
+
+/**
+ * Creates a default API client using fetch.
+ * This is a convenience function for simple setups.
+ *
+ * @example
+ * ```ts
+ * const client = createApiClient({
+ *   baseUrl: 'https://my-uno-server.com/api/agent-server',
+ *   headers: { 'Authorization': 'Bearer my-token' }
+ * });
+ * ```
+ */
+export function createApiClient(options: {
+  baseUrl: string;
+  headers?: Record<string, string>;
+  projectId?: string;
+}): UnoApiClient {
+  const { baseUrl, headers = {}, projectId } = options;
+
+  async function fetchJson<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
+    const url = new URL(`${baseUrl}${endpoint}`);
+    if (projectId) {
+      url.searchParams.set('project_id', projectId);
+    }
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        url.searchParams.set(key, value);
+      });
+    }
+
+    const response = await fetch(url.toString(), {
+      headers: {
+        'Content-Type': 'application/json',
+        ...headers,
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.data ?? data;
+  }
+
+  return {
+    baseUrl,
+    headers,
+
+    async getConversations(namespace: string): Promise<Conversation[]> {
+      return fetchJson<Conversation[]>('/conversations', { namespace });
+    },
+
+    async getThreads(conversationId: string, namespace: string): Promise<Thread[]> {
+      return fetchJson<Thread[]>('/threads', {
+        conversation_id: conversationId,
+        namespace,
+      });
+    },
+
+    async getMessages(threadId: string, namespace: string): Promise<ConversationMessage[]> {
+      return fetchJson<ConversationMessage[]>('/messages', {
+        thread_id: threadId,
+        namespace,
+      });
+    },
+
+    async getMessage(messageId: string, namespace: string): Promise<ConversationMessage | null> {
+      try {
+        return await fetchJson<ConversationMessage>(`/messages/${messageId}`, { namespace });
+      } catch {
+        return null;
+      }
+    },
+  };
+}
+
+/**
+ * Options for the useConversation hook
+ */
 export interface UseConversationOptions {
+  /** The namespace for conversations */
   namespace: string;
-  /** Auto-load conversations on mount */
+  /** API client for communicating with Uno Agent Server */
+  client: UnoApiClient;
+  /** Auto-load conversations on mount (default: true) */
   autoLoad?: boolean;
 }
 
+/**
+ * Return type for the useConversation hook
+ */
 export interface UseConversationReturn {
   // Conversation list state
+  /** List of all conversations */
   conversations: Conversation[];
+  /** Whether conversations are being loaded */
   conversationsLoading: boolean;
-  
+
   // Thread state
+  /** List of threads in the current conversation */
   threads: Thread[];
+  /** Whether threads are being loaded */
   threadsLoading: boolean;
+  /** Currently selected thread */
   currentThread: Thread | null;
-  
+
   // Message state
+  /** List of messages in the current thread */
   messages: ConversationMessage[];
+  /** Message currently being streamed */
   streamingMessage: ConversationMessage | null;
+  /** Whether messages are being loaded */
   messagesLoading: boolean;
+  /** Whether a response is currently streaming */
   isStreaming: boolean;
-  
+
   // Current selection
+  /** ID of the currently selected conversation */
   currentConversationId: string | null;
+  /** ID of the currently selected thread */
   currentThreadId: string | null;
 
   // Actions - Conversations
+  /** Load all conversations */
   loadConversations: () => Promise<void>;
+  /** Select a conversation by ID */
   selectConversation: (conversationId: string) => void;
-  
+
   // Actions - Threads
+  /** Load threads for a conversation */
   loadThreads: (conversationId: string) => Promise<void>;
+  /** Select a thread by ID */
   selectThread: (threadId: string) => void;
-  
+
   // Actions - Messages
+  /** Send a message and stream the response */
   sendMessage: (userMessages: MessageUnion[], config: ConverseConfig) => Promise<void>;
-  
+
   // Actions - Utility
+  /** Start a new chat (clears current state) */
   startNewChat: () => void;
-  
+
   // Combined messages (loaded + streaming)
+  /** All messages including the currently streaming one */
   allMessages: ConversationMessage[];
 }
 
 /**
- * A comprehensive hook for managing conversations, threads, messages, and streaming.
- * Abstracts all chat-related data fetching and state management.
+ * A comprehensive hook for managing conversations, threads, messages, and streaming
+ * with Uno Agent Server.
+ *
+ * @example
+ * ```tsx
+ * import { useConversation, createApiClient } from '@praveen001/uno-converse';
+ *
+ * const client = createApiClient({
+ *   baseUrl: 'https://my-uno-server.com/api/agent-server',
+ * });
+ *
+ * function ChatComponent() {
+ *   const {
+ *     allMessages,
+ *     isStreaming,
+ *     sendMessage,
+ *     startNewChat,
+ *   } = useConversation({
+ *     namespace: 'my-app',
+ *     client,
+ *   });
+ *
+ *   const handleSend = async (text: string) => {
+ *     await sendMessage(
+ *       [{ type: 'message', id: '1', content: text }],
+ *       {
+ *         baseUrl: client.baseUrl,
+ *         namespace: 'my-app',
+ *         agentName: 'my-agent',
+ *       }
+ *     );
+ *   };
+ *
+ *   return (
+ *     <div>
+ *       {allMessages.map(msg => (
+ *         <MessageComponent key={msg.message_id} message={msg} />
+ *       ))}
+ *       {isStreaming && <LoadingIndicator />}
+ *     </div>
+ *   );
+ * }
+ * ```
  */
 export function useConversation(options: UseConversationOptions): UseConversationReturn {
-  const { namespace, autoLoad = true } = options;
+  const { namespace, client, autoLoad = true } = options;
 
   // Conversation list state
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversationsLoading, setConversationsLoading] = useState(false);
-  
+
   // Thread state
   const [threads, setThreads] = useState<Thread[]>([]);
   const [threadsLoading, setThreadsLoading] = useState(false);
-  
+
   // Message state
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [streamingMessage, setStreamingMessage] = useState<ConversationMessage | null>(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
-  
+
   // Current selection
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
   const [currentThreadId, setCurrentThreadId] = useState<string | null>(null);
@@ -94,17 +283,15 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
     try {
-      const response = await api.get('/conversations', {
-        params: { namespace },
-      });
-      setConversations(response.data.data || []);
+      const data = await client.getConversations(namespace);
+      setConversations(data || []);
     } catch (error) {
       console.error('Failed to load conversations:', error);
       throw error;
     } finally {
       setConversationsLoading(false);
     }
-  }, [namespace]);
+  }, [client, namespace]);
 
   /**
    * Select a conversation and load its threads
@@ -124,18 +311,15 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const loadThreads = useCallback(async (conversationId: string) => {
     setThreadsLoading(true);
     try {
-      const response = await api.get('/threads', {
-        params: { conversation_id: conversationId, namespace },
-      });
-      const loadedThreads: Thread[] = response.data.data || [];
-      
+      const loadedThreads = await client.getThreads(conversationId, namespace);
+
       // Sort by created_at descending
       loadedThreads.sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
-      
+
       setThreads(loadedThreads);
-      
+
       // Auto-select the latest thread
       if (loadedThreads.length > 0) {
         setCurrentThreadId(loadedThreads[0].thread_id);
@@ -146,7 +330,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     } finally {
       setThreadsLoading(false);
     }
-  }, [namespace]);
+  }, [client, namespace]);
 
   /**
    * Select a thread and load its messages
@@ -166,12 +350,8 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const loadMessages = useCallback(async (threadId: string) => {
     setMessagesLoading(true);
     try {
-      const response = await api.get('/messages', {
-        params: { namespace, thread_id: threadId },
-      });
-      
-      const loadedMessages: ConversationMessage[] = response.data.data || [];
-      
+      const loadedMessages = await client.getMessages(threadId, namespace);
+
       // Extract last message ID for continuation
       if (loadedMessages.length > 0) {
         const lastMsgId = loadedMessages[loadedMessages.length - 1].message_id;
@@ -179,7 +359,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       } else {
         setPreviousMessageId('');
       }
-      
+
       setMessages(loadedMessages);
     } catch (error) {
       console.error('Failed to load messages:', error);
@@ -187,16 +367,16 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     } finally {
       setMessagesLoading(false);
     }
-  }, [namespace]);
+  }, [client, namespace]);
 
   /**
    * Send a user message and stream the response
    */
   const sendMessage = useCallback(async (userMessages: MessageUnion[], config: ConverseConfig) => {
-    const messageId = uuidv4();
+    const messageId = generateId();
 
     // Check if this is a tool approval response (resuming a run)
-    const isToolApproval = userMessages.length === 1 && 
+    const isToolApproval = userMessages.length === 1 &&
       userMessages[0].type === MessageType.FunctionCallApprovalResponse;
 
     // Only add user message for regular messages, not for tool approvals
@@ -228,7 +408,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       params.append('project_id', config.projectId);
     }
     params.append('agent_name', config.agentName);
-    
+
     const url = `${config.baseUrl}/converse?${params.toString()}`;
 
     // Prepare request body
@@ -254,6 +434,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
           headers: {
             'Content-Type': 'application/json',
             ...(config.headers || {}),
+            ...(client.headers || {}),
           },
         },
         {
@@ -264,10 +445,9 @@ export function useConversation(options: UseConversationOptions): UseConversatio
             // Move streaming message to messages list
             if (processorRef.current) {
               const finalConversation = processorRef.current.getConversation();
-              
+
               if (isToolApproval) {
                 // For tool approvals, update the last message instead of appending
-                // This removes the pending_tool_calls UI and appends the tool results
                 setMessages(prev => {
                   const newMessages = [...prev];
                   if (newMessages.length > 0) {
@@ -275,7 +455,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
                     newMessages[newMessages.length - 1] = {
                       ...lastMsg,
                       messages: [...lastMsg.messages, ...finalConversation.messages],
-                      meta: finalConversation.meta, // Update meta to clear pending_tool_calls
+                      meta: finalConversation.meta,
                       isStreaming: false,
                     };
                   }
@@ -284,7 +464,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
               } else {
                 setMessages(prev => [...prev, { ...finalConversation, isStreaming: false }]);
               }
-              
+
               setStreamingMessage(null);
               setPreviousMessageId(finalConversation.message_id);
             }
@@ -298,12 +478,13 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       );
 
       // If this was a new conversation, fetch the conversation info
-      if (previousMessageId === '') {
+      if (previousMessageId === '' && processorRef.current) {
         try {
-          const response = await api.get(`/messages/${processorRef.current.getConversation().message_id}`, {
-            params: { namespace },
-          });
-          const newConversationId = response.data.data?.conversation_id;
+          const messageData = await client.getMessage(
+            processorRef.current.getConversation().message_id,
+            namespace
+          );
+          const newConversationId = messageData?.conversation_id;
           if (newConversationId) {
             // Add new conversation to list
             setConversations(prev => [{
@@ -313,7 +494,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
               created_at: new Date().toISOString(),
               last_updated: new Date().toISOString(),
             } as Conversation, ...prev.filter(c => c.conversation_id !== newConversationId)]);
-            
+
             setCurrentConversationId(newConversationId);
           }
         } catch (e) {
@@ -324,7 +505,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [currentConversationId, currentThreadId, previousMessageId, namespace]);
+  }, [currentConversationId, currentThreadId, previousMessageId, namespace, client]);
 
   // ============================================
   // Utility Actions
@@ -339,7 +520,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    
+
     setCurrentConversationId(null);
     setCurrentThreadId(null);
     setThreads([]);
@@ -380,27 +561,27 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   // ============================================
 
   const currentThread = threads.find(t => t.thread_id === currentThreadId) || null;
-  
-  const allMessages = streamingMessage 
-    ? [...messages, streamingMessage] 
+
+  const allMessages = streamingMessage
+    ? [...messages, streamingMessage]
     : messages;
 
   return {
     // Conversation list state
     conversations,
     conversationsLoading,
-    
+
     // Thread state
     threads,
     threadsLoading,
     currentThread,
-    
+
     // Message state
     messages,
     streamingMessage,
     messagesLoading,
     isStreaming,
-    
+
     // Current selection
     currentConversationId,
     currentThreadId,
@@ -408,18 +589,19 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     // Actions - Conversations
     loadConversations,
     selectConversation,
-    
+
     // Actions - Threads
     loadThreads,
     selectThread,
-    
+
     // Actions - Messages
     sendMessage,
-    
+
     // Actions - Utility
     startNewChat,
-    
+
     // Combined messages
     allMessages,
   };
 }
+

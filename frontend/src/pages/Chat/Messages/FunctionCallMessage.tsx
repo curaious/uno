@@ -6,7 +6,7 @@ import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import BuildIcon from '@mui/icons-material/Build';
 import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
 import {a11yDark} from 'react-syntax-highlighter/dist/esm/styles/prism';
-import {FunctionCallMessage} from "../../../lib/converse/types/types";
+import { FunctionCallMessage } from "@praveen001/uno-converse";
 
 interface IProps {
   message: FunctionCallMessage;

@@ -5,8 +5,13 @@ import {Box, CircularProgress, Typography} from "@mui/material";
 import {Turn} from "./Turn";
 import {
   ContentType,
-  ConversationMessage, InputMessage, MessageType, MessageUnion, Role, Usage,
-} from "../../lib/converse/types/types";
+  ConversationMessage,
+  InputMessage,
+  MessageType,
+  MessageUnion,
+  Role,
+  Usage,
+} from "@praveen001/uno-converse";
 import {v4 as uuidv4} from "uuid";
 
 interface IOwnProps {

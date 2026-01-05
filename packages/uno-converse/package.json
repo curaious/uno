@@ -1,0 +1,63 @@
+{
+  "name": "@praveen001/uno-converse",
+  "version": "0.1.0",
+  "type": "module",
+  "description": "React hooks and utilities for building conversation UIs with Uno Agent Server",
+  "keywords": [
+    "uno",
+    "agent",
+    "conversation",
+    "chat",
+    "ai",
+    "llm",
+    "react",
+    "hooks",
+    "sse",
+    "streaming"
+  ],
+  "homepage": "https://github.com/praveen001/uno#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/praveen001/uno.git",
+    "directory": "packages/uno-converse"
+  },
+  "license": "MIT",
+  "author": "Praveen",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "rollup -c rollup.config.mjs",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "npm run clean && npm run build",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=19.0.0"
+  },
+  "devDependencies": {
+    "@rollup/plugin-typescript": "^11.1.6",
+    "@types/react": "^19.2.0",
+    "rollup": "^4.9.0",
+    "rollup-plugin-dts": "^6.1.0",
+    "tslib": "^2.6.2",
+    "typescript": "^5.3.0"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  }
+}
+

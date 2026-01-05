@@ -10,7 +10,7 @@ import { AccordionDetails} from "@mui/material";
 import {Accordion, AccordionSummary} from "./Commons";
 import PsychologyIcon from '@mui/icons-material/Psychology';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import {ReasoningMessage} from "../../../lib/converse/types/types";
+import { ReasoningMessage } from "@praveen001/uno-converse";
 
 interface IProps {
   message: ReasoningMessage;

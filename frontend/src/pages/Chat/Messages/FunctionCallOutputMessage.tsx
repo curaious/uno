@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import {Accordion as MuiAccordion, AccordionDetails, AccordionSummary as MuiAccordionSummary, AccordionSummaryProps, Box, CircularProgress, IconButton, Popover, Tooltip, Typography, accordionSummaryClasses, AccordionProps} from "@mui/material";
 import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
 import {a11yDark} from 'react-syntax-highlighter/dist/esm/styles/prism';
-import {FunctionCallOutputMessage} from "../../../lib/converse/types/types";
+import { FunctionCallOutputMessage } from "@praveen001/uno-converse";
 import ReactDOM from "react-dom";
 
 interface IProps {

@@ -56,7 +56,7 @@ export enum ChunkType {
 }
 
 /**
- * Represents an agent run and messages generated during the run
+ * Represents a conversation container
  */
 export interface Conversation {
   namespace_id: string;
@@ -66,15 +66,21 @@ export interface Conversation {
   last_updated: string;
 }
 
+/**
+ * Represents a thread within a conversation
+ */
 export interface Thread {
   conversation_id: string;
   origin_message_id: string;
   thread_id: string;
-  meta: { [key: string]: any };
+  meta: Record<string, any>;
   created_at: string;
   last_updated: string;
 }
 
+/**
+ * Represents a message within a conversation thread
+ */
 export interface ConversationMessage {
   conversation_id: string;
   thread_id: string;
@@ -84,7 +90,7 @@ export interface ConversationMessage {
   isStreaming?: boolean;
 }
 
-// InputMessageUnion - discriminated union based on which field is present
+// Message union type - discriminated by 'type' field
 export type MessageUnion =
   | EasyMessage
   | InputMessage
@@ -165,7 +171,7 @@ export type OutputContentUnion =
   | FunctionCallMessage
   | SummaryTextContent;
 
-// Contents
+// Content types
 export interface InputTextContent {
   type: ContentType.InputText;
   text: string;
@@ -199,7 +205,7 @@ export interface ConverseConfig {
   headers?: Record<string, string>;
 }
 
-// Chunks
+// Streaming chunk types
 export interface ResponseChunk {
   type: ChunkType;
   sequence_number: number;
@@ -234,7 +240,7 @@ export interface ResponseChunk {
   summary_index?: number;
 
   // Only on function_call_output
-  output: string; // FunctionCallOutputMessage
+  output: string;
 
   // Only on image_generation_call.partial_image
   partial_image_index?: number;
@@ -313,10 +319,6 @@ export interface ChunkResponseUsage {
   total_tokens: number;
 }
 
-export function isEasyMessage(msg: MessageUnion) {
-  return msg.type === MessageType.Message && 'content' in msg && (typeof msg.content === 'string' || Array.isArray(msg.content));
-}
-
 export interface Usage {
   input_tokens: number;
   output_tokens: number;
@@ -326,5 +328,31 @@ export interface Usage {
   };
   output_tokens_details: {
     reasoning_tokens: number;
-  }
+  };
 }
+
+// Type guards
+export function isEasyMessage(msg: MessageUnion): msg is EasyMessage {
+  return msg.type === MessageType.Message && 'content' in msg && (typeof msg.content === 'string' || Array.isArray(msg.content));
+}
+
+export function isInputMessage(msg: MessageUnion): msg is InputMessage {
+  return msg.type === MessageType.Message && 'content' in msg && Array.isArray(msg.content);
+}
+
+export function isFunctionCallMessage(msg: MessageUnion): msg is FunctionCallMessage {
+  return msg.type === MessageType.FunctionCall;
+}
+
+export function isFunctionCallOutputMessage(msg: MessageUnion): msg is FunctionCallOutputMessage {
+  return msg.type === MessageType.FunctionCallOutput;
+}
+
+export function isReasoningMessage(msg: MessageUnion): msg is ReasoningMessage {
+  return msg.type === MessageType.Reasoning;
+}
+
+export function isImageGenerationCallMessage(msg: MessageUnion): msg is ImageGenerationCallMessage {
+  return msg.type === MessageType.ImageGenerationCall;
+}
+

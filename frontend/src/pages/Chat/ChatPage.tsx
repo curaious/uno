@@ -10,8 +10,8 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import { SlideDialog } from "../../components/shared/Dialog";
 import Editor from "@monaco-editor/react";
 import { STORAGE_KEY } from "../../contexts/ProjectContext";
-import { useConversation, ConverseConfig } from "../../lib/converse/hooks";
-import {MessageUnion, Usage} from "../../lib/converse/types/types";
+import { useChat } from "../../hooks/useChat";
+import { ConverseConfig, MessageUnion, Usage } from "@praveen001/uno-converse";
 
 export const ChatPage: React.FC = () => {
   const namespace = 'ns';
@@ -39,7 +39,7 @@ export const ChatPage: React.FC = () => {
     sendMessage,
     startNewChat,
     isStreaming
-  } = useConversation({ namespace });
+  } = useChat({ namespace });
 
   // Load agents
   useEffect(() => {
