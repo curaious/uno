@@ -18,7 +18,7 @@ jobs:
       contents: read
       packages: write
       id-token: write
-      scope: '@praveen001'
+      actions: read
 
     steps:
       - name: Checkout repository
