@@ -3,7 +3,7 @@ name: Publish uno-converse to GitHub Packages
 on:
   push:
     tags:
-      - 'uno-converse-v*'
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
