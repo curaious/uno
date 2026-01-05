@@ -1,6 +1,6 @@
 {
   "name": "@praveen001/uno-converse",
-  "version": "0.1.0",
+  "version": "0.0.1-beta.13",
   "type": "module",
   "description": "React hooks and utilities for building conversation UIs with Uno Agent Server",
   "keywords": [
