@@ -60,8 +60,7 @@ func main() {
 	b, _ := sonic.Marshal(out)
 	fmt.Println(string(b))
 
-	// Agent itself is stateless - you can either re-create another agent or reuse the same agent instance
-	// as long as the same history is given, it retains the context.
+	// Agent itself is stateless - you can either re-create another agent or reuse the same agent instance, but ensure to pass the correct `PreviousMessageID`
 	agent2 := client.NewAgent(&sdk.AgentOptions{
 		Name:        "Hello world agent",
 		Instruction: client.Prompt("You are helpful assistant."),

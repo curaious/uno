@@ -61,14 +61,6 @@ func (t *DeleteUserTool) Execute(ctx context.Context, params *responses.Function
         },
     }, err
 }
-
-func (t *DeleteUserTool) Tool(ctx context.Context) *responses.ToolUnion {
-    return t.ToolUnion
-}
-
-func (t *DeleteUserTool) NeedApproval() bool {
-    return t.RequiresApproval
-}
 ```
 
 ## Configuring Approval for MCP Tools
@@ -76,7 +68,13 @@ func (t *DeleteUserTool) NeedApproval() bool {
 For MCP tools, use the `WithMcpApprovalRequiredTools` option when retrieving tools:
 
 ```go
-mcpClient, err := tools.NewMCPServer(ctx, "http://localhost:9001/sse", nil)
+mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse",
+		mcpclient.WithHeaders(map[string]string{
+			"token": "your-token",
+		}),
+		mcpclient.WithToolFilter("list_users"),
+		mcpclient.WithApprovalRequiredTools("list_users"),
+	)
 if err != nil {
     log.Fatal(err)
 }
@@ -85,9 +83,7 @@ agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Assistant",
     Instruction: client.Prompt("You are a helpful assistant."),
     LLM:         model,
-    Tools: mcpClient.GetTools(
-        tools.WithMcpApprovalRequiredTools("delete_file", "send_email", "execute_command"),
-    ),
+    McpServers:  []*mcpclient.MCPClient{mcpClient},
 })
 ```
 
@@ -158,12 +154,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"os"
 
 	"github.com/bytedance/sonic"
 	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/utils"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
-    "github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
 	"github.com/praveen001/uno/pkg/sdk"
@@ -205,9 +203,6 @@ func (t *GetUserTool) Execute(ctx context.Context, params *responses.FunctionCal
 	}, nil
 }
 
-func (t *GetUserTool) Tool(ctx context.Context) *responses.ToolUnion { return t.ToolUnion }
-func (t *GetUserTool) NeedApproval() bool                            { return t.RequiresApproval }
-
 // DeleteUserTool - requires approval
 type DeleteUserTool struct {
 	*core.BaseTool
@@ -247,9 +242,6 @@ func (t *DeleteUserTool) Execute(ctx context.Context, params *responses.Function
 	}, nil
 }
 
-func (t *DeleteUserTool) Tool(ctx context.Context) *responses.ToolUnion { return t.ToolUnion }
-func (t *DeleteUserTool) NeedApproval() bool                            { return t.RequiresApproval }
-
 func main() {
 	ctx := context.Background()
 
@@ -262,12 +254,15 @@ func main() {
 				ApiKeys: []*gateway.APIKeyConfig{
 					{
 						Name:   "Key 1",
-						APIKey: "",
+						APIKey: os.Getenv("OPENAI_API_KEY"),
 					},
 				},
 			},
 		}),
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	agent := client.NewAgent(&sdk.AgentOptions{
 		Name:        "User Manager",
@@ -280,15 +275,19 @@ func main() {
 			NewGetUserTool(),
 			NewDeleteUserTool(),
 		},
-		History: client.NewConversationManager("default", ""),
+		History: client.NewConversationManager(),
 	})
 
 	// First execution - agent may request to delete a user
-	result, err := agent.Execute(context.Background(), &agents.AgentInput{
-        Messages: []responses.InputMessageUnion{
-            responses.UserMessage("Delete user 123"),
-        },
-    })
+	result, err := agent.Execute(ctx, &agents.AgentInput{
+		Namespace: "default",
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("Delete user 123"),
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Check if approval is needed
 	if result.Status == core.RunStatusPaused {
@@ -304,11 +303,11 @@ func main() {
 		}
 
 		// Resume with approval
-		result, err := agent.Execute(ctx, &agents.AgentInput{
-            Messages: []responses.InputMessageUnion{
-                approvalResponse,
-            },
-        })
+		result, err = agent.Execute(ctx, &agents.AgentInput{
+			Namespace:         "default",
+			PreviousMessageID: result.RunID,
+			Messages:          []responses.InputMessageUnion{approvalResponse},
+		})
 	}
 
 	if err != nil {
@@ -318,5 +317,4 @@ func main() {
 	buf, _ := sonic.Marshal(result.Output)
 	fmt.Println("Final result:", string(buf))
 }
-
 ```

@@ -112,10 +112,10 @@ type AgentInput struct {
 
 // AgentOutput represents the result of agent execution
 type AgentOutput struct {
-	RunID            string
-	Status           core.RunStatus
-	Output           []responses.OutputMessageUnion
-	PendingApprovals []responses.FunctionCallMessage
+	RunID            string                          `json:"run_id"`
+	Status           core.RunStatus                  `json:"status"`
+	Output           []responses.InputMessageUnion   `json:"output"`
+	PendingApprovals []responses.FunctionCallMessage `json:"pending_approvals"`
 }
 
 func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, error) {
@@ -250,7 +250,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		}
 	}
 
-	finalOutput := []responses.OutputMessageUnion{}
+	finalOutput := []responses.InputMessageUnion{}
 
 	// Main loop - driven by state machine
 	for runState.LoopIteration < e.maxLoops {
@@ -315,8 +315,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			finalOutput = append(finalOutput, resp.Output...)
-
 			// Track the LLM's usage
 			runState.Usage.InputTokens += resp.Usage.InputTokens
 			runState.Usage.OutputTokens += resp.Usage.OutputTokens
@@ -334,6 +332,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				inputMsgs = append(inputMsgs, inputMsg)
 			}
 			chatHistory.AddMessages(ctx, inputMsgs, resp.Usage)
+			finalOutput = append(finalOutput, inputMsgs...)
 
 			// Extract tool calls
 			toolCalls := []responses.FunctionCallMessage{}
@@ -416,10 +415,13 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 					return nil, nil
 				})
 
-				// Add tool result to history
-				chatHistory.AddMessages(ctx, []responses.InputMessageUnion{
+				toolResultMsg := []responses.InputMessageUnion{
 					{OfFunctionCallOutput: toolResult},
-				}, nil)
+				}
+
+				// Add tool result to history
+				chatHistory.AddMessages(ctx, toolResultMsg, nil)
+				finalOutput = append(finalOutput, toolResultMsg...)
 			}
 
 			runState.ClearPendingTools()

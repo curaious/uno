@@ -47,4 +47,16 @@ func main() {
 	http.ListenAndServe(":8070", client)
 
 	// You can then invoke by hitting POST http://localhost:8070/?agent=SampleAgent with `agents.AgentInput` as your payload
+	/*
+		  curl -X POST "http://localhost:8070/?agent=SampleAgent" \
+		  -H "Content-Type: application/json" \
+		  -d '{
+			"messages": [
+			  {
+				"role": "user",
+				"content": "Hello!"
+			  }
+			]
+		  }'
+	*/
 }

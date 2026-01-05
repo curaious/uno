@@ -55,7 +55,7 @@ type AgentRunInput struct {
 
 // AgentRunOutput is returned when the agent completes
 type AgentRunOutput struct {
-	FinalMessage []responses.OutputMessageUnion `json:"final_message"`
+	FinalMessage []responses.InputMessageUnion `json:"final_message"`
 }
 
 // AgentStatus for querying workflow state

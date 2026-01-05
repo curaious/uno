@@ -50,7 +50,7 @@ The template syntax `{{variable}}` is automatically converted to Go template for
 
 ### Custom Resolvers
 
-You can create custom resolvers for more complex template resolution logic:
+You can create custom resolvers functions for more complex template resolution logic. The resolver function will have access to the raw prompt and the run context.
 
 ```go
 import "github.com/praveen001/uno/pkg/agent-framework/prompts"
@@ -68,7 +68,7 @@ agent := client.NewAgent(&sdk.AgentOptions{
 
 ## Remote Prompts
 
-You can load system instructions from the Uno Gateway server using `RemotePrompt`:
+You can load system instructions from the Uno Gateway server using `RemotePrompt`.
 
 ```go
 agent := client.NewAgent(&sdk.AgentOptions{
@@ -83,6 +83,8 @@ agent := client.NewAgent(&sdk.AgentOptions{
 - **`name`**: The name of the prompt stored in the Uno Gateway server
 - **`label`**: The prompt label (`"production"` or `"latest"`)
 - **`resolvers`**: Optional resolvers for template variable resolution
+
+<Note>For this to work, you should have configured the `client` with the gateway's endpoint, project name and credentials.</Note>
 
 ### Remote Prompt with Resolvers
 

@@ -10,28 +10,30 @@ To create a tool, you need to implement the `core.Tool` interface:
 
 ```go
 type CustomTool struct {
-    *responses.ToolUnion
+	*core.BaseTool
 }
 
 func NewCustomTool() *CustomTool {
-    return &CustomTool{
-        ToolUnion: &responses.ToolUnion{
-			OfFunction: &responses.FunctionTool{
-                Name:        "get_user_name",
-                Description: utils.Ptr("Returns the user's name"),
-                Parameters: map[string]any{
-                    "type": "object",
-                    "properties": map[string]any{
-                        "user_id": map[string]any{
-                            "type":        "string",
-                            "description": "The user ID to look up",
-                        },
-                    },
-                    "required": []string{"user_id"},
-                },
-            },
-        },
-    }
+	return &CustomTool{
+		BaseTool: &core.BaseTool{
+			ToolUnion: &responses.ToolUnion{
+				OfFunction: &responses.FunctionTool{
+					Name:        "get_user_name",
+					Description: utils.Ptr("Returns the user's name"),
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"user_id": map[string]any{
+								"type":        "string",
+								"description": "The user ID to look up",
+							},
+						},
+						"required": []string{"user_id"},
+					},
+				},
+			},
+		},
+	}
 }
 
 func (t *CustomTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {

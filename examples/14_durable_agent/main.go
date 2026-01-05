@@ -39,7 +39,7 @@ func main() {
 	})
 
 	history := client.NewConversationManager()
-	agentName := "Hello world agent"
+	agentName := "SampleAgent"
 	_ = client.NewRestateAgent(&sdk.AgentOptions{
 		Name:        agentName,
 		Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}"),
@@ -47,19 +47,9 @@ func main() {
 		History:     history,
 	})
 
-	client.StartRestateService("0.0.0.0", "9080") // Do this on the restate service
-	http.ListenAndServe(":8070", client)          // Do this on the application that invokes the restate workflow
-
-	//out, err := agent.Execute(context.Background(), &agents.AgentInput{
-	//	Messages: []responses.InputMessageUnion{
-	//		responses.UserMessage("Hello!"),
-	//	},
-	//	Callback: core.NilCallback,
-	//})
-	//if err != nil {
-	//	log.Fatal(err)
-	//}
-	//
-	//b, _ := sonic.Marshal(out)
-	//fmt.Println(string(b))
+	client.StartRestateService("0.0.0.0", "9081") // Do this on the restate service
+	err = http.ListenAndServe(":8070", client)    // Do this on the application that invokes the restate workflow
+	if err != nil {
+		log.Fatal(err)
+	}
 }

@@ -23,11 +23,6 @@ With durable execution:
 
 1. **Restate Server**: You need a running Restate server. Follow the [Restate installation guide](https://docs.restate.dev/get_started/quickstart) to set one up.
 
-2. **Go SDK**: Install the Uno SDK with Restate support:
-```bash
-go get github.com/praveen001/uno
-```
-
 ## Creating a Durable Agent
 
 To create a durable agent, use `NewRestateAgent()` instead of `NewAgent()`:
@@ -40,7 +35,6 @@ import (
     "net/http"
     "os"
 
-    "github.com/praveen001/uno/pkg/agent-framework/prompts"
     "github.com/praveen001/uno/pkg/gateway"
     "github.com/praveen001/uno/pkg/llm"
     "github.com/praveen001/uno/pkg/sdk"
@@ -73,18 +67,14 @@ func main() {
         Model:    "gpt-4o-mini",
     })
 
-    history := client.NewConversationManager("default", "")
-    
     // Create a durable agent with NewRestateAgent
-    agentName := "Hello world agent"
+    agentName := "SampleAgent"
     agent := client.NewRestateAgent(&sdk.AgentOptions{
         Name:        agentName,
         Instruction: client.Prompt("You are helpful assistant."),
         LLM:         model,
-        History:     history,
+        History:     client.NewConversationManager(),
     })
-
-    // See deployment options below...
 }
 ```
 
@@ -101,7 +91,7 @@ func main() {
     // ... client and agent setup from above ...
 
     // Start Restate service in a goroutine
-    client.StartRestateService("0.0.0.0", "9080")
+    client.StartRestateService("0.0.0.0", "9081")
     
     // Start HTTP server for invoking the workflow
     http.ListenAndServe(":8070", client)
@@ -113,7 +103,7 @@ With this setup:
 - Your application server runs on `http://localhost:8070`
 - Both are in the same process
 
-**Note**: If this process crashes, both components restart together. True durability requires separate processes (Option 2).
+**Note**: If this process crashes, both components restart together. True durability requires separation (Option 2).
 
 ### Option 2: Separate Processes (Production)
 
@@ -165,15 +155,13 @@ func main() {
         Model:    "gpt-4o-mini",
     })
 
-    history := client.NewConversationManager("default", "")
-    
     // Register the agent
     agentName := "my-agent"
     _ = client.NewRestateAgent(&sdk.AgentOptions{
         Name:        agentName,
         Instruction: client.Prompt("You are a helpful assistant."),
         LLM:         model,
-        History:     history,
+        History:     client.NewConversationManager(),
     })
 
     // Start application server
@@ -224,20 +212,18 @@ func main() {
         Model:    "gpt-4o-mini",
     })
 
-    history := client.NewConversationManager("default", "")
-    
     // Register the SAME agent with the SAME configuration
     agentName := "my-agent"
     _ = client.NewRestateAgent(&sdk.AgentOptions{
         Name:        agentName,
         Instruction: client.Prompt("You are a helpful assistant."),
         LLM:         model,
-        History:     history,
+        History:     client.NewConversationManager(),
     })
 
     // Start only the Restate service
-    log.Println("Restate service starting on :9080")
-    client.StartRestateService("0.0.0.0", "9080")
+    log.Println("Restate service starting on :9081")
+    client.StartRestateService("0.0.0.0", "9081")
 }
 ```
 
@@ -257,7 +243,7 @@ go run main.go
 
 ## Registering the Deployment with Restate Server
 
-After starting your Restate service (on port 9080), you must register it with the Restate server so it can discover and invoke your agent workflows.
+After starting your Restate service (on port 9081), you must register it with the Restate server so it can discover and invoke your agent workflows.
 
 ### Using the Restate CLI
 
@@ -266,13 +252,13 @@ After starting your Restate service (on port 9080), you must register it with th
 npm install -g @restatedev/restate
 
 # Register the deployment
-restate deployments register http://localhost:9080
+restate deployments register http://localhost:9081
 ```
 
 ### Using the Admin API
 
 ```bash
-curl localhost:9070/deployments --json '{"uri": "http://localhost:9080"}'
+curl localhost:9070/deployments --json '{"uri": "http://localhost:9081"}'
 ```
 
 ### Using the Restate UI
@@ -282,7 +268,7 @@ Navigate to your Restate server's UI (typically `http://localhost:9070`) and reg
 **Note**: If running Restate in Docker, replace `localhost` with `host.docker.internal`:
 
 ```bash
-restate deployments register http://host.docker.internal:9080
+restate deployments register http://host.docker.internal:9081
 ```
 
 ### Automatic Registration
@@ -294,50 +280,6 @@ For production environments, consider automating deployment registration:
 - **FaaS Platforms**: AWS Lambda, Vercel, and other FaaS platforms automatically handle versioning through version-specific ARNs/URLs
 
 See the [Restate deployment documentation](https://docs.restate.dev/services/versioning#registering-a-deployment) for more details.
-
-## Invoking a Durable Agent
-
-Once your deployment is registered, you can invoke the agent through the application server:
-
-```go
-// Client code
-import (
-    "bytes"
-    "context"
-    "encoding/json"
-    "fmt"
-    "net/http"
-
-    "github.com/praveen001/uno/pkg/llm/responses"
-)
-
-func invokeDurableAgent() {
-    input := agents.AgentInput{
-        Messages: []responses.InputMessageUnion{
-            responses.UserMessage("Hello, what can you help me with?"),
-        },
-        Namespace: "default",
-        PreviousMessageID: "",
-		RunContext: map[string]any{},
-    }
-
-    body, _ := json.Marshal(input)
-    
-    // Call the application server which invokes the Restate workflow
-    resp, err := http.Post(
-        "http://localhost:8070?agent=my-agent",
-        "application/json",
-        bytes.NewReader(body),
-    )
-    if err != nil {
-        panic(err)
-    }
-    defer resp.Body.Close()
-
-    // Read streaming response
-    // The agent execution is now durable and will survive crashes
-}
-```
 
 ## Example: Complete Durable Agent
 

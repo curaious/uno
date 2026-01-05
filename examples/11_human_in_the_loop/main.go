@@ -54,9 +54,6 @@ func (t *GetUserTool) Execute(ctx context.Context, params *responses.FunctionCal
 	}, nil
 }
 
-func (t *GetUserTool) Tool(ctx context.Context) *responses.ToolUnion { return t.ToolUnion }
-func (t *GetUserTool) NeedApproval() bool                            { return t.RequiresApproval }
-
 // DeleteUserTool - requires approval
 type DeleteUserTool struct {
 	*core.BaseTool
@@ -96,9 +93,6 @@ func (t *DeleteUserTool) Execute(ctx context.Context, params *responses.Function
 	}, nil
 }
 
-func (t *DeleteUserTool) Tool(ctx context.Context) *responses.ToolUnion { return t.ToolUnion }
-func (t *DeleteUserTool) NeedApproval() bool                            { return t.RequiresApproval }
-
 func main() {
 	ctx := context.Background()
 
@@ -137,10 +131,14 @@ func main() {
 
 	// First execution - agent may request to delete a user
 	result, err := agent.Execute(ctx, &agents.AgentInput{
+		Namespace: "default",
 		Messages: []responses.InputMessageUnion{
 			responses.UserMessage("Delete user 123"),
 		},
 	})
+	if err != nil {
+		log.Fatal(err)
+	}
 
 	// Check if approval is needed
 	if result.Status == core.RunStatusPaused {
@@ -158,7 +156,7 @@ func main() {
 		// Resume with approval
 		result, err = agent.Execute(ctx, &agents.AgentInput{
 			Namespace:         "default",
-			PreviousMessageID: "",
+			PreviousMessageID: result.RunID,
 			Messages:          []responses.InputMessageUnion{approvalResponse},
 		})
 	}

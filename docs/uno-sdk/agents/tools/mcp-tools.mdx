@@ -6,7 +6,7 @@ MCP (Model Context Protocol) tools allow your agent to connect to external MCP s
 
 ## Connecting to an MCP Server
 
-To use MCP tools, you first need to connect to an MCP server using the `tools.NewMCPServer` function. The server should expose an SSE (Server-Sent Events) endpoint:
+To use MCP tools, you first need to create an MCP client using the `mcpclient.NewSSEClient` function. The server should expose an SSE (Server-Sent Events) endpoint:
 
 ```go
 import (
@@ -14,11 +14,7 @@ import (
     "github.com/praveen001/uno/pkg/agent-framework/tools"
 )
 
-mcpClient, err := tools.NewMCPServer(
-    context.Background(),
-    "http://localhost:9001/sse",  // MCP server SSE endpoint
-    nil,                          // Optional headers map[string]string
-)
+mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse")
 if err != nil {
     log.Fatal(err)
 }
@@ -28,20 +24,17 @@ if err != nil {
 
 - **`ctx`**: The context for the connection
 - **`endpoint`**: The SSE endpoint URL of the MCP server (e.g., `"http://localhost:9001/sse"`)
-- **`headers`**: Optional HTTP headers to include in requests (can be `nil`)
 
-## Using MCP Tools with an Agent
+## Custom Headers
 
-Once connected, you can retrieve the available tools from the MCP server and pass them to your agent:
+You can also configure the MCP Client to send custom HTTP headers while interacting with the MCP server.
 
 ```go
-agent := client.NewAgent(&sdk.AgentOptions{
-    Name:        "Hello world agent",
-    Instruction: client.Prompt("You are helpful assistant."),
-    LLM:         model,
-    History:     history,
-    Tools:       mcpClient.GetTools(),  // Get all available MCP tools
-})
+mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse",
+	mcpclient.WithHeaders(map[string]string{
+        "token": "your-token",
+    }),
+)
 ```
 
 ### Filtering Tools
@@ -50,7 +43,9 @@ You can optionally filter which tools to use by passing tool names to `GetTools(
 
 ```go
 // Only use specific tools
-Tools: mcpClient.GetTools("tool_name_1", "tool_name_2"),
+mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse",
+		mcpclient.WithToolFilter("list_users"),
+	)
 ```
 
 ## Complete Example
@@ -65,15 +60,13 @@ import (
     "fmt"
     "log"
 
-    "github.com/bytedance/sonic"
-    "github.com/google/uuid"
-    "github.com/praveen001/uno/pkg/agent-framework/agents"
-    "github.com/praveen001/uno/pkg/agent-framework/core"
-    "github.com/praveen001/uno/pkg/agent-framework/tools"
-    "github.com/praveen001/uno/pkg/gateway"
-    "github.com/praveen001/uno/pkg/llm"
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/pkg/sdk"
+	"github.com/bytedance/sonic"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
+	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
+	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/praveen001/uno/pkg/sdk"
 )
 
 func main() {
@@ -107,10 +100,12 @@ func main() {
     history := client.NewConversationManager("default", uuid.NewString(), "")
 
     // Connect to MCP server
-    mcpClient, err := tools.NewMCPServer(context.Background(), "http://localhost:9001/sse", nil)
-    if err != nil {
-        log.Fatal(err)
-    }
+    mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse",
+		mcpclient.WithHeaders(map[string]string{
+			"token": "your-token",
+		}),
+		mcpclient.WithToolFilter("list_users"),
+	)
 
     // Create agent with MCP tools
     agent := client.NewAgent(&sdk.AgentOptions{
@@ -118,7 +113,7 @@ func main() {
         Instruction: client.Prompt("You are helpful assistant."),
         LLM:         model,
         History:     history,
-        Tools:       mcpClient.GetTools(),
+        McpServers:  []*mcpclient.MCPClient{mcpClient},
     })
 
     // Execute agent
@@ -135,10 +130,3 @@ func main() {
     fmt.Println(string(b))
 }
 ```
-
-## Notes
-
-- The MCP server must be running and accessible at the specified endpoint before creating the client
-- The connection is established when `NewMCPServer` is called, and tools are automatically discovered
-- MCP tools are executed by the agent automatically when needed based on the conversation context
-- You can combine MCP tools with custom tools by including both in the `Tools` slice

@@ -9,9 +9,9 @@ Uno supports managing multiple API keys for a single provider. This is useful fo
 
 ## Weighted Random Selection
 
-When multiple API keys are configured for a provider, Uno uses **weighted random selection** to choose which key to use for each request.
+When multiple API keys with weights are configured for a provider, Uno uses **weighted random selection** to choose which key to use for each request.
 
-Each API key can be assigned a `Weight`. The probability of a key being selected is proportional to its weight relative to the sum of all weights for that provider.
+Each API key must be assigned a `Weight`. The probability of a key being selected is proportional to its weight relative to the sum of all weights for that provider.
 
 ### How it Works
 

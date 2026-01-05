@@ -27,6 +27,16 @@ func NewCustomTool() *CustomTool {
 				OfFunction: &responses.FunctionTool{
 					Name:        "get_user_name",
 					Description: utils.Ptr("Returns the user's name"),
+					Parameters: map[string]any{
+						"type": "object",
+						"properties": map[string]any{
+							"user_id": map[string]any{
+								"type":        "string",
+								"description": "The user ID to look up",
+							},
+						},
+						"required": []string{"user_id"},
+					},
 				},
 			},
 		},
@@ -71,7 +81,7 @@ func main() {
 	history := client.NewConversationManager()
 	agent := agents.NewAgent(&agents.AgentOptions{
 		Name:        "Hello world agent",
-		Instruction: client.Prompt("You are helpful assistant. Greet the user by their name."),
+		Instruction: client.Prompt("You are a helpful assistant. Use the get_user_name tool to get the user's name and greet them."),
 		LLM:         model,
 		History:     history,
 		Tools: []core.Tool{
@@ -81,7 +91,7 @@ func main() {
 
 	out, err := agent.Execute(context.Background(), &agents.AgentInput{
 		Messages: []responses.InputMessageUnion{
-			responses.UserMessage("Hello!"),
+			responses.UserMessage("Hello! Can you get my name for user_id '123'?"),
 		},
 		Namespace:         "default",
 		PreviousMessageID: "",

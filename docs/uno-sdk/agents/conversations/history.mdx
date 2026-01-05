@@ -12,19 +12,35 @@ When a conversation history manager is provided to an agent, it performs the fol
 
 ## Enabling Conversation History
 
-To enable conversation history, create an instance of `ConversationManager` with the following parameters:
-- `namespace` - Identifies the conversation namespace for isolation
-- `previousMessageId` - The message ID of the previous message used to fetch all preceding messages. For new conversations, this should be an empty string
+To enable conversation history, create an instance of `ConversationManager` and pass the created instance to the agent's `History` field. While invoking the agent, optionally set `Namespace` to bucket the conversations by namespaces.
 
-Pass the created instance to the agent's `History` field.
-
-### Example
 ```go
-cm := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd9472260b")
+cm := client.NewConversationManager()
 agent := agents.NewAgent(&agents.AgentOptions{
     Name:        "Hello world agent",
     LLM:         model,
     History:     cm,
+})
+
+out, err := agent.Execute(context.Background(), &agents.AgentInput{
+    Namespace: "default",
+    Messages: []responses.InputMessageUnion{
+        responses.UserMessage("Hello! My name is Alice"),
+    },
+})
+```
+
+## Continuing the conversation
+
+To continue the conversation, pass the run ID obtained from the last invocation while invoking the agent again.
+
+```go
+out, err = agent.Execute(context.Background(), &agents.AgentInput{
+    Namespace:         "default",
+    PreviousMessageID: out.RunID, // obtained from the previous invocation
+    Messages: []responses.InputMessageUnion{
+        responses.UserMessage("What's my name?"),
+    },
 })
 ```
 
@@ -36,7 +52,7 @@ The conversation manager supports three persistence configurations for storing c
 
 ### 1. No Persistence
 
-When the SDK client is initialized without `endpoint` and `projectName`, messages are not persisted by default. History remains available in-memory for the lifetime of the `ConversationManager` instance. As long as you use the same instance, the conversation history will be retained.
+When the SDK client is initialized without `endpoint` and `projectName`, messages are not persisted by default. History remains available in-memory for the lifetime of the client itself.
 
 ### 2. Uno Gateway Persistence
 
@@ -57,7 +73,7 @@ type ConversationPersistenceManager interface {
 Then pass your implementation to the conversation manager:
 
 ```go
-cm := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd9472260b", history.WithPersistence(yourImpl))
+cm := client.NewConversationManager(history.WithPersistence(yourImpl))
 ```
 
 ## Complete Example
@@ -65,48 +81,89 @@ cm := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd
 The following example demonstrates an agent with conversation history:
 
 ```go
-// Create conversation manager
-history := client.NewConversationManager("projX/user1", "083a1ead-18a8-460e-9a38-3cfd9472260b")
+package main
 
-// Create agent with history
-agent := client.NewAgent(&sdk.AgentOptions{
-    Name:        "Chat Assistant",
-    Instruction: client.Prompt("You are a helpful assistant."),
-    LLM:         client.NewLLM(sdk.LLMOptions{
-        Provider: llm.ProviderNameOpenAI,
-        Model:    "gpt-4o-mini",
-    }),
-    History:     history,
-})
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
 
-// First agent run
-resp1, err := agent.Execute(context.Background(), &agents.AgentInput{
-    Messages: []responses.InputMessageUnion{
-        responses.UserMessage("My name is Alice"),
-    },
-})
-if err != nil {
-    log.Fatal(err)
+	"github.com/bytedance/sonic"
+	"github.com/praveen001/uno/pkg/agent-framework/agents"
+	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/praveen001/uno/pkg/llm"
+	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/praveen001/uno/pkg/sdk"
+)
+
+func main() {
+	client, err := sdk.New(&sdk.ClientOptions{
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+			{
+				ProviderName:  llm.ProviderNameOpenAI,
+				BaseURL:       "",
+				CustomHeaders: nil,
+				ApiKeys: []*gateway.APIKeyConfig{
+					{
+						Name:   "Key 1",
+						APIKey: os.Getenv("OPENAI_API_KEY"),
+					},
+				},
+			},
+		}),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	model := client.NewLLM(sdk.LLMOptions{
+		Provider: llm.ProviderNameOpenAI,
+		Model:    "gpt-4.1-mini",
+	})
+
+	history := client.NewConversationManager()
+	agent := agents.NewAgent(&agents.AgentOptions{
+		Name:        "Hello world agent",
+		Instruction: client.Prompt("You are helpful assistant."),
+		LLM:         model,
+		History:     history,
+	})
+
+	out, err := agent.Execute(context.Background(), &agents.AgentInput{
+		Namespace: "default",
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("Hello! My name is Alice"),
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	b, _ := sonic.Marshal(out)
+	fmt.Println(string(b))
+
+	// Agent itself is stateless - you can either re-create another agent or reuse the same agent instance, but ensure to pass the correct `PreviousMessageID`
+	agent2 := client.NewAgent(&sdk.AgentOptions{
+		Name:        "Hello world agent",
+		Instruction: client.Prompt("You are helpful assistant."),
+		LLM:         model,
+		History:     history,
+	})
+
+	out, err = agent2.Execute(context.Background(), &agents.AgentInput{
+		Namespace:         "default",
+		PreviousMessageID: out.RunID,
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("What's my name?"),
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	b, _ = sonic.Marshal(out)
+	fmt.Println(string(b))
 }
 
-fmt.Println("Response 1:", resp1[0].OfOutputMessage.Content[0].OfOutputText.Text)
-
-agent2 := client.NewAgent(&sdk.AgentOptions{
-    Name:        "Chat Assistant",
-    Instruction: client.Prompt("You are a helpful assistant."),
-    LLM:         model,
-    History:     history,
-})
-
-resp2, err := agent2.Execute(context.Background(), &agents.AgentInput{
-    Messages: []responses.InputMessageUnion{
-        responses.UserMessage("What's my name?"),
-    },
-})
-if err != nil {
-    log.Fatal(err)
-}
-
-// The agent remembers that the user's name is Alice
-fmt.Println("Response 2:", resp2[0].OfOutputMessage.Content[0].OfOutputText.Text)
 ```

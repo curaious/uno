@@ -40,7 +40,13 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse", nil)
+	mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse",
+		mcpclient.WithHeaders(map[string]string{
+			"token": "your-token",
+		}),
+		mcpclient.WithToolFilter("list_users"),
+		mcpclient.WithApprovalRequiredTools("list_users"),
+	)
 	if err != nil {
 		log.Fatal(err)
 	}

@@ -106,8 +106,6 @@ summarizer := summariser.NewLLMHistorySummarizer(&summariser.LLMHistorySummarize
 
 // Create conversation manager with summarizer
 history := client.NewConversationManager(
-    "namespace",
-    "previous-message-id",
     history.WithSummarizer(summarizer),
 )
 
@@ -189,8 +187,6 @@ func main() {
 
     // Create conversation manager with summarizer
     history := client.NewConversationManager(
-        "my-namespace",
-        "", // Empty for new conversation
         history.WithSummarizer(summarizer),
     )
 

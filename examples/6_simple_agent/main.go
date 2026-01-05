@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/bytedance/sonic"
+	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/gateway"
 	"github.com/praveen001/uno/pkg/llm"
@@ -39,12 +40,13 @@ func main() {
 		Model:    "gpt-4.1-mini",
 	})
 
-	history := client.NewConversationManager()
-	agent := agents.NewAgent(&agents.AgentOptions{
+	agent := client.NewAgent(&sdk.AgentOptions{
 		Name:        "Hello world agent",
 		Instruction: client.Prompt("You are helpful assistant. You are interacting with the user named {{name}}"),
 		LLM:         model,
-		History:     history,
+		Parameters: responses.Parameters{
+			Temperature: utils.Ptr(0.2),
+		},
 	})
 
 	out, err := agent.Execute(context.Background(), &agents.AgentInput{
