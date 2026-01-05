@@ -3,19 +3,29 @@
 # =============================================================================
 FROM node:20-alpine AS frontend-builder
 
-WORKDIR /app/frontend
+# Enable pnpm via corepack (official way)
+RUN corepack enable
 
-# Copy package files
-COPY frontend/package.json frontend/package-lock.json ./
+WORKDIR /app
 
-# Install dependencies
-RUN npm ci
+# Copy workspace files FIRST (important for caching)
+COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
 
-# Copy source code
-COPY frontend/ .
+# Copy package.json files of all workspaces (no source yet)
+COPY frontend/package.json frontend/package.json
+COPY packages/uno-converse/package.json packages/uno-converse/package.json
 
-# Build the app
-RUN npm run build
+# Install dependencies (workspace-aware)
+RUN pnpm install --frozen-lockfile
+
+# Now copy the full source
+COPY . .
+
+# Build UI package first (required)
+RUN pnpm --filter @praveen001/uno-converse build
+
+# Build frontend
+RUN pnpm --filter frontend build
 
 # =============================================================================
 # Stage 2: Build Backend
