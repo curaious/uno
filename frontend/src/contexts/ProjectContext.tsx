@@ -40,7 +40,8 @@ interface ProjectContextValue {
   deleteProject: (projectId: string) => Promise<void>;
 }
 
-export const STORAGE_KEY = 'planner.selectedProjectName';
+export const STORAGE_KEY = 'planner.selectedProjectId';
+export const PROJECT_NAME_STORAGE_KEY = 'planner.selectedProjectName';
 
 const ProjectContext = createContext<ProjectContextValue | undefined>(undefined);
 
@@ -73,13 +74,17 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({children}) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const persistSelectedProject = useCallback((projectId: string | null) => {
-        console.log("persist", projectId);
+  const persistSelectedProject = useCallback((projectId: string | null, projectName: string | null = null) => {
     try {
       if (projectId) {
         localStorage.setItem(STORAGE_KEY, projectId);
       } else {
         localStorage.removeItem(STORAGE_KEY);
+      }
+      if (projectName) {
+        localStorage.setItem(PROJECT_NAME_STORAGE_KEY, projectName);
+      } else {
+        localStorage.removeItem(PROJECT_NAME_STORAGE_KEY);
       }
     } catch (err) {
       console.warn('Unable to persist selected project', err);
@@ -88,17 +93,21 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({children}) => {
 
   const resolveSelection = useCallback((availableProjects: Project[], currentId: string | null) => {
     if (availableProjects.length === 0) {
-      persistSelectedProject(null);
+      persistSelectedProject(null, null);
       return null;
     }
 
-    if (currentId && availableProjects.some(project => project.id === currentId)) {
-      return currentId;
+    if (currentId) {
+      const currentProject = availableProjects.find(project => project.id === currentId);
+      if (currentProject) {
+        persistSelectedProject(currentId, currentProject.name);
+        return currentId;
+      }
     }
 
-    const fallback = availableProjects[0].id;
-    persistSelectedProject(fallback);
-    return fallback;
+    const fallbackProject = availableProjects[0];
+    persistSelectedProject(fallbackProject.id, fallbackProject.name);
+    return fallbackProject.id;
   }, [persistSelectedProject]);
 
   const refreshProjects = useCallback(async () => {
@@ -123,8 +132,9 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({children}) => {
 
   const selectProject = useCallback((projectId: string) => {
     setSelectedProjectId(projectId);
-    persistSelectedProject(projectId);
-  }, [persistSelectedProject]);
+    const project = projects.find(p => p.id === projectId);
+    persistSelectedProject(projectId, project?.name || null);
+  }, [persistSelectedProject, projects]);
 
   const createProject = useCallback(async (name: string, defaultKey?: string | null) => {
     try {
@@ -136,7 +146,7 @@ export const ProjectProvider: React.FC<ProjectProviderProps> = ({children}) => {
         return updated;
       });
       setError(null);
-      persistSelectedProject(newProject.id);
+      persistSelectedProject(newProject.id, newProject.name);
       return newProject;
     } catch (err) {
       const message = getErrorMessage(err, 'Failed to create project');

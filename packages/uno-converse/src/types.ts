@@ -197,10 +197,9 @@ export interface InputImageContent {
  * Configuration for the converse API endpoint
  */
 export interface ConverseConfig {
-  baseUrl: string;
   namespace: string;
   agentName: string;
-  projectId?: string;
+  baseUrl?: string;
   context?: Record<string, unknown>;
   headers?: Record<string, string>;
 }

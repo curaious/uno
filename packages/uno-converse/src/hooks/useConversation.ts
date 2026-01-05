@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import axios from 'axios';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChunkProcessor } from '../streaming/ChunkProcessor';
 import { streamSSE } from '../streaming/streamSSE';
 import {
@@ -18,118 +19,18 @@ function generateId(): string {
 }
 
 /**
- * API client interface for Uno Agent Server.
- * Implement this interface to connect to your Uno server.
- */
-export interface UnoApiClient {
-  /**
-   * Base URL of the Uno Agent Server (e.g., 'https://api.example.com')
-   */
-  baseUrl: string;
-
-  /**
-   * Fetch conversations for a namespace
-   */
-  getConversations(namespace: string): Promise<Conversation[]>;
-
-  /**
-   * Fetch threads for a conversation
-   */
-  getThreads(conversationId: string, namespace: string): Promise<Thread[]>;
-
-  /**
-   * Fetch messages for a thread
-   */
-  getMessages(threadId: string, namespace: string): Promise<ConversationMessage[]>;
-
-  /**
-   * Get message details by ID
-   */
-  getMessage(messageId: string, namespace: string): Promise<ConversationMessage | null>;
-
-  /**
-   * Optional headers to include in streaming requests
-   */
-  headers?: Record<string, string>;
-}
-
-/**
- * Creates a default API client using fetch.
- * This is a convenience function for simple setups.
+ * Function type for providing custom headers.
+ * Called before each request to get headers (useful for dynamic auth tokens).
  *
  * @example
  * ```ts
- * const client = createApiClient({
- *   baseUrl: 'https://my-uno-server.com/api/agent-server',
- *   headers: { 'Authorization': 'Bearer my-token' }
+ * const getHeaders: GetHeadersFn = () => ({
+ *   'Authorization': `Bearer ${getToken()}`,
+ *   'X-Custom-Header': 'value',
  * });
  * ```
  */
-export function createApiClient(options: {
-  baseUrl: string;
-  headers?: Record<string, string>;
-  projectId?: string;
-}): UnoApiClient {
-  const { baseUrl, headers = {}, projectId } = options;
-
-  async function fetchJson<T>(endpoint: string, params?: Record<string, string>): Promise<T> {
-    const url = new URL(`${baseUrl}${endpoint}`);
-    if (projectId) {
-      url.searchParams.set('project_id', projectId);
-    }
-    if (params) {
-      Object.entries(params).forEach(([key, value]) => {
-        url.searchParams.set(key, value);
-      });
-    }
-
-    const response = await fetch(url.toString(), {
-      headers: {
-        'Content-Type': 'application/json',
-        ...headers,
-      },
-      credentials: 'include',
-    });
-
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.data ?? data;
-  }
-
-  return {
-    baseUrl,
-    headers,
-
-    async getConversations(namespace: string): Promise<Conversation[]> {
-      return fetchJson<Conversation[]>('/conversations', { namespace });
-    },
-
-    async getThreads(conversationId: string, namespace: string): Promise<Thread[]> {
-      return fetchJson<Thread[]>('/threads', {
-        conversation_id: conversationId,
-        namespace,
-      });
-    },
-
-    async getMessages(threadId: string, namespace: string): Promise<ConversationMessage[]> {
-      return fetchJson<ConversationMessage[]>('/messages', {
-        thread_id: threadId,
-        namespace,
-      });
-    },
-
-    async getMessage(messageId: string, namespace: string): Promise<ConversationMessage | null> {
-      try {
-        return await fetchJson<ConversationMessage>(`/messages/${messageId}`, { namespace });
-      } catch {
-        return null;
-      }
-    },
-  };
-}
+export type GetHeadersFn = () => Record<string, string> | Promise<Record<string, string>>;
 
 /**
  * Options for the useConversation hook
@@ -137,8 +38,12 @@ export function createApiClient(options: {
 export interface UseConversationOptions {
   /** The namespace for conversations */
   namespace: string;
-  /** API client for communicating with Uno Agent Server */
-  client: UnoApiClient;
+  /** Base URL of the Uno Agent Server (e.g., 'https://api.example.com/api/agent-server') */
+  baseUrl: string;
+  /** Project Name used to fetch the project ID */
+  projectName: string;
+  /** Optional function to get custom headers for requests (e.g., for authentication) */
+  getHeaders?: GetHeadersFn;
   /** Auto-load conversations on mount (default: true) */
   autoLoad?: boolean;
 }
@@ -147,6 +52,12 @@ export interface UseConversationOptions {
  * Return type for the useConversation hook
  */
 export interface UseConversationReturn {
+  // Project state
+  /** The fetched project ID */
+  projectId: string;
+  /** Whether the project ID is being fetched */
+  projectLoading: boolean;
+
   // Conversation list state
   /** List of all conversations */
   conversations: Conversation[];
@@ -170,6 +81,8 @@ export interface UseConversationReturn {
   messagesLoading: boolean;
   /** Whether a response is currently streaming */
   isStreaming: boolean;
+  /** Whether waiting for a response */
+  isThinking: boolean;
 
   // Current selection
   /** ID of the currently selected conversation */
@@ -208,11 +121,7 @@ export interface UseConversationReturn {
  *
  * @example
  * ```tsx
- * import { useConversation, createApiClient } from '@praveen001/uno-converse';
- *
- * const client = createApiClient({
- *   baseUrl: 'https://my-uno-server.com/api/agent-server',
- * });
+ * import { useConversation } from '@praveen001/uno-converse';
  *
  * function ChatComponent() {
  *   const {
@@ -222,14 +131,17 @@ export interface UseConversationReturn {
  *     startNewChat,
  *   } = useConversation({
  *     namespace: 'my-app',
- *     client,
+ *     projectName: 'my-project',
+ *     baseUrl: 'https://my-uno-server.com/api/agent-server',
+ *     getHeaders: () => ({
+ *       'Authorization': `Bearer ${getToken()}`,
+ *     }),
  *   });
  *
  *   const handleSend = async (text: string) => {
  *     await sendMessage(
  *       [{ type: 'message', id: '1', content: text }],
  *       {
- *         baseUrl: client.baseUrl,
  *         namespace: 'my-app',
  *         agentName: 'my-agent',
  *       }
@@ -248,7 +160,32 @@ export interface UseConversationReturn {
  * ```
  */
 export function useConversation(options: UseConversationOptions): UseConversationReturn {
-  const { namespace, client, autoLoad = true } = options;
+  const { namespace, projectName, baseUrl, getHeaders, autoLoad = true } = options;
+
+  // Create axios instance with request interceptor for custom headers
+  const axiosInstance = useMemo(() => {
+    const instance = axios.create({
+      baseURL: baseUrl,
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+
+    // Add request interceptor to inject custom headers
+    if (getHeaders) {
+      instance.interceptors.request.use(async (config) => {
+        const customHeaders = await getHeaders();
+        Object.assign(config.headers, customHeaders);
+        return config;
+      });
+    }
+
+    return instance;
+  }, [baseUrl, getHeaders]);
+
+  // Project state
+  const [projectId, setProjectId] = useState<string>('');
+  const [projectLoading, setProjectLoading] = useState(false);
 
   // Conversation list state
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -263,6 +200,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const [streamingMessage, setStreamingMessage] = useState<ConversationMessage | null>(null);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isThinking, setIsThinking] = useState(false);
 
   // Current selection
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
@@ -274,6 +212,68 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // ============================================
+  // API Helper Functions
+  // ============================================
+
+  /**
+   * Build query params with project_id if available
+   */
+  const buildParams = useCallback((params?: Record<string, string>) => {
+    const result: Record<string, string> = {};
+    if (projectId) {
+      result.project_id = projectId;
+    }
+    if (params) {
+      Object.assign(result, params);
+    }
+    return result;
+  }, [projectId]);
+
+  /**
+   * Get headers for streaming requests (combines default + custom headers)
+   */
+  const getRequestHeaders = useCallback(async (): Promise<Record<string, string>> => {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add custom headers if getHeaders function is provided
+    if (getHeaders) {
+      const customHeaders = await getHeaders();
+      Object.assign(headers, customHeaders);
+    }
+
+    return headers;
+  }, [getHeaders]);
+
+  // ============================================
+  // Project Management
+  // ============================================
+
+  /**
+   * Fetch the project ID using the project name
+   */
+  const fetchProjectId = useCallback(async () => {
+    if (!projectName) {
+      return;
+    }
+
+    setProjectLoading(true);
+    try {
+      const response = await axiosInstance.get<{ data: string } | string>('/project/id', {
+        params: { name: projectName },
+      });
+      const id = typeof response.data === 'string' ? response.data : response.data.data;
+      setProjectId(id || '');
+    } catch (error) {
+      console.error('Failed to fetch project ID:', error);
+      throw error;
+    } finally {
+      setProjectLoading(false);
+    }
+  }, [axiosInstance, projectName]);
+
+  // ============================================
   // Conversation Management
   // ============================================
 
@@ -283,7 +283,10 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const loadConversations = useCallback(async () => {
     setConversationsLoading(true);
     try {
-      const data = await client.getConversations(namespace);
+      const response = await axiosInstance.get<{ data: Conversation[] } | Conversation[]>('/conversations', {
+        params: buildParams({ namespace }),
+      });
+      const data = 'data' in response.data ? response.data.data : response.data;
       setConversations(data || []);
     } catch (error) {
       console.error('Failed to load conversations:', error);
@@ -291,7 +294,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     } finally {
       setConversationsLoading(false);
     }
-  }, [client, namespace]);
+  }, [axiosInstance, buildParams, namespace]);
 
   /**
    * Select a conversation and load its threads
@@ -311,7 +314,10 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const loadThreads = useCallback(async (conversationId: string) => {
     setThreadsLoading(true);
     try {
-      const loadedThreads = await client.getThreads(conversationId, namespace);
+      const response = await axiosInstance.get<{ data: Thread[] } | Thread[]>('/threads', {
+        params: buildParams({ conversation_id: conversationId, namespace }),
+      });
+      const loadedThreads = 'data' in response.data ? response.data.data : response.data;
 
       // Sort by created_at descending
       loadedThreads.sort(
@@ -330,7 +336,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     } finally {
       setThreadsLoading(false);
     }
-  }, [client, namespace]);
+  }, [axiosInstance, buildParams, namespace]);
 
   /**
    * Select a thread and load its messages
@@ -350,7 +356,10 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   const loadMessages = useCallback(async (threadId: string) => {
     setMessagesLoading(true);
     try {
-      const loadedMessages = await client.getMessages(threadId, namespace);
+      const response = await axiosInstance.get<{ data: ConversationMessage[] } | ConversationMessage[]>('/messages', {
+        params: buildParams({ thread_id: threadId, namespace }),
+      });
+      const loadedMessages = 'data' in response.data ? response.data.data : response.data;
 
       // Extract last message ID for continuation
       if (loadedMessages.length > 0) {
@@ -367,7 +376,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     } finally {
       setMessagesLoading(false);
     }
-  }, [client, namespace]);
+  }, [axiosInstance, buildParams, namespace]);
 
   /**
    * Send a user message and stream the response
@@ -396,20 +405,25 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       currentConversationId || '',
       currentThreadId || '',
       (conversation) => {
+        setIsThinking(isThinking);
         setStreamingMessage({ ...conversation, isStreaming: true });
       }
     );
 
     setIsStreaming(true);
+    setIsThinking(true);
 
     // Build URL with query parameters
     const params = new URLSearchParams();
-    if (config.projectId) {
-      params.append('project_id', config.projectId);
+    if (projectId) {
+      params.append('project_id', projectId);
     }
     params.append('agent_name', config.agentName);
 
-    const url = `${config.baseUrl}/converse?${params.toString()}`;
+    let url = `${baseUrl}/converse?${params.toString()}`;
+    if (!!config.baseUrl) {
+      url = config.baseUrl;
+    }
 
     // Prepare request body
     const body = JSON.stringify({
@@ -426,15 +440,17 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     abortControllerRef.current = new AbortController();
 
     try {
+      // Get headers (supports async getHeaders function)
+      const requestHeaders = await getRequestHeaders();
+
       await streamSSE(
         url,
         {
           method: 'POST',
           body,
           headers: {
-            'Content-Type': 'application/json',
+            ...requestHeaders,
             ...(config.headers || {}),
-            ...(client.headers || {}),
           },
         },
         {
@@ -480,10 +496,11 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       // If this was a new conversation, fetch the conversation info
       if (previousMessageId === '' && processorRef.current) {
         try {
-          const messageData = await client.getMessage(
-            processorRef.current.getConversation().message_id,
-            namespace
+          const response = await axiosInstance.get<{ data: ConversationMessage } | ConversationMessage>(
+            `/messages/${processorRef.current.getConversation().message_id}`,
+            { params: buildParams({ namespace }) }
           );
+          const messageData = 'data' in response.data ? response.data.data : response.data;
           const newConversationId = messageData?.conversation_id;
           if (newConversationId) {
             // Add new conversation to list
@@ -505,7 +522,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       setIsStreaming(false);
       abortControllerRef.current = null;
     }
-  }, [currentConversationId, currentThreadId, previousMessageId, namespace, client]);
+  }, [currentConversationId, currentThreadId, previousMessageId, namespace, baseUrl, projectId, axiosInstance, buildParams, getRequestHeaders]);
 
   // ============================================
   // Utility Actions
@@ -528,6 +545,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     setStreamingMessage(null);
     setPreviousMessageId('');
     setIsStreaming(false);
+    setIsThinking(false);
     processorRef.current = null;
   }, []);
 
@@ -535,12 +553,19 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   // Effects for auto-loading
   // ============================================
 
-  // Auto-load conversations on mount
+  // Fetch project ID on mount
   useEffect(() => {
-    if (autoLoad) {
+    if (autoLoad && projectName) {
+      fetchProjectId();
+    }
+  }, [autoLoad, projectName, fetchProjectId]);
+
+  // Load conversations after project ID is fetched
+  useEffect(() => {
+    if (autoLoad && projectId) {
       loadConversations();
     }
-  }, [autoLoad, loadConversations]);
+  }, [autoLoad, projectId, loadConversations]);
 
   // Load threads when conversation changes
   useEffect(() => {
@@ -567,6 +592,10 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     : messages;
 
   return {
+    // Project state
+    projectId,
+    projectLoading,
+
     // Conversation list state
     conversations,
     conversationsLoading,
@@ -581,6 +610,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     streamingMessage,
     messagesLoading,
     isStreaming,
+    isThinking,
 
     // Current selection
     currentConversationId,

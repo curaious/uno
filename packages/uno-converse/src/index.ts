@@ -1,10 +1,6 @@
-// Main hook and API client
-export {
-  useConversation,
-  createApiClient,
-} from './hooks';
+export { useConversation } from './hooks';
 export type {
-  UnoApiClient,
+  GetHeadersFn,
   UseConversationOptions,
   UseConversationReturn,
 } from './hooks';

@@ -99,7 +99,9 @@ export class ChunkProcessor {
       case ChunkType.ChunkTypeRunPaused:
         this.conversation.meta.run_state = chunk.run_state;
         this.conversation.message_id = chunk.run_state!.id;
-        this.emitChange();
+        if (chunk.type !== ChunkType.ChunkTypeRunCreated && chunk.type !== ChunkType.ChunkTypeRunInProgress) {
+          this.emitChange();
+        }
         break;
 
       // Response lifecycle

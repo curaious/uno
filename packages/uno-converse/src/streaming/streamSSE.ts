@@ -42,7 +42,6 @@ export async function streamSSE(
     const response = await fetch(url, {
       ...requestOptions,
       signal: abortSignal,
-      credentials: 'include',
     });
 
     if (!response.ok) {

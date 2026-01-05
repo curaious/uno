@@ -1,9 +1,6 @@
-export {
-  useConversation,
-  createApiClient,
-} from './useConversation';
+export { useConversation } from './useConversation';
 export type {
-  UnoApiClient,
+  GetHeadersFn,
   UseConversationOptions,
   UseConversationReturn,
 } from './useConversation';

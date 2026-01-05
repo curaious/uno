@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import styles from './ChatPage.module.css';
 import { Chat } from "./Chat";
 import { api } from "../../api";
@@ -9,12 +9,11 @@ import { PageContainer } from "../../components/shared/Page";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import { SlideDialog } from "../../components/shared/Dialog";
 import Editor from "@monaco-editor/react";
-import { STORAGE_KEY } from "../../contexts/ProjectContext";
-import { useChat } from "../../hooks/useChat";
-import { ConverseConfig, MessageUnion, Usage } from "@praveen001/uno-converse";
+import { STORAGE_KEY, PROJECT_NAME_STORAGE_KEY } from "../../contexts/ProjectContext";
+import {ConverseConfig, MessageUnion, Usage, useConversation} from "@praveen001/uno-converse";
 
 export const ChatPage: React.FC = () => {
-  const namespace = 'ns';
+  const namespace = 'playground';
   
   // Agent selection
   const [agents, setAgents] = useState<AgentWithDetails[]>([]);
@@ -29,6 +28,15 @@ export const ChatPage: React.FC = () => {
   const [addContextDialogOpen, setAddContextDialogOpen] = useState(false);
   const ref = useRef(null);
 
+  // Get project name from localStorage
+  const projectName = useMemo(() => {
+    try {
+      return localStorage.getItem(PROJECT_NAME_STORAGE_KEY) || '';
+    } catch {
+      return '';
+    }
+  }, []);
+
   // Use the conversation hook for all conversation/thread/message management
   const {
     conversations,
@@ -39,7 +47,11 @@ export const ChatPage: React.FC = () => {
     sendMessage,
     startNewChat,
     isStreaming
-  } = useChat({ namespace });
+  } = useConversation({
+    projectName,
+    namespace,
+    baseUrl: api.defaults.baseURL!,
+  });
 
   // Load agents
   useEffect(() => {
@@ -58,14 +70,6 @@ export const ChatPage: React.FC = () => {
   }, []);
 
   const onUserMessage = (userMessages: MessageUnion[]) => {
-    // Get project_id from localStorage
-    let projectId: string | null = null;
-    try {
-      projectId = localStorage.getItem(STORAGE_KEY);
-    } catch (err) {
-      console.warn('Unable to read project_name from storage', err);
-    }
-
     // Parse context and headers
     let parsedContext = {};
     let parsedHeaders = {};
@@ -81,10 +85,8 @@ export const ChatPage: React.FC = () => {
     }
 
     const config: ConverseConfig = {
-      baseUrl: api.defaults.baseURL || '',
       namespace,
       agentName: selectedAgentName,
-      projectId: projectId || undefined,
       context: parsedContext,
       headers: parsedHeaders,
     };
