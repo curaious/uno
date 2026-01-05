@@ -161,6 +161,8 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 	}
 
+	runId = chatHistory.GetMessageID()
+
 	// Load run state from meta (in-memory, no DB call)
 	meta := chatHistory.GetMeta()
 	runState := core.LoadRunStateFromMeta(meta)
