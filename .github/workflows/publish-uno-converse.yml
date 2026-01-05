@@ -33,7 +33,9 @@ jobs:
           cache: 'pnpm'
 
       - name: Enable pnpm
-        run: corepack enable
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
 
       # Install workspace dependencies from repo root
       - name: Install dependencies
