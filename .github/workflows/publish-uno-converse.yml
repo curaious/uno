@@ -60,19 +60,6 @@ jobs:
       - name: Build package
         run: pnpm --filter @praveen001/uno-converse build
 
-      # Sanity check before publish
-      - name: Show package info
-        run: |
-          cd packages/uno-converse
-          echo "Package contents:"
-          pnpm pack --dry-run
-          echo ""
-          echo "Package version:"
-          node -p "require('./package.json').version"
-          echo ""
-          echo "Package name:"
-          node -p "require('./package.json').name"
-
       # Publish to GitHub Packages
       - name: Publish to GitHub Packages
         run: |
