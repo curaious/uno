@@ -1,7 +1,8 @@
 # =============================================================================
 # Stage 1: Build Frontend
 # =============================================================================
-FROM node:20-alpine AS frontend-builder
+# Use native platform for build - frontend output is platform-independent
+FROM --platform=$BUILDPLATFORM node:20-alpine AS frontend-builder
 
 # Enable pnpm via corepack (official way)
 RUN corepack enable
