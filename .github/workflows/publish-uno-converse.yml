@@ -23,6 +23,11 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Enable pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9 --activate
+
       # Enable pnpm via Corepack (Node 20 best practice)
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -31,11 +36,6 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@praveen001'
           cache: 'pnpm'
-
-      - name: Enable pnpm
-        run: |
-          corepack enable
-          corepack prepare pnpm@9 --activate
 
       # Install workspace dependencies from repo root
       - name: Install dependencies
