@@ -1,0 +1,79 @@
+name: Publish uno-converse to GitHub Packages
+
+on:
+  push:
+    tags:
+      - 'uno-converse-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish (leave empty to use package.json version)'
+        required: false
+        type: string
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Enable pnpm via Corepack (Node 20 best practice)
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          scope: '@praveen001'
+          cache: 'pnpm'
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      # Install workspace dependencies from repo root
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Update version from git tag
+      - name: Update version from git tag
+        if: startsWith(github.ref, 'refs/tags/uno-converse-v')
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/uno-converse-v}
+          echo "Setting version to $VERSION"
+          pnpm --filter @praveen001/uno-converse version $VERSION --no-git-tag-version --allow-same-version
+
+      # Update version from manual input
+      - name: Update version (manual input)
+        if: github.event.inputs.version != ''
+        run: |
+          echo "Setting version to ${{ github.event.inputs.version }}"
+          pnpm --filter @praveen001/uno-converse version ${{ github.event.inputs.version }} --no-git-tag-version --allow-same-version
+
+      # Build the package
+      - name: Build package
+        run: pnpm --filter @praveen001/uno-converse build
+
+      # Sanity check before publish
+      - name: Show package info
+        run: |
+          cd packages/uno-converse
+          echo "Package contents:"
+          pnpm pack --dry-run
+          echo ""
+          echo "Package version:"
+          node -p "require('./package.json').version"
+          echo ""
+          echo "Package name:"
+          node -p "require('./package.json').name"
+
+      # Publish to GitHub Packages
+      - name: Publish to GitHub Packages
+        run: |
+          cd packages/uno-converse
+          pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
