@@ -8,7 +8,6 @@ import (
 	"slices"
 
 	"github.com/bytedance/sonic"
-	"github.com/google/uuid"
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
 	"github.com/praveen001/uno/pkg/agent-framework/history"
@@ -16,6 +15,7 @@ import (
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/constants"
 	"github.com/praveen001/uno/pkg/llm/responses"
+	internal_adapters "github.com/praveen001/uno/pkg/sdk/adapters"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 )
@@ -27,7 +27,7 @@ var (
 type Agent struct {
 	name        string
 	output      map[string]any
-	history     core.ChatHistory
+	history     *history.CommonConversationManager
 	instruction core.SystemPromptProvider
 	tools       []core.Tool
 	mcpServers  []*mcpclient.MCPClient
@@ -38,7 +38,7 @@ type Agent struct {
 }
 
 type AgentOptions struct {
-	History     core.ChatHistory
+	History     *history.CommonConversationManager
 	Instruction core.SystemPromptProvider
 	Parameters  responses.Parameters
 
@@ -69,6 +69,10 @@ func NewAgent(opts *AgentOptions) *Agent {
 		}
 	}
 
+	if opts.History == nil {
+		opts.History = history.NewConversationManager(internal_adapters.NewInMemoryConversationPersistence())
+	}
+
 	return &Agent{
 		name:        opts.Name,
 		output:      opts.Output,
@@ -87,10 +91,11 @@ func (e *Agent) PrepareTools(ctx context.Context, runContext map[string]any) ([]
 	coreTools := e.tools
 	if e.mcpServers != nil {
 		for _, mcpServer := range e.mcpServers {
-			if err := mcpServer.Init(ctx, runContext); err != nil {
+			cli, err := mcpServer.GetClient(ctx, runContext)
+			if err != nil {
 				return nil, fmt.Errorf("failed to initialize MCP server: %w", err)
 			}
-			coreTools = append(coreTools, mcpServer.GetTools()...)
+			coreTools = append(coreTools, cli.GetTools()...)
 		}
 	}
 
@@ -107,6 +112,7 @@ type AgentInput struct {
 
 // AgentOutput represents the result of agent execution
 type AgentOutput struct {
+	RunID            string
 	Status           core.RunStatus
 	Output           []responses.OutputMessageUnion
 	PendingApprovals []responses.FunctionCallMessage
@@ -142,21 +148,9 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		cb = core.NilCallback
 	}
 
-	// If history is not enabled, set a default history without persistence.
-	// This is required for the agent loop to work.
-	chatHistory := e.history
-	if chatHistory == nil {
-		// DURABLE: Generate message ID deterministically
-		msgIdAny, err := executor.Run(ctx, "generate-message-id", func(ctx context.Context) (any, error) {
-			return uuid.NewString(), nil
-		})
-		if err != nil {
-			span.RecordError(err)
-			return &AgentOutput{Status: core.RunStatusError}, err
-		}
-		msgId := msgIdAny.(string)
-		chatHistory = history.NewConversationManager(nil, history.WithMessageID(msgId))
-	}
+	chatHistory := e.history.NewRun()
+
+	runId := chatHistory.GetMessageID()
 
 	// DURABLE CHECKPOINT: Load the conversation history (DB read)
 	_, err = executor.Run(ctx, "load-messages", func(ctx context.Context) (any, error) {
@@ -164,11 +158,10 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 	})
 	if err != nil {
 		span.RecordError(err)
-		return &AgentOutput{Status: core.RunStatusError}, err
+		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 	}
 
 	// Load run state from meta (in-memory, no DB call)
-	runId := chatHistory.GetMessageID()
 	meta := chatHistory.GetMeta()
 	runState := core.LoadRunStateFromMeta(meta)
 	var rejectedToolCallIds []string
@@ -206,7 +199,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		if runState.CurrentStep == core.StepAwaitApproval {
 			// Expected an approval response message
 			if len(in.Messages) == 0 || in.Messages[0].OfFunctionCallApprovalResponse == nil {
-				return &AgentOutput{Status: core.RunStatusError}, errors.New("expected approval response message")
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, errors.New("expected approval response message")
 			}
 			runState.CurrentStep = core.StepExecuteTools
 			rejectedToolCallIds = in.Messages[0].OfFunctionCallApprovalResponse.RejectedCallIds
@@ -236,7 +229,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		})
 		if err != nil {
 			span.RecordError(err)
-			return &AgentOutput{Status: core.RunStatusError}, err
+			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 		}
 		if instructionAny != nil {
 			instruction = instructionAny.(string)
@@ -264,7 +257,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		// Check for cancellation (durable)
 		if cancelled, ok, _ := executor.Get(ctx, "cancelled"); ok && cancelled.(bool) {
 			slog.InfoContext(ctx, "agent execution cancelled")
-			return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("execution cancelled")
+			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, fmt.Errorf("execution cancelled")
 		}
 
 		switch runState.NextStep() {
@@ -278,13 +271,13 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			buf, err := sonic.Marshal(convMessagesAny)
 			if err != nil {
 				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			var convMessages []responses.InputMessageUnion
 			if err := sonic.Unmarshal(buf, &convMessages); err != nil {
 				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			// DURABLE CHECKPOINT: LLM Call
@@ -306,20 +299,20 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			})
 			if err != nil {
 				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			// Unmarshal response
 			buf, err = sonic.Marshal(respAny)
 			if err != nil {
 				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			resp := &responses.Response{}
 			if err := sonic.Unmarshal(buf, resp); err != nil {
 				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			finalOutput = append(finalOutput, resp.Output...)
@@ -336,7 +329,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				inputMsg, err := outMsg.AsInput()
 				if err != nil {
 					slog.ErrorContext(ctx, "output msg conversion failed", slog.Any("error", err))
-					return &AgentOutput{Status: core.RunStatusError}, err
+					return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 				}
 				inputMsgs = append(inputMsgs, inputMsg)
 			}
@@ -398,20 +391,20 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 					if err != nil {
 						span.RecordError(err)
 						slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
-						return &AgentOutput{Status: core.RunStatusError}, err
+						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 
 					// Unmarshal tool result
 					buf, err := sonic.Marshal(toolResultAny)
 					if err != nil {
 						span.RecordError(err)
-						return &AgentOutput{Status: core.RunStatusError}, err
+						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 
 					toolResult = &responses.FunctionCallOutputMessage{}
 					if err := sonic.Unmarshal(buf, toolResult); err != nil {
 						span.RecordError(err)
-						return &AgentOutput{Status: core.RunStatusError}, err
+						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 				}
 
@@ -445,7 +438,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			})
 			if err != nil {
 				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			// DURABLE: Emit run paused event (side effect)
@@ -466,6 +459,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			})
 
 			return &AgentOutput{
+				RunID:            runId,
 				Status:           core.RunStatusPaused,
 				PendingApprovals: runState.PendingToolCalls,
 			}, nil
@@ -477,7 +471,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			})
 			if err != nil {
 				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError}, err
+				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			// DURABLE: Emit run completed event (side effect)
@@ -497,6 +491,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			})
 
 			return &AgentOutput{
+				RunID:  runId,
 				Status: core.RunStatusCompleted,
 				Output: finalOutput,
 			}, nil
@@ -504,7 +499,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 	}
 
 	// Max loops exceeded
-	return &AgentOutput{Status: core.RunStatusError}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
+	return &AgentOutput{Status: core.RunStatusError, RunID: runId}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
 }
 
 // Cancel signals the agent to stop execution (requires a durable executor with state).

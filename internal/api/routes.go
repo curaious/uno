@@ -4,6 +4,7 @@ import (
 	"log"
 	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -71,17 +72,17 @@ func (s *Server) withMiddlewares(next fasthttp.RequestHandler, auth *authenticat
 
 		// Auth check
 		if auth.AuthEnabled() && !isPublicRoute(ctx) {
-			authHeader := strings.TrimPrefix(string(ctx.Request.Header.Peek("Authorization")), "Bearer ")
-			if authHeader == "" {
-				authHeader = string(ctx.Request.Header.Cookie("access_token"))
+			accessToken := strings.TrimPrefix(string(ctx.Request.Header.Peek("Authorization")), "Bearer ")
+			if accessToken == "" {
+				accessToken = string(ctx.Request.Header.Cookie("access_token"))
 			}
 
-			if authHeader == "" {
+			if accessToken == "" {
 				ctx.SetStatusCode(fasthttp.StatusUnauthorized)
 				return
 			}
 
-			claims, err := auth.VerifyAccessToken(ctx, authHeader)
+			claims, err := auth.VerifyAccessToken(ctx, accessToken)
 			if err != nil {
 				ctx.SetStatusCode(fasthttp.StatusUnauthorized)
 				return
@@ -101,7 +102,7 @@ func applyCORS(ctx *fasthttp.RequestCtx) {
 	headers := &ctx.Response.Header
 	headers.Set("Access-Control-Allow-Origin", string(ctx.Request.Header.Peek("Origin")))
 	headers.Set("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS,PATCH")
-	headers.Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+	headers.Set("Access-Control-Allow-Headers", os.Getenv("ALLOWED_HEADERS"))
 	headers.Set("Access-Control-Allow-Credentials", "true")
 }
 

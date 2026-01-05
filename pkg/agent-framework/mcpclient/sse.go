@@ -83,7 +83,7 @@ func WithApprovalRequiredTools(tools ...string) McpServerOption {
 	}
 }
 
-func (srv *MCPClient) Init(ctx context.Context, runContext map[string]any) error {
+func (srv *MCPClient) GetClient(ctx context.Context, runContext map[string]any) (*MCPClient, error) {
 	// resolve the headers with run context
 	headers := map[string]string{}
 	for k, v := range srv.Headers {
@@ -95,12 +95,12 @@ func (srv *MCPClient) Init(ctx context.Context, runContext map[string]any) error
 		client.WithHeaders(headers),
 	)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = client.Start(ctx)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	_, err = client.Initialize(ctx, mcp.InitializeRequest{
@@ -108,20 +108,25 @@ func (srv *MCPClient) Init(ctx context.Context, runContext map[string]any) error
 		Params:  mcp.InitializeParams{},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	tools, err := client.ListTools(ctx, mcp.ListToolsRequest{
 		PaginatedRequest: mcp.PaginatedRequest{},
 	})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	srv.Client = client
-	srv.Tools = tools.Tools
-
-	return nil
+	return &MCPClient{
+		Endpoint:              srv.Endpoint,
+		Headers:               headers,
+		Client:                client,
+		Tools:                 tools.Tools,
+		Meta:                  srv.Meta,
+		ToolFilter:            srv.ToolFilter,
+		ApprovalRequiredTools: srv.ApprovalRequiredTools,
+	}, nil
 }
 
 func (srv *MCPClient) GetTools(opts ...McpServerOption) []core.Tool {

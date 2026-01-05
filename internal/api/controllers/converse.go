@@ -36,7 +36,7 @@ import (
 
 var (
 	tracer     = otel.Tracer("Controller")
-	agentCache = utils.NewTTLSyncMap(10*time.Minute, 1*time.Minute)
+	agentCache = utils.NewTTLSyncMap(1*time.Minute, 5*time.Second)
 )
 
 type ConverseRequest struct {
@@ -72,11 +72,20 @@ func RegisterConverseRoute(r *router.Router, svc *services.Services, llmGateway 
 			return
 		}
 
-		agent, err := buildAgent(ctx, svc, llmGateway, projectID, agentName)
-		if err != nil {
-			writeError(reqCtx, ctx, "Error occurred while building the agent", err)
-			span.End()
-			return
+		var agent *agents.Agent
+		agentCacheKey := fmt.Sprintf("agent-%s-%s", agentName, projectID.String())
+
+		agentAny, exists := agentCache.Get(agentCacheKey)
+		if !exists {
+			agent, err = buildAgent(ctx, svc, llmGateway, projectID, agentName)
+			if err != nil {
+				writeError(reqCtx, ctx, "Error occurred while building the agent", err)
+				span.End()
+				return
+			}
+			agentCache.Set(agentCacheKey, agent)
+		} else {
+			agent = agentAny.(*agents.Agent)
 		}
 
 		// Parse request body first to get message_id for trace ID

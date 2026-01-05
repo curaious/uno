@@ -10,6 +10,7 @@ import (
 	"github.com/praveen001/uno/internal/utils"
 	"github.com/praveen001/uno/pkg/agent-framework/agents"
 	"github.com/praveen001/uno/pkg/agent-framework/core"
+	"github.com/praveen001/uno/pkg/agent-framework/history"
 	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/praveen001/uno/pkg/llm"
 	"github.com/praveen001/uno/pkg/llm/responses"
@@ -22,7 +23,7 @@ type AgentOptions struct {
 	LLM         llm.Provider
 	Tools       []core.Tool
 	Output      map[string]any
-	History     core.ChatHistory
+	History     *history.CommonConversationManager
 	Parameters  responses.Parameters
 	Instruction core.SystemPromptProvider
 	McpServers  []*mcpclient.MCPClient

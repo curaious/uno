@@ -44,8 +44,8 @@ func New(conf *config.Config) (*Authenticator, error) {
 	auth := &Authenticator{
 		stateSecret:  conf.STATE_SECRET,
 		jwtSecret:    conf.JWT_SECRET,
-		authEnabled:  true,
-		auth0Enabled: true,
+		authEnabled:  false,
+		auth0Enabled: false,
 		audience:     "uno-api",
 	}
 

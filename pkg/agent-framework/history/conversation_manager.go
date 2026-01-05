@@ -23,6 +23,44 @@ type ConversationPersistenceAdapter interface {
 }
 
 type CommonConversationManager struct {
+	ConversationPersistenceAdapter ConversationPersistenceAdapter
+	options                        []ConversationManagerOptions
+}
+
+func NewConversationManager(p ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *CommonConversationManager {
+	return &CommonConversationManager{
+		ConversationPersistenceAdapter: p,
+		options:                        opts,
+	}
+}
+
+type ConversationManagerOptions func(*ConversationRunManager)
+
+func WithConversationID(conversationId string) ConversationManagerOptions {
+	return func(cm *ConversationRunManager) {
+		cm.conversationId = conversationId
+	}
+}
+
+func WithSummarizer(summarizer core.HistorySummarizer) ConversationManagerOptions {
+	return func(cm *ConversationRunManager) {
+		cm.summarizer = summarizer
+	}
+}
+
+func WithPersistence(customAdapter ConversationPersistenceAdapter) ConversationManagerOptions {
+	return func(cm *ConversationRunManager) {
+		cm.ConversationPersistenceAdapter = customAdapter
+	}
+}
+
+func WithMessageID(msgId string) ConversationManagerOptions {
+	return func(cm *ConversationRunManager) {
+		cm.msgId = msgId
+	}
+}
+
+type ConversationRunManager struct {
 	ConversationPersistenceAdapter
 
 	namespace      string
@@ -42,47 +80,21 @@ type CommonConversationManager struct {
 	summaries  *core.SummaryResult
 }
 
-func NewConversationManager(p ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *CommonConversationManager {
-	cm := &CommonConversationManager{
-		ConversationPersistenceAdapter: p,
+func (cm *CommonConversationManager) NewRun() *ConversationRunManager {
+	cr := &ConversationRunManager{
+		ConversationPersistenceAdapter: cm.ConversationPersistenceAdapter,
 		msgId:                          uuid.NewString(),
 		msgIdToRunId:                   make(map[string]string),
 	}
 
-	for _, o := range opts {
-		o(cm)
+	for _, o := range cm.options {
+		o(cr)
 	}
 
-	return cm
+	return cr
 }
 
-type ConversationManagerOptions func(*CommonConversationManager)
-
-func WithConversationID(conversationId string) ConversationManagerOptions {
-	return func(cm *CommonConversationManager) {
-		cm.conversationId = conversationId
-	}
-}
-
-func WithSummarizer(summarizer core.HistorySummarizer) ConversationManagerOptions {
-	return func(cm *CommonConversationManager) {
-		cm.summarizer = summarizer
-	}
-}
-
-func WithPersistence(customAdapter ConversationPersistenceAdapter) ConversationManagerOptions {
-	return func(cm *CommonConversationManager) {
-		cm.ConversationPersistenceAdapter = customAdapter
-	}
-}
-
-func WithMessageID(msgId string) ConversationManagerOptions {
-	return func(cm *CommonConversationManager) {
-		cm.msgId = msgId
-	}
-}
-
-func (cm *CommonConversationManager) AddMessages(ctx context.Context, messages []responses.InputMessageUnion, usage *responses.Usage) {
+func (cm *ConversationRunManager) AddMessages(ctx context.Context, messages []responses.InputMessageUnion, usage *responses.Usage) {
 	cm.newMessages = append(cm.newMessages, messages...)
 
 	if usage != nil {
@@ -90,7 +102,7 @@ func (cm *CommonConversationManager) AddMessages(ctx context.Context, messages [
 	}
 }
 
-func (cm *CommonConversationManager) GetMessages(ctx context.Context) ([]responses.InputMessageUnion, error) {
+func (cm *ConversationRunManager) GetMessages(ctx context.Context) ([]responses.InputMessageUnion, error) {
 	// Process messages with summarizer if available
 	if cm.summarizer != nil {
 		summaryResult, err := cm.summarizer.Summarize(ctx, cm.msgIdToRunId, cm.oldMessages, cm.usage)
@@ -112,7 +124,7 @@ func (cm *CommonConversationManager) GetMessages(ctx context.Context) ([]respons
 	return append(cm.oldMessages, cm.newMessages...), nil
 }
 
-func (cm *CommonConversationManager) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]responses.InputMessageUnion, error) {
+func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]responses.InputMessageUnion, error) {
 	ctx, span := convTracer.Start(ctx, "ConversationManager.DB.LoadMessages")
 	defer span.End()
 
@@ -184,16 +196,16 @@ func (cm *CommonConversationManager) LoadMessages(ctx context.Context, namespace
 }
 
 // GetMeta returns the meta from the most recent message
-func (cm *CommonConversationManager) GetMeta() map[string]any {
+func (cm *ConversationRunManager) GetMeta() map[string]any {
 	return cm.lastMessageMeta
 }
 
 // GetMessageID returns the current run id
-func (cm *CommonConversationManager) GetMessageID() string {
+func (cm *ConversationRunManager) GetMessageID() string {
 	return cm.msgId
 }
 
-func (cm *CommonConversationManager) SaveMessages(ctx context.Context, meta map[string]any) error {
+func (cm *ConversationRunManager) SaveMessages(ctx context.Context, meta map[string]any) error {
 	ctx, span := convTracer.Start(ctx, "ConversationManager.DB.SaveMessages")
 	defer span.End()
 

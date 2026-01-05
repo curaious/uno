@@ -70,6 +70,8 @@ func main() {
 	})
 
 	out, err = agent2.Execute(context.Background(), &agents.AgentInput{
+		Namespace:         "default",
+		PreviousMessageID: out.RunID,
 		Messages: []responses.InputMessageUnion{
 			responses.UserMessage("What's my name?"),
 		},

@@ -159,14 +159,14 @@ func RegisterMCPServerRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		err = srv.Init(ctx, nil)
+		cli, err := srv.GetClient(ctx, nil)
 		if err != nil {
 			writeError(ctx, stdCtx, "Failed to initialize MCP Client", perrors.NewErrInternalServerError("Failed to initialize MCP client", err))
 			return
 		}
 
 		res := InspectMCPResponse{
-			Tools: srv.Tools,
+			Tools: cli.Tools,
 		}
 
 		writeOK(ctx, stdCtx, "MCP server retrieved successfully", res)
