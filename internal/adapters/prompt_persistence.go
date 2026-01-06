@@ -3,8 +3,8 @@ package adapters
 import (
 	"context"
 
+	"github.com/curaious/uno/internal/services/prompt"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/services/prompt"
 )
 
 // InternalPromptPersistence implements core.SystemPromptProvider using internal services

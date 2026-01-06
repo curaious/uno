@@ -4,10 +4,10 @@ import (
 	"context"
 	"slices"
 
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
 )
 
 type MCPClient struct {

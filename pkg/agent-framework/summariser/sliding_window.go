@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
-	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
 type SlidingWindowHistorySummarizer struct {

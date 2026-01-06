@@ -7,9 +7,9 @@ import (
 	"encoding/base64"
 	"fmt"
 
+	"github.com/curaious/uno/pkg/llm"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/praveen001/uno/pkg/llm"
 )
 
 // VirtualKeyRepo handles database operations for virtual keys

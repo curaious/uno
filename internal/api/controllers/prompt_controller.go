@@ -4,12 +4,12 @@ import (
 	"errors"
 	"strconv"
 
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/internal/services/prompt"
 	"github.com/fasthttp/router"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/internal/services/prompt"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 func RegisterPromptRoutes(r *router.Router, svc *services.Services) {

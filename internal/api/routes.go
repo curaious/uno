@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/curaious/uno/internal/api/authenticator"
+	"github.com/curaious/uno/internal/api/controllers"
+	"github.com/curaious/uno/internal/config"
 	"github.com/fasthttp/router"
-	"github.com/praveen001/uno/internal/api/authenticator"
-	"github.com/praveen001/uno/internal/api/controllers"
-	"github.com/praveen001/uno/internal/config"
 	"github.com/valyala/fasthttp"
 	"go.opentelemetry.io/otel/propagation"
 )

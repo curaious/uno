@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/pkg/llm"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm/responses"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )

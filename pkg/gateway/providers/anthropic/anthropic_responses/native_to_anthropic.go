@@ -4,9 +4,9 @@ import (
 	"log/slog"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/llm/constants"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/llm/constants"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 func NativeRequestToRequest(in *responses.Request) *Request {

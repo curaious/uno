@@ -3,9 +3,9 @@ package gemini_responses
 import (
 	"testing"
 
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/llm/constants"
-	responses "github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/llm/constants"
+	responses "github.com/curaious/uno/pkg/llm/responses"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

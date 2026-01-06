@@ -6,8 +6,8 @@ import (
 	"time"
 
 	json "github.com/bytedance/sonic"
+	"github.com/curaious/uno/pkg/llm"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/pkg/llm"
 )
 
 // CustomHeadersMap represents a map of custom headers that can be stored in JSONB

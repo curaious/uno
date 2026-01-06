@@ -4,8 +4,8 @@ import (
 	"errors"
 
 	"github.com/bytedance/sonic"
+	"github.com/curaious/uno/pkg/llm/constants"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/pkg/llm/constants"
 )
 
 type Response struct {

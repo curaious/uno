@@ -10,11 +10,11 @@ RUN corepack enable
 WORKDIR /app
 
 # Copy workspace files FIRST (important for caching)
-COPY pnpm-workspace.yaml package.json pnpm-lock.yaml ./
+COPY ui/pnpm-workspace.yaml ui/package.json ui/pnpm-lock.yaml ./
 
 # Copy package.json files of all workspaces (no source yet)
-COPY frontend/package.json frontend/package.json
-COPY packages/uno-converse/package.json packages/uno-converse/package.json
+COPY ui/frontend/package.json frontend/package.json
+COPY ui/packages/uno-converse/package.json packages/uno-converse/package.json
 
 # Install dependencies (workspace-aware)
 RUN pnpm install --frozen-lockfile
@@ -23,7 +23,7 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 
 # Build UI package first (required)
-RUN pnpm --filter @praveen001/uno-converse build
+RUN pnpm --filter @curaious/uno-converse build
 
 # Build frontend
 RUN pnpm --filter frontend build

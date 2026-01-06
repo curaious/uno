@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/curaious/uno/internal/integrations"
+	"github.com/curaious/uno/internal/services/prompt"
+	"github.com/curaious/uno/internal/utils"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/integrations"
-	"github.com/praveen001/uno/internal/services/prompt"
-	"github.com/praveen001/uno/internal/utils"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )

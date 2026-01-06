@@ -3,7 +3,7 @@ package core
 import (
 	"context"
 
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 // SummaryResult contains the result of summarization including metadata needed for saving

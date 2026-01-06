@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/curaious/uno/cmd"
 	_ "github.com/lib/pq"
-	"github.com/praveen001/uno/cmd"
 )
 
 func main() {

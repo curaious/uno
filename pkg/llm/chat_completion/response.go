@@ -1,6 +1,6 @@
 package chat_completion
 
-import "github.com/praveen001/uno/pkg/llm/constants"
+import "github.com/curaious/uno/pkg/llm/constants"
 
 type Response struct {
 	ID                string   `json:"id"`

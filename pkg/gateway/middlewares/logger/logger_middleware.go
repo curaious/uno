@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
 )
 
 type LoggerMiddleware struct {

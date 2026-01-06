@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	restateExec "github.com/curaious/uno/pkg/agent-framework/providers/restate"
+	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
-	restateExec "github.com/praveen001/uno/pkg/agent-framework/providers/restate"
-	"github.com/praveen001/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/ingress"
 )

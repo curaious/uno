@@ -1,7 +1,7 @@
 package openai_responses
 
 import (
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 type Response struct {

@@ -1,4 +1,4 @@
-module github.com/praveen001/uno
+module github.com/curaious/uno
 
 go 1.25.3
 

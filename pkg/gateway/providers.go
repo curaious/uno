@@ -5,11 +5,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/praveen001/uno/pkg/gateway/providers/anthropic"
-	"github.com/praveen001/uno/pkg/gateway/providers/gemini"
-	"github.com/praveen001/uno/pkg/gateway/providers/openai"
-	"github.com/praveen001/uno/pkg/gateway/providers/xai"
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/gateway/providers/anthropic"
+	"github.com/curaious/uno/pkg/gateway/providers/gemini"
+	"github.com/curaious/uno/pkg/gateway/providers/openai"
+	"github.com/curaious/uno/pkg/gateway/providers/xai"
+	"github.com/curaious/uno/pkg/llm"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )

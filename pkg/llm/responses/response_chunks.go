@@ -4,7 +4,7 @@ import (
 	"errors"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/pkg/llm/constants"
+	"github.com/curaious/uno/pkg/llm/constants"
 )
 
 // --------------------//

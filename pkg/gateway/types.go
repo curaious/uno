@@ -1,7 +1,7 @@
 package gateway
 
 import (
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm"
 )
 
 // ProviderConfig contains provider-level configuration.

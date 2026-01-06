@@ -1,7 +1,7 @@
 package provider
 
 import (
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm"
 )
 
 // ProviderModels contains the available models for each provider

@@ -1,6 +1,6 @@
-# @praveen001/uno-converse
+# @curaious/uno-converse
 
-React hooks and utilities for building conversation UIs with [Uno Agent Server](https://github.com/praveen001/uno).
+React hooks and utilities for building conversation UIs with [Uno Agent Server](https://github.com/curaious/uno).
 
 ## Features
 
@@ -14,22 +14,22 @@ React hooks and utilities for building conversation UIs with [Uno Agent Server](
 
 ```bash
 # npm
-npm install @praveen001/uno-converse
+npm install @curaious/uno-converse
 
 # yarn
-yarn add @praveen001/uno-converse
+yarn add @curaious/uno-converse
 
 # pnpm
-pnpm add @praveen001/uno-converse
+pnpm add @curaious/uno-converse
 ```
 
 ### GitHub Packages Registry
 
-This package is published to GitHub Packages. You'll need to configure npm to use the GitHub registry for `@praveen001` scoped packages:
+This package is published to GitHub Packages. You'll need to configure npm to use the GitHub registry for `@curaious` scoped packages:
 
 ```bash
 # Create or edit ~/.npmrc
-echo "@praveen001:registry=https://npm.pkg.github.com" >> ~/.npmrc
+echo "@curaious:registry=https://npm.pkg.github.com" >> ~/.npmrc
 ```
 
 You may also need to authenticate with a GitHub personal access token:
@@ -41,7 +41,7 @@ echo "//npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN" >> ~/.npmrc
 ## Quick Start
 
 ```tsx
-import { useConversation, createApiClient, MessageType, ContentType } from '@praveen001/uno-converse';
+import { useConversation, createApiClient, MessageType, ContentType } from '@curaious/uno-converse';
 
 // Create an API client
 const client = createApiClient({
@@ -155,7 +155,7 @@ const client = createApiClient({
 You can implement your own API client:
 
 ```typescript
-import type { UnoApiClient } from '@praveen001/uno-converse';
+import type { UnoApiClient } from '@curaious/uno-converse';
 
 const customClient: UnoApiClient = {
   baseUrl: 'https://your-server.com',
@@ -184,7 +184,7 @@ const customClient: UnoApiClient = {
 For advanced use cases, you can use the streaming utilities directly:
 
 ```typescript
-import { streamSSE, ChunkProcessor } from '@praveen001/uno-converse';
+import { streamSSE, ChunkProcessor } from '@curaious/uno-converse';
 
 // Stream SSE events
 await streamSSE(
@@ -220,7 +220,7 @@ import {
   type InputMessage,
   type FunctionCallMessage,
   type ReasoningMessage,
-} from '@praveen001/uno-converse';
+} from '@curaious/uno-converse';
 
 // Create a user message
 const userMessage: InputMessage = {
@@ -263,7 +263,7 @@ import {
   isInputMessage,
   isFunctionCallMessage,
   isReasoningMessage,
-} from '@praveen001/uno-converse';
+} from '@curaious/uno-converse';
 
 allMessages.forEach((msg) => {
   msg.messages.forEach((m) => {

@@ -5,11 +5,11 @@ import (
 	"errors"
 
 	"github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
-	"github.com/praveen001/uno/pkg/llm/responses"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 )

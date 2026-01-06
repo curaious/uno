@@ -7,13 +7,13 @@ import (
 	"time"
 
 	json "github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/api/response"
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/internal/services/traces"
 	"github.com/fasthttp/router"
-	"github.com/praveen001/uno/internal/api/response"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/internal/services/traces"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 // RegisterTracesRoutes registers trace-related API routes

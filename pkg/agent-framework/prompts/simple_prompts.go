@@ -5,7 +5,7 @@ import (
 	"regexp"
 	"text/template"
 
-	"github.com/praveen001/uno/internal/utils"
+	"github.com/curaious/uno/internal/utils"
 	"go.opentelemetry.io/otel"
 )
 

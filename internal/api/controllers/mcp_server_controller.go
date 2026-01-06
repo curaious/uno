@@ -3,15 +3,15 @@ package controllers
 import (
 	"errors"
 
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/internal/services/mcp_server"
+	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/internal/services/mcp_server"
-	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 func RegisterMCPServerRoutes(r *router.Router, svc *services.Services) {

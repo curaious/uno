@@ -3,19 +3,19 @@ package services
 import (
 	"log/slog"
 
-	"github.com/praveen001/uno/internal/config"
-	"github.com/praveen001/uno/internal/db"
-	agent2 "github.com/praveen001/uno/internal/services/agent"
-	conversation2 "github.com/praveen001/uno/internal/services/conversation"
-	mcp_server2 "github.com/praveen001/uno/internal/services/mcp_server"
-	model2 "github.com/praveen001/uno/internal/services/model"
-	project2 "github.com/praveen001/uno/internal/services/project"
-	prompt2 "github.com/praveen001/uno/internal/services/prompt"
-	provider2 "github.com/praveen001/uno/internal/services/provider"
-	schema2 "github.com/praveen001/uno/internal/services/schema"
-	traces2 "github.com/praveen001/uno/internal/services/traces"
-	user2 "github.com/praveen001/uno/internal/services/user"
-	virtual_key2 "github.com/praveen001/uno/internal/services/virtual_key"
+	"github.com/curaious/uno/internal/config"
+	"github.com/curaious/uno/internal/db"
+	agent2 "github.com/curaious/uno/internal/services/agent"
+	conversation2 "github.com/curaious/uno/internal/services/conversation"
+	mcp_server2 "github.com/curaious/uno/internal/services/mcp_server"
+	model2 "github.com/curaious/uno/internal/services/model"
+	project2 "github.com/curaious/uno/internal/services/project"
+	prompt2 "github.com/curaious/uno/internal/services/prompt"
+	provider2 "github.com/curaious/uno/internal/services/provider"
+	schema2 "github.com/curaious/uno/internal/services/schema"
+	traces2 "github.com/curaious/uno/internal/services/traces"
+	user2 "github.com/curaious/uno/internal/services/user"
+	virtual_key2 "github.com/curaious/uno/internal/services/virtual_key"
 )
 
 type Services struct {

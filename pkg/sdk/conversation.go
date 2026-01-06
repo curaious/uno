@@ -1,8 +1,8 @@
 package sdk
 
 import (
-	"github.com/praveen001/uno/pkg/agent-framework/history"
-	"github.com/praveen001/uno/pkg/sdk/adapters"
+	"github.com/curaious/uno/pkg/agent-framework/history"
+	"github.com/curaious/uno/pkg/sdk/adapters"
 )
 
 func (c *SDK) NewConversationManager(opts ...history.ConversationManagerOptions) *history.CommonConversationManager {

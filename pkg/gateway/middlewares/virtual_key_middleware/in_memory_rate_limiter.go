@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/gateway"
 )
 
 // InMemoryRateLimiterStorage implements RateLimiterStorage using in-memory token buckets.

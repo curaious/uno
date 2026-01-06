@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm"
 	"go.opentelemetry.io/otel"
 )
 

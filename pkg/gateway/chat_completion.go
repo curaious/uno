@@ -5,8 +5,8 @@ import (
 	"strings"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/pkg/llm"
-	"github.com/praveen001/uno/pkg/llm/chat_completion"
+	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm/chat_completion"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )

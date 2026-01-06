@@ -7,9 +7,9 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/api/authenticator"
+	"github.com/curaious/uno/internal/services"
 	"github.com/fasthttp/router"
-	"github.com/praveen001/uno/internal/api/authenticator"
-	"github.com/praveen001/uno/internal/services"
 	"github.com/valyala/fasthttp"
 	"golang.org/x/oauth2"
 )

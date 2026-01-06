@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/curaious/uno/pkg/llm"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/pkg/llm"
 )
 
 // ProviderService handles business logic for API keys

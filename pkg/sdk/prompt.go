@@ -1,8 +1,8 @@
 package sdk
 
 import (
-	"github.com/praveen001/uno/pkg/agent-framework/prompts"
-	"github.com/praveen001/uno/pkg/sdk/adapters"
+	"github.com/curaious/uno/pkg/agent-framework/prompts"
+	"github.com/curaious/uno/pkg/sdk/adapters"
 )
 
 func (c *SDK) Prompt(prompt string) *prompts.SimplePrompt {

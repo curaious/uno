@@ -4,13 +4,13 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/internal/services/virtual_key"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/internal/services/virtual_key"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 func RegisterVirtualKeyRoutes(r *router.Router, svc *services.Services) {

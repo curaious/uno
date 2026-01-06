@@ -1,6 +1,6 @@
 package openai_embeddings
 
-import "github.com/praveen001/uno/pkg/llm/embeddings"
+import "github.com/curaious/uno/pkg/llm/embeddings"
 
 type Request struct {
 	embeddings.Request

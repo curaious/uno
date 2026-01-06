@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/curaious/uno/internal/config"
 	"github.com/lib/pq"
-	"github.com/praveen001/uno/internal/config"
 )
 
 // ConfigChangeType represents the type of configuration change
@@ -164,4 +164,3 @@ func (ps *PubSub) notifyHandlers(event ConfigChangeEvent) {
 		go handler(event)
 	}
 }
-

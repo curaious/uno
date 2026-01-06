@@ -10,8 +10,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/praveen001/uno/internal/config"
-	"github.com/praveen001/uno/internal/db"
+	"github.com/curaious/uno/internal/config"
+	"github.com/curaious/uno/internal/db"
 
 	"github.com/jmoiron/sqlx"
 )

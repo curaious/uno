@@ -9,12 +9,12 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/praveen001/uno/internal/pubsub"
-	"github.com/praveen001/uno/internal/services/provider"
-	"github.com/praveen001/uno/internal/services/virtual_key"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/internal/pubsub"
+	"github.com/curaious/uno/internal/services/provider"
+	"github.com/curaious/uno/internal/services/virtual_key"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
 )
 
 // ServiceConfigStore implements gateway.ConfigStore using provider and virtual key services.

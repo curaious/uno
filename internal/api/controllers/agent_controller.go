@@ -3,13 +3,13 @@ package controllers
 import (
 	"errors"
 
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/internal/services/agent"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/internal/services/agent"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 func RegisterAgentRoutes(r *router.Router, svc *services.Services) {

@@ -5,8 +5,8 @@ import (
 	"log"
 	"log/slog"
 
+	"github.com/curaious/uno/internal/config"
 	"github.com/jmoiron/sqlx"
-	"github.com/praveen001/uno/internal/config"
 )
 
 func NewConn(conf *config.Config) *sqlx.DB {

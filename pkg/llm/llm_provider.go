@@ -4,9 +4,9 @@ import (
 	"context"
 	"slices"
 
-	"github.com/praveen001/uno/pkg/llm/chat_completion"
-	"github.com/praveen001/uno/pkg/llm/embeddings"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/chat_completion"
+	"github.com/curaious/uno/pkg/llm/embeddings"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 type Provider interface {

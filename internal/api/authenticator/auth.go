@@ -13,8 +13,8 @@ import (
 	"github.com/auth0/go-jwt-middleware/v2/validator"
 	"github.com/bytedance/sonic"
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/curaious/uno/internal/config"
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/praveen001/uno/internal/config"
 	"golang.org/x/oauth2"
 )
 
@@ -44,8 +44,8 @@ func New(conf *config.Config) (*Authenticator, error) {
 	auth := &Authenticator{
 		stateSecret:  conf.STATE_SECRET,
 		jwtSecret:    conf.JWT_SECRET,
-		authEnabled:  false,
-		auth0Enabled: false,
+		authEnabled:  true,
+		auth0Enabled: true,
 		audience:     "uno-api",
 	}
 
@@ -75,6 +75,9 @@ func New(conf *config.Config) (*Authenticator, error) {
 		auth.jwksProvider = jwks.NewCachingProvider(issuerURL, 5*time.Minute)
 		auth.auth0Enabled = true
 	}
+
+	auth.auth0Enabled = false
+	auth.authEnabled = false
 
 	return auth, nil
 }

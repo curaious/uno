@@ -3,8 +3,8 @@ package tools
 import (
 	"context"
 
-	"github.com/praveen001/uno/pkg/agent-framework/core"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 type ImageGenerationTool struct {

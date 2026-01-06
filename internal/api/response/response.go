@@ -9,7 +9,7 @@ import (
 	json "github.com/bytedance/sonic"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 type Response[T any] struct {

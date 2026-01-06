@@ -1,8 +1,8 @@
 package xai_responses
 
 import (
-	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_responses"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_responses"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 func NativeRequestToRequest(in *responses.Request) *Request {

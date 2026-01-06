@@ -3,11 +3,11 @@ package adapters
 import (
 	"context"
 
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
-	"github.com/praveen001/uno/pkg/llm/chat_completion"
-	"github.com/praveen001/uno/pkg/llm/embeddings"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm/chat_completion"
+	"github.com/curaious/uno/pkg/llm/embeddings"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 // InternalLLMGateway uses the internal LLMGatewayAdapter for server-side use.

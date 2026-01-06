@@ -3,10 +3,10 @@ package controllers
 import (
 	"errors"
 
+	"github.com/curaious/uno/internal/perrors"
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/internal/services/schema"
 	"github.com/fasthttp/router"
-	"github.com/praveen001/uno/internal/perrors"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/internal/services/schema"
 	"github.com/valyala/fasthttp"
 )
 

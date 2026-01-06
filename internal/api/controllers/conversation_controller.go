@@ -1,12 +1,12 @@
 package controllers
 
 import (
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/internal/services/conversation"
 	"github.com/fasthttp/router"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/internal/services/conversation"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 func RegisterConversationRoutes(r *router.Router, svc *services.Services) {

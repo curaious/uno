@@ -10,10 +10,10 @@ import (
 	"strings"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway/providers/anthropic/anthropic_responses"
-	"github.com/praveen001/uno/pkg/gateway/providers/base"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/gateway/providers/anthropic/anthropic_responses"
+	"github.com/curaious/uno/pkg/gateway/providers/base"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 type ClientOptions struct {

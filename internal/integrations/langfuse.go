@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/praveen001/uno/internal/utils"
+	"github.com/curaious/uno/internal/utils"
 )
 
 type LangfuseClient struct {

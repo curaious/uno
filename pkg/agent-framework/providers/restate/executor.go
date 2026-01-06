@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/praveen001/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/agent-framework/core"
 	restate "github.com/restatedev/sdk-go"
 )
 

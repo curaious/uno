@@ -11,14 +11,14 @@ import (
 	"strings"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway/providers/base"
-	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_chat_completion"
-	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_embeddings"
-	"github.com/praveen001/uno/pkg/gateway/providers/openai/openai_responses"
-	"github.com/praveen001/uno/pkg/llm/chat_completion"
-	"github.com/praveen001/uno/pkg/llm/embeddings"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/gateway/providers/base"
+	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_chat_completion"
+	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_embeddings"
+	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_responses"
+	"github.com/curaious/uno/pkg/llm/chat_completion"
+	"github.com/curaious/uno/pkg/llm/embeddings"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 type ClientOptions struct {

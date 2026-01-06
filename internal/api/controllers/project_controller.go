@@ -3,13 +3,13 @@ package controllers
 import (
 	"errors"
 
+	"github.com/curaious/uno/internal/services"
+	project2 "github.com/curaious/uno/internal/services/project"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/services"
-	project2 "github.com/praveen001/uno/internal/services/project"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/perrors"
+	"github.com/curaious/uno/internal/perrors"
 )
 
 func RegisterProjectRoutes(r *router.Router, svc *services.Services) {

@@ -3,10 +3,10 @@ package tools
 import (
 	"context"
 
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/agent-framework/agents"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 type AgentTool struct {

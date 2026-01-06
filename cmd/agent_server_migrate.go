@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/praveen001/uno/internal/migrations"
+	"github.com/curaious/uno/internal/migrations"
 
 	"github.com/spf13/cobra"
 )

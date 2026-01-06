@@ -34,7 +34,7 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://npm.pkg.github.com'
-          scope: '@praveen001'
+          scope: '@curaious'
           cache: 'pnpm'
 
       # Install workspace dependencies from repo root
@@ -47,18 +47,18 @@ jobs:
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "Setting version to $VERSION"
-          pnpm --filter @praveen001/uno-converse version $VERSION --no-git-tag-version --allow-same-version
+          pnpm --filter @curaious/uno-converse version $VERSION --no-git-tag-version --allow-same-version
 
       # Update version from manual input
       - name: Update version (manual input)
         if: github.event.inputs.version != ''
         run: |
           echo "Setting version to ${{ github.event.inputs.version }}"
-          pnpm --filter @praveen001/uno-converse version ${{ github.event.inputs.version }} --no-git-tag-version --allow-same-version
+          pnpm --filter @curaious/uno-converse version ${{ github.event.inputs.version }} --no-git-tag-version --allow-same-version
 
       # Build the package
       - name: Build package
-        run: pnpm --filter @praveen001/uno-converse build
+        run: pnpm --filter @curaious/uno-converse build
 
       # Publish to GitHub Packages
       - name: Publish to GitHub Packages

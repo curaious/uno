@@ -1,5 +1,5 @@
 {
-  "name": "@praveen001/uno-converse",
+  "name": "@curaious/uno-converse",
   "version": "0.0.1-beta.13",
   "type": "module",
   "description": "React hooks and utilities for building conversation UIs with Uno Agent Server",
@@ -15,10 +15,10 @@
     "sse",
     "streaming"
   ],
-  "homepage": "https://github.com/praveen001/uno#readme",
+  "homepage": "https://github.com/curaious/uno#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/praveen001/uno.git",
+    "url": "git+https://github.com/curaious/uno.git",
     "directory": "packages/uno-converse"
   },
   "license": "MIT",

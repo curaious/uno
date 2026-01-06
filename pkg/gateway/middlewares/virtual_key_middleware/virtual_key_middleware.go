@@ -7,9 +7,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"

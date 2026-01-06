@@ -7,12 +7,12 @@ import (
 	"os"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/pkg/agent-framework/agents"
-	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
-	"github.com/praveen001/uno/pkg/llm/responses"
-	"github.com/praveen001/uno/pkg/sdk"
+	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sdk"
 )
 
 func main() {

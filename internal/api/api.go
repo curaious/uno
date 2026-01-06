@@ -10,17 +10,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/praveen001/uno/internal/adapters"
-	"github.com/praveen001/uno/internal/pubsub"
-	"github.com/praveen001/uno/internal/services"
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/gateway/middlewares/logger"
-	"github.com/praveen001/uno/pkg/gateway/middlewares/virtual_key_middleware"
+	"github.com/curaious/uno/internal/adapters"
+	"github.com/curaious/uno/internal/pubsub"
+	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/gateway/middlewares/logger"
+	"github.com/curaious/uno/pkg/gateway/middlewares/virtual_key_middleware"
 	"github.com/redis/go-redis/v9"
 	"github.com/valyala/fasthttp"
 
-	"github.com/praveen001/uno/internal/config"
-	"github.com/praveen001/uno/internal/migrations"
+	"github.com/curaious/uno/internal/config"
+	"github.com/curaious/uno/internal/migrations"
 )
 
 // Server is an HTTP Server with access to *pm.App

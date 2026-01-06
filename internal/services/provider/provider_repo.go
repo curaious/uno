@@ -5,9 +5,9 @@ import (
 	"database/sql"
 	"fmt"
 
+	"github.com/curaious/uno/pkg/llm"
 	"github.com/google/uuid"
 	"github.com/jmoiron/sqlx"
-	"github.com/praveen001/uno/pkg/llm"
 )
 
 // ProviderRepo handles database operations for API keys

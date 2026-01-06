@@ -1,11 +1,11 @@
 package sdk
 
 import (
-	internal_adapters "github.com/praveen001/uno/internal/adapters"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
-	"github.com/praveen001/uno/pkg/sdk/adapters"
+	internal_adapters "github.com/curaious/uno/internal/adapters"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/sdk/adapters"
 )
 
 type LLMOptions struct {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/praveen001/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/gateway"
 	"github.com/redis/go-redis/v9"
 )
 

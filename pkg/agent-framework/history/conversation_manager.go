@@ -5,10 +5,10 @@ import (
 	"time"
 
 	"github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/services/conversation"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/services/conversation"
-	"github.com/praveen001/uno/pkg/agent-framework/core"
-	"github.com/praveen001/uno/pkg/llm/responses"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"

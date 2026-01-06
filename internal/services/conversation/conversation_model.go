@@ -3,8 +3,8 @@ package conversation
 import (
 	"time"
 
+	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
 // Conversation represents a conversation

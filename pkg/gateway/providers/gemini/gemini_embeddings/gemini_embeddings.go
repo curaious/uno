@@ -1,9 +1,9 @@
 package gemini_embeddings
 
 import (
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/gateway/providers/gemini/gemini_responses"
-	"github.com/praveen001/uno/pkg/llm/embeddings"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/gateway/providers/gemini/gemini_responses"
+	"github.com/curaious/uno/pkg/llm/embeddings"
 )
 
 type Request struct {

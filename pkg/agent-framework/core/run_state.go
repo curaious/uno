@@ -2,7 +2,7 @@ package core
 
 import (
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/responses"
 )
 
 // Step represents the current step in the agent execution state machine

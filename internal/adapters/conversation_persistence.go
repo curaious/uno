@@ -3,9 +3,9 @@ package adapters
 import (
 	"context"
 
+	"github.com/curaious/uno/internal/services/conversation"
+	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/services/conversation"
-	"github.com/praveen001/uno/pkg/llm/responses"
 )
 
 type InternalConversationPersistence struct {

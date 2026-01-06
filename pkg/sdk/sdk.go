@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/curaious/uno/internal/services/project"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/sdk/adapters"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/services/project"
-	"github.com/praveen001/uno/internal/utils"
-	"github.com/praveen001/uno/pkg/agent-framework/agents"
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/sdk/adapters"
 )
 
 type SDK struct {

@@ -6,8 +6,8 @@ import (
 	"time"
 
 	json "github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/utils"
 	"github.com/google/uuid"
-	"github.com/praveen001/uno/internal/utils"
 )
 
 // ToolFilters represents a list of tool names to filter from an MCP server

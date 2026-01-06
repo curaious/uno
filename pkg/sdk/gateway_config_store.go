@@ -3,8 +3,8 @@ package sdk
 import (
 	"fmt"
 
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
 )
 
 // InMemoryConfigStore implements gateway.ConfigStore for SDK use.
