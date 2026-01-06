@@ -10,7 +10,7 @@ import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import { SlideDialog } from "../../components/shared/Dialog";
 import Editor from "@monaco-editor/react";
 import { STORAGE_KEY, PROJECT_NAME_STORAGE_KEY } from "../../contexts/ProjectContext";
-import {ConverseConfig, MessageUnion, Usage, useConversation} from "@praveen001/uno-converse";
+import {ConverseConfig, MessageUnion, Usage, useConversation} from "@curaious/uno-converse";
 
 export const ChatPage: React.FC = () => {
   const namespace = 'playground';

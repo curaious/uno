@@ -23,7 +23,7 @@ import { ConversationTraceItem, ConversationTracesData } from './types';
 import { Input, InputLabel } from '../../components/shared/Input';
 import { Button } from '../../components/shared/Buttons';
 import styles from './ConversationTraces.module.css';
-import { Conversation } from "@praveen001/uno-converse";
+import { Conversation } from "@curaious/uno-converse";
 
 export function ConversationTraces() {
   const navigate = useNavigate();

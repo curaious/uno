@@ -7,7 +7,7 @@ import rehypeHighlight from 'rehype-highlight';
 import rehypeReact from "rehype-react";
 import {unified} from 'unified';
 import remarkGfm from 'remark-gfm';
-import { EasyMessage, InputMessage, OutputMessage } from "@praveen001/uno-converse";
+import { EasyMessage, InputMessage, OutputMessage } from "@curaious/uno-converse";
 
 interface IProps {
   message: InputMessage | EasyMessage | OutputMessage;

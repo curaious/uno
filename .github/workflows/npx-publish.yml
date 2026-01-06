@@ -1,4 +1,4 @@
-name: Publish to GitHub Packages
+name: Publish NPX script to GitHub Packages
 
 on:
   push:

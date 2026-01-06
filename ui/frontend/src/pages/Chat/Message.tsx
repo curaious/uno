@@ -15,7 +15,7 @@ import {InputMessageRenderer} from "./Messages/InputMessage";
 import {ReasoningMessageRenderer} from "./Messages/ReasoningMessage";
 import {FunctionCallMessageRenderer} from "./Messages/FunctionCallMessage";
 import {FunctionCallOutputMessageRenderer} from "./Messages/FunctionCallOutputMessage";
-import { MessageType, MessageUnion, Role } from "@praveen001/uno-converse";
+import { MessageType, MessageUnion, Role } from "@curaious/uno-converse";
 import {ImageGenerationCallRenderer} from "./Messages/ImageGenerationCall";
 
 const Accordion = styled((props: AccordionProps) => <MuiAccordion {...props} />)(() => ({

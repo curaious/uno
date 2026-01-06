@@ -11,7 +11,7 @@ import {
   MessageUnion,
   Role,
   Usage,
-} from "@praveen001/uno-converse";
+} from "@curaious/uno-converse";
 import {v4 as uuidv4} from "uuid";
 
 interface IOwnProps {

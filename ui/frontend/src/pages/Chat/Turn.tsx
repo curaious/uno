@@ -17,7 +17,7 @@ import {
   MessageUnion,
   Role,
   Usage,
-} from "@praveen001/uno-converse";
+} from "@curaious/uno-converse";
 import {getTrace} from "../Traces/api";
 import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownAlt';
 import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';

@@ -8,7 +8,7 @@ import {
   EasyMessage,
   isEasyMessage,
   MessageUnion
-} from "@praveen001/uno-converse";
+} from "@curaious/uno-converse";
 
 // Convert UUID to trace ID format (remove dashes)
 const uuidToTraceId = (uuid: string): string => uuid.replace(/-/g, '');
