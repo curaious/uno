@@ -1,33 +1,8 @@
 {
-  "name": "@curaious/workspace",
+  "name": "@curaious/ui-workspace",
   "version": "1.0.0",
-  "description": "Uno - AI Gateway and Agent Framework",
-  "bin": {
-    "uno": "../bin/cli.js"
-  },
-  "files": [
-    "bin/",
-    "../deployments/docker-compose.yaml",
-    "deployments/clickhouse-init.sql",
-    "deployments/otel-collector-config.yaml",
-    "deployments/env_vars"
-  ],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/curaious/uno.git"
-  },
-  "publishConfig": {
-    "registry": "https://npm.pkg.github.com"
-  },
-  "keywords": [
-    "ai",
-    "gateway",
-    "llm",
-    "agent",
-    "openai"
-  ],
-  "author": "Praveen",
-  "license": "MIT",
+  "private": true,
+  "description": "Uno UI Workspace",
   "packageManager": "pnpm@9.0.0",
   "scripts": {
     "build": "pnpm -r build",

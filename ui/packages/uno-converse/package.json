@@ -19,7 +19,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/curaious/uno.git",
-    "directory": "packages/uno-converse"
+    "directory": "ui/packages/uno-converse"
   },
   "license": "MIT",
   "author": "Praveen",

@@ -19,8 +19,9 @@ COPY ui/packages/uno-converse/package.json packages/uno-converse/package.json
 # Install dependencies (workspace-aware)
 RUN pnpm install --frozen-lockfile
 
-# Now copy the full source
-COPY . .
+# Now copy the full ui source (maintaining same structure as package.json copies)
+COPY ui/frontend frontend
+COPY ui/packages packages
 
 # Build UI package first (required)
 RUN pnpm --filter @curaious/uno-converse build

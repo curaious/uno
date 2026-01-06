@@ -28,7 +28,6 @@ jobs:
           corepack enable
           corepack prepare pnpm@9 --activate
 
-      # Enable pnpm via Corepack (Node 20 best practice)
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -36,14 +35,17 @@ jobs:
           registry-url: 'https://npm.pkg.github.com'
           scope: '@curaious'
           cache: 'pnpm'
+          cache-dependency-path: ui/pnpm-lock.yaml
 
-      # Install workspace dependencies from repo root
+      # Install workspace dependencies from ui directory
       - name: Install dependencies
+        working-directory: ui
         run: pnpm install --frozen-lockfile
 
       # Update version from git tag
       - name: Update version from git tag
         if: startsWith(github.ref, 'refs/tags/v')
+        working-directory: ui
         run: |
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "Setting version to $VERSION"
@@ -52,18 +54,19 @@ jobs:
       # Update version from manual input
       - name: Update version (manual input)
         if: github.event.inputs.version != ''
+        working-directory: ui
         run: |
           echo "Setting version to ${{ github.event.inputs.version }}"
           pnpm --filter @curaious/uno-converse version ${{ github.event.inputs.version }} --no-git-tag-version --allow-same-version
 
       # Build the package
       - name: Build package
+        working-directory: ui
         run: pnpm --filter @curaious/uno-converse build
 
       # Publish to GitHub Packages
       - name: Publish to GitHub Packages
-        run: |
-          cd packages/uno-converse
-          pnpm publish --no-git-checks
+        working-directory: ui/packages/uno-converse
+        run: pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
