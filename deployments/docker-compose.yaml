@@ -4,7 +4,6 @@ name: "uno"
 services:
   uno-clickhouse:
     image: clickhouse/clickhouse-server:24.3
-    container_name: uno-clickhouse
     ports:
       - "8123:8123"   # HTTP interface
       - "9000:9000"   # Native interface
@@ -28,7 +27,6 @@ services:
 
   uno-otel-collector:
     image: otel/opentelemetry-collector-contrib:0.96.0
-    container_name: uno-otel-collector
     command: ["--config=/etc/otel-collector-config.yaml"]
     ports:
       - "4317:4317"   # OTLP gRPC receiver
@@ -43,7 +41,6 @@ services:
 
   uno-postgres:
     image: postgres:16-alpine
-    container_name: uno-postgres
     ports:
       - "5432:5432"
     environment:
@@ -60,7 +57,6 @@ services:
 
   uno-redis:
     image: redis:7-alpine
-    container_name: uno-redis
     ports:
       - "6379:6379"
     volumes:
@@ -73,7 +69,6 @@ services:
 
   uno-app:
     image: ${UNO_IMAGE:-ghcr.io/praveen001/uno:latest}
-    container_name: uno-app
     ports:
       - "6060:6060"   # Backend API
       - "3000:3000"   # Frontend UI
