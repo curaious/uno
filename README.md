@@ -19,7 +19,7 @@ Uno provides a unified interface for interacting with LLMs from OpenAI, Anthropi
 Start the gateway with Docker:
 
 ```bash
-npx --registry=https://npm.pkg.github.com @praveen001/uno
+npx --registry=https://npm.pkg.github.com @curaious/uno
 ```
 
 Open `http://localhost:3000` to configure providers and create virtual keys.
@@ -45,7 +45,7 @@ response = client.responses.create(
 Install:
 
 ```bash
-go get -u github.com/praveen001/uno
+go get -u github.com/curaious/uno
 ```
 
 Use the SDK directly:
@@ -58,11 +58,11 @@ import (
     "fmt"
     "os"
 
-    "github.com/praveen001/uno/pkg/gateway"
-    "github.com/praveen001/uno/pkg/llm"
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/pkg/sdk"
-    "github.com/praveen001/uno/internal/utils"
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/pkg/sdk"
+    "github.com/curaious/uno/internal/utils"
 )
 
 func main() {

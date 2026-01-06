@@ -53,7 +53,7 @@ The template syntax `{{variable}}` is automatically converted to Go template for
 You can create custom resolvers functions for more complex template resolution logic. The resolver function will have access to the raw prompt and the run context.
 
 ```go
-import "github.com/praveen001/uno/pkg/agent-framework/prompts"
+import "github.com/curaious/uno/pkg/agent-framework/prompts"
 
 customResolver := func(promptStr string, data map[string]any) (string, error) {
     // Your logic to resolve the prompt into the final system format
@@ -144,12 +144,12 @@ import (
     "context"
     "log"
 
-    "github.com/praveen001/uno/pkg/agent-framework/core"
-    "github.com/praveen001/uno/pkg/agent-framework/prompts"
-	"github.com/praveen001/uno/pkg/gateway"
-    "github.com/praveen001/uno/pkg/llm"
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/pkg/sdk"
+    "github.com/curaious/uno/pkg/agent-framework/core"
+    "github.com/curaious/uno/pkg/agent-framework/prompts"
+	"github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/pkg/sdk"
 )
 
 func main() {

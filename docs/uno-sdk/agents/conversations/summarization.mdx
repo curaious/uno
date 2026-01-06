@@ -21,9 +21,9 @@ The LLM summarizer uses an LLM to create intelligent summaries of conversation h
 
 ```go
 import (
-    "github.com/praveen001/uno/pkg/agent-framework/summariser"
-    "github.com/praveen001/uno/pkg/agent-framework/history"
-    "github.com/praveen001/uno/pkg/agent-framework/prompts"
+    "github.com/curaious/uno/pkg/agent-framework/summariser"
+    "github.com/curaious/uno/pkg/agent-framework/history"
+    "github.com/curaious/uno/pkg/agent-framework/prompts"
 )
 
 // Create a summarizer LLM (can be different from the agent's LLM)
@@ -68,7 +68,7 @@ The sliding window summarizer keeps only the most recent N conversation runs and
 ### Configuration
 
 ```go
-import "github.com/praveen001/uno/pkg/agent-framework/summariser"
+import "github.com/curaious/uno/pkg/agent-framework/summariser"
 
 summarizer := summariser.NewSlidingWindowHistorySummarizer(&summariser.SlidingWindowHistorySummarizerOptions{
     KeepCount: 10, // Keep only the last 10 conversation runs
@@ -92,8 +92,8 @@ To use a summarizer, pass it to the conversation manager using `history.WithSumm
 
 ```go
 import (
-    "github.com/praveen001/uno/pkg/agent-framework/history"
-    "github.com/praveen001/uno/pkg/agent-framework/summariser"
+    "github.com/curaious/uno/pkg/agent-framework/history"
+    "github.com/curaious/uno/pkg/agent-framework/summariser"
 )
 
 // Create a summarizer
@@ -129,13 +129,13 @@ import (
     "context"
     "log"
 
-    "github.com/praveen001/uno/pkg/agent-framework/core"
-    "github.com/praveen001/uno/pkg/agent-framework/history"
-    "github.com/praveen001/uno/pkg/agent-framework/summariser"
-    "github.com/praveen001/uno/pkg/gateway"
-    "github.com/praveen001/uno/pkg/llm"
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/pkg/sdk"
+    "github.com/curaious/uno/pkg/agent-framework/core"
+    "github.com/curaious/uno/pkg/agent-framework/history"
+    "github.com/curaious/uno/pkg/agent-framework/summariser"
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/pkg/sdk"
 )
 
 func main() {
@@ -223,13 +223,13 @@ import (
     "context"
     "log"
 
-    "github.com/praveen001/uno/pkg/agent-framework/core"
-    "github.com/praveen001/uno/pkg/agent-framework/history"
-    "github.com/praveen001/uno/pkg/agent-framework/summariser"
-    "github.com/praveen001/uno/pkg/gateway"
-    "github.com/praveen001/uno/pkg/llm"
-    "github.com/praveen001/uno/pkg/llm/responses"
-    "github.com/praveen001/uno/pkg/sdk"
+    "github.com/curaious/uno/pkg/agent-framework/core"
+    "github.com/curaious/uno/pkg/agent-framework/history"
+    "github.com/curaious/uno/pkg/agent-framework/summariser"
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/pkg/sdk"
 )
 
 func main() {

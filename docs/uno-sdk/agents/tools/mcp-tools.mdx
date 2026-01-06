@@ -11,7 +11,7 @@ To use MCP tools, you first need to create an MCP client using the `mcpclient.Ne
 ```go
 import (
     "context"
-    "github.com/praveen001/uno/pkg/agent-framework/tools"
+    "github.com/curaious/uno/pkg/agent-framework/tools"
 )
 
 mcpClient, err := mcpclient.NewSSEClient(context.Background(), "http://localhost:9001/sse")
@@ -61,12 +61,12 @@ import (
     "log"
 
 	"github.com/bytedance/sonic"
-	"github.com/praveen001/uno/pkg/agent-framework/agents"
-	"github.com/praveen001/uno/pkg/agent-framework/mcpclient"
-	"github.com/praveen001/uno/pkg/gateway"
-	"github.com/praveen001/uno/pkg/llm"
-	"github.com/praveen001/uno/pkg/llm/responses"
-	"github.com/praveen001/uno/pkg/sdk"
+	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sdk"
 )
 
 func main() {
