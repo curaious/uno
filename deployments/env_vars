@@ -13,3 +13,5 @@ CLICKHOUSE_DATABASE=otel
 
 REDIS_HOST=uno-redis
 REDIS_PORT=6379
+
+ALLOWED_HEADERS="Content-Type, Authorization"
