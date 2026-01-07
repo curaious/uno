@@ -19,7 +19,7 @@ Uno provides a unified interface for interacting with LLMs from OpenAI, Anthropi
 Start the gateway with Docker:
 
 ```bash
-npx --registry=https://npm.pkg.github.com @curaious/uno
+npx @curaious/uno
 ```
 
 Open `http://localhost:3000` to configure providers and create virtual keys.

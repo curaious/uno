@@ -68,7 +68,7 @@ services:
       retries: 5
 
   uno-app:
-    image: ${UNO_IMAGE:-praveen001/uno-gateway:latest}
+    image: ${UNO_IMAGE:-praveenraj9495/uno-gateway:latest}
     ports:
       - "6060:6060"   # Backend API
       - "3000:3000"   # Frontend UI
