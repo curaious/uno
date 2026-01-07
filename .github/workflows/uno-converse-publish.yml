@@ -1,4 +1,4 @@
-name: Publish uno-converse to GitHub Packages
+name: Publish uno-converse to GitHub Packages and NPM
 
 on:
   push:
@@ -22,7 +22,7 @@ jobs:
           corepack enable
           corepack prepare pnpm@9 --activate
 
-      - name: Setup Node.js
+      - name: Setup Node.js for GitHub Packages
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -55,3 +55,17 @@ jobs:
         run: pnpm publish --no-git-checks
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Setup Node.js for NPM registry
+      - name: Setup Node.js for NPM
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      # Publish to NPM
+      - name: Publish to NPM
+        working-directory: ui/packages/uno-converse
+        run: pnpm publish --no-git-checks --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

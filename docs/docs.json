@@ -1,6 +1,6 @@
 {
     "$schema": "https://mintlify.com/docs.json",
-    "theme": "mint",
+    "theme": "maple",
     "name": "Uno",
     "colors": {
         "primary": "#4ade80"
@@ -8,8 +8,23 @@
     "appearance": {
         "default": "dark"
     },
+    "navbar": {
+      "links": [
+        {
+          "label": "Github",
+          "href": "http://github.com/curaious/uno",
+          "icon": "github"
+        }
+      ]
+    },
     "navigation": {
         "tabs": [
+          {
+            "tab": "Introduction",
+            "pages": [
+              "introduction"
+            ]
+          },
           {
             "tab": "Uno SDK",
             "icon": "tools",
@@ -98,151 +113,151 @@
                         "gateway/integrations/anthropic",
                         "gateway/integrations/gemini"
                       ]
-                    }
+                    },
+                  {
+                    "group": "API Reference",
+                    "icon": "code",
+                    "pages": [
+                      {
+                        "group": "Health",
+                        "pages": [
+                          "api-reference/health/health-check"
+                        ]
+                      },
+                      {
+                        "group": "Projects",
+                        "pages": [
+                          "api-reference/projects/list-all-projects",
+                          "api-reference/projects/create-a-new-project",
+                          "api-reference/projects/get-project-id-by-name",
+                          "api-reference/projects/update-a-project",
+                          "api-reference/projects/delete-a-project"
+                        ]
+                      },
+                      {
+                        "group": "Agents",
+                        "pages": [
+                          "api-reference/agents/list-all-agents",
+                          "api-reference/agents/create-a-new-agent",
+                          "api-reference/agents/get-agent-by-name",
+                          "api-reference/agents/get-agent-by-id",
+                          "api-reference/agents/update-an-agent",
+                          "api-reference/agents/delete-an-agent"
+                        ]
+                      },
+                      {
+                        "group": "Models",
+                        "pages": [
+                          "api-reference/models/list-all-models",
+                          "api-reference/models/create-a-new-model",
+                          "api-reference/models/get-model-by-name",
+                          "api-reference/models/get-model-by-id",
+                          "api-reference/models/update-a-model",
+                          "api-reference/models/delete-a-model"
+                        ]
+                      },
+                      {
+                        "group": "Prompts",
+                        "pages": [
+                          "api-reference/prompts/list-all-prompts",
+                          "api-reference/prompts/create-a-new-prompt",
+                          "api-reference/prompts/delete-a-prompt",
+                          "api-reference/prompts/get-prompt-by-name",
+                          "api-reference/prompts/list-prompt-versions",
+                          "api-reference/prompts/create-a-new-prompt-version",
+                          "api-reference/prompts/get-prompt-version-by-version-number",
+                          "api-reference/prompts/delete-a-prompt-version",
+                          "api-reference/prompts/update-prompt-version-label",
+                          "api-reference/prompts/get-prompt-version-by-label"
+                        ]
+                      },
+                      {
+                        "group": "Providers",
+                        "pages": [
+                          "api-reference/providers/get-provider-models",
+                          "api-reference/providers/list-all-api-keys",
+                          "api-reference/providers/create-a-new-api-key",
+                          "api-reference/providers/update-an-api-key",
+                          "api-reference/providers/delete-an-api-key",
+                          "api-reference/providers/list-all-provider-configs",
+                          "api-reference/providers/create-or-update-provider-config"
+                        ]
+                      },
+                      {
+                        "group": "VirtualKeys",
+                        "pages": [
+                          "api-reference/virtualkeys/list-all-virtual-keys",
+                          "api-reference/virtualkeys/create-a-new-virtual-key",
+                          "api-reference/virtualkeys/update-a-virtual-key",
+                          "api-reference/virtualkeys/delete-a-virtual-key"
+                        ]
+                      },
+                      {
+                        "group": "MCPServers",
+                        "pages": [
+                          "api-reference/mcpservers/list-all-mcp-servers",
+                          "api-reference/mcpservers/create-a-new-mcp-server",
+                          "api-reference/mcpservers/get-mcp-server-by-name",
+                          "api-reference/mcpservers/get-mcp-server-by-id",
+                          "api-reference/mcpservers/update-an-mcp-server",
+                          "api-reference/mcpservers/delete-an-mcp-server",
+                          "api-reference/mcpservers/inspect-mcp-server-tools"
+                        ]
+                      },
+                      {
+                        "group": "Schemas",
+                        "pages": [
+                          "api-reference/schemas/list-all-schemas",
+                          "api-reference/schemas/create-a-new-schema",
+                          "api-reference/schemas/get-schema-by-name",
+                          "api-reference/schemas/get-schema-by-id",
+                          "api-reference/schemas/update-a-schema",
+                          "api-reference/schemas/delete-a-schema"
+                        ]
+                      },
+                      {
+                        "group": "Conversations",
+                        "pages": [
+                          "api-reference/conversations/list-conversations",
+                          "api-reference/conversations/get-conversation-by-id",
+                          "api-reference/conversations/list-threads-in-a-conversation",
+                          "api-reference/conversations/get-thread-by-id",
+                          "api-reference/conversations/list-messages-in-a-thread",
+                          "api-reference/conversations/add-messages-to-a-conversationthread",
+                          "api-reference/conversations/get-message-by-id",
+                          "api-reference/conversations/get-all-messages-till-a-specific-run",
+                          "api-reference/conversations/save-a-summary"
+                        ]
+                      },
+                      {
+                        "group": "Converse",
+                        "pages": [
+                          "api-reference/converse/converse-with-an-agent-streaming",
+                          "api-reference/converse/converse-with-an-agent-durable-streaming"
+                        ]
+                      },
+                      {
+                        "group": "Gateway",
+                        "pages": [
+                          "api-reference/gateway/gateway-responses-endpoint",
+                          "api-reference/gateway/anthropic-messages-endpoint",
+                          "api-reference/gateway/gemini-model-endpoint",
+                          "api-reference/gateway/openai-responses-endpoint"
+                        ]
+                      },
+                      {
+                        "group": "Traces",
+                        "pages": [
+                          "api-reference/traces/list-traces-with-optional-filters",
+                          "api-reference/traces/get-a-specific-trace-with-all-spans",
+                          "api-reference/traces/get-service-statistics",
+                          "api-reference/traces/get-endpoint-statistics",
+                          "api-reference/traces/get-list-of-services"
+                        ]
+                      }
+                    ]
+                  }
                 ]
-            },
-            {
-                "tab": "API Reference",
-                "icon": "code",
-                "pages": [
-                    {
-                      "group": "Health",
-                      "pages": [
-                        "api-reference/health/health-check"
-                      ]
-                    },
-                    {
-                      "group": "Projects",
-                      "pages": [
-                        "api-reference/projects/list-all-projects",
-                        "api-reference/projects/create-a-new-project",
-                        "api-reference/projects/get-project-id-by-name",
-                        "api-reference/projects/update-a-project",
-                        "api-reference/projects/delete-a-project"
-                      ]
-                    },
-                    {
-                      "group": "Agents",
-                      "pages": [
-                        "api-reference/agents/list-all-agents",
-                        "api-reference/agents/create-a-new-agent",
-                        "api-reference/agents/get-agent-by-name",
-                        "api-reference/agents/get-agent-by-id",
-                        "api-reference/agents/update-an-agent",
-                        "api-reference/agents/delete-an-agent"
-                      ]
-                    },
-                    {
-                      "group": "Models",
-                      "pages": [
-                        "api-reference/models/list-all-models",
-                        "api-reference/models/create-a-new-model",
-                        "api-reference/models/get-model-by-name",
-                        "api-reference/models/get-model-by-id",
-                        "api-reference/models/update-a-model",
-                        "api-reference/models/delete-a-model"
-                      ]
-                    },
-                    {
-                      "group": "Prompts",
-                      "pages": [
-                        "api-reference/prompts/list-all-prompts",
-                        "api-reference/prompts/create-a-new-prompt",
-                        "api-reference/prompts/delete-a-prompt",
-                        "api-reference/prompts/get-prompt-by-name",
-                        "api-reference/prompts/list-prompt-versions",
-                        "api-reference/prompts/create-a-new-prompt-version",
-                        "api-reference/prompts/get-prompt-version-by-version-number",
-                        "api-reference/prompts/delete-a-prompt-version",
-                        "api-reference/prompts/update-prompt-version-label",
-                        "api-reference/prompts/get-prompt-version-by-label"
-                      ]
-                    },
-                    {
-                      "group": "Providers",
-                      "pages": [
-                        "api-reference/providers/get-provider-models",
-                        "api-reference/providers/list-all-api-keys",
-                        "api-reference/providers/create-a-new-api-key",
-                        "api-reference/providers/update-an-api-key",
-                        "api-reference/providers/delete-an-api-key",
-                        "api-reference/providers/list-all-provider-configs",
-                        "api-reference/providers/create-or-update-provider-config"
-                      ]
-                    },
-                    {
-                      "group": "VirtualKeys",
-                      "pages": [
-                        "api-reference/virtualkeys/list-all-virtual-keys",
-                        "api-reference/virtualkeys/create-a-new-virtual-key",
-                        "api-reference/virtualkeys/update-a-virtual-key",
-                        "api-reference/virtualkeys/delete-a-virtual-key"
-                      ]
-                    },
-                    {
-                      "group": "MCPServers",
-                      "pages": [
-                        "api-reference/mcpservers/list-all-mcp-servers",
-                        "api-reference/mcpservers/create-a-new-mcp-server",
-                        "api-reference/mcpservers/get-mcp-server-by-name",
-                        "api-reference/mcpservers/get-mcp-server-by-id",
-                        "api-reference/mcpservers/update-an-mcp-server",
-                        "api-reference/mcpservers/delete-an-mcp-server",
-                        "api-reference/mcpservers/inspect-mcp-server-tools"
-                      ]
-                    },
-                    {
-                      "group": "Schemas",
-                      "pages": [
-                        "api-reference/schemas/list-all-schemas",
-                        "api-reference/schemas/create-a-new-schema",
-                        "api-reference/schemas/get-schema-by-name",
-                        "api-reference/schemas/get-schema-by-id",
-                        "api-reference/schemas/update-a-schema",
-                        "api-reference/schemas/delete-a-schema"
-                      ]
-                    },
-                    {
-                      "group": "Conversations",
-                      "pages": [
-                        "api-reference/conversations/list-conversations",
-                        "api-reference/conversations/get-conversation-by-id",
-                        "api-reference/conversations/list-threads-in-a-conversation",
-                        "api-reference/conversations/get-thread-by-id",
-                        "api-reference/conversations/list-messages-in-a-thread",
-                        "api-reference/conversations/add-messages-to-a-conversationthread",
-                        "api-reference/conversations/get-message-by-id",
-                        "api-reference/conversations/get-all-messages-till-a-specific-run",
-                        "api-reference/conversations/save-a-summary"
-                      ]
-                    },
-                    {
-                      "group": "Converse",
-                      "pages": [
-                        "api-reference/converse/converse-with-an-agent-streaming",
-                        "api-reference/converse/converse-with-an-agent-durable-streaming"
-                      ]
-                    },
-                    {
-                      "group": "Gateway",
-                      "pages": [
-                        "api-reference/gateway/gateway-responses-endpoint",
-                        "api-reference/gateway/anthropic-messages-endpoint",
-                        "api-reference/gateway/gemini-model-endpoint",
-                        "api-reference/gateway/openai-responses-endpoint"
-                      ]
-                    },
-                    {
-                      "group": "Traces",
-                      "pages": [
-                        "api-reference/traces/list-traces-with-optional-filters",
-                        "api-reference/traces/get-a-specific-trace-with-all-spans",
-                        "api-reference/traces/get-service-statistics",
-                        "api-reference/traces/get-endpoint-statistics",
-                        "api-reference/traces/get-list-of-services"
-                      ]
-                    }
-                  ]
             }
         ]
     }
