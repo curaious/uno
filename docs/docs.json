@@ -1,6 +1,6 @@
 {
     "$schema": "https://mintlify.com/docs.json",
-    "theme": "maple",
+    "theme": "aspen",
     "name": "Uno",
     "colors": {
         "primary": "#4ade80"
@@ -11,7 +11,7 @@
     "navbar": {
       "links": [
         {
-          "label": "Github",
+          "label": "curaious/uno",
           "href": "http://github.com/curaious/uno",
           "icon": "github"
         }

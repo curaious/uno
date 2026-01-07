@@ -1,7 +1,6 @@
 ---
 title: Overview
 description: A Golang SDK for building AI-powered apps, plus an LLM gateway with no-code agent builder
-mode: center
 ---
 
 <div className="max-w-8xl mx-auto relative" style={{ paddingTop: '30px' }}>
@@ -23,7 +22,7 @@ A Golang SDK for developers who want fine-grained control over LLM interactions 
   <Card title="Multi-Provider Support" icon="shuffle">
     Write once, deploy anywhere. Seamlessly switch between OpenAI, Anthropic, and Gemini without rewriting your application logic.
   </Card>
-  <Card title="Agent Framework" icon="robot">
+  <Card title="Agent SDK" icon="robot">
     Build sophisticated AI agents with system instructions, tools, conversation history, and multi-step reasoning out of the box.
   </Card>
   <Card title="MCP Integration" icon="plug">
@@ -137,7 +136,7 @@ const client = new OpenAI({
     </Tabs>
 
 
-### API Keys
+### Key Management
 
       Manage provider keys, virtual keys with rate limits defined per key.
 
@@ -188,17 +187,11 @@ const client = new OpenAI({
 
 <Columns cols={2}>
     <Tile href="/uno-sdk/setting-up" title="Build with the SDK" description="Use the Golang SDK for maximum flexibility and control over your LLM applications">
-        <img src="/images/tiles/accordion-light.svg" alt="SDK" className="block dark:hidden" />
-        <img src="/images/tiles/accordion-dark.svg" alt="SDK" className="hidden dark:block" />
+        ## SDK
     </Tile>
     <Tile href="/gateway/quickstart" title="Deploy the Gateway" description="Get virtual keys, observability, and no-code agent building out of the box">
-        <img src="/images/tiles/accordion-light.svg" alt="Gateway" className="block dark:hidden" />
-        <img src="/images/tiles/accordion-dark.svg" alt="Gateway" className="hidden dark:block" />
+        ## Gateway
     </Tile>
 </Columns>
-
-<Note>
-**Pro tip:** The SDK and Gateway work great together! Use the SDK in Gateway mode to combine programmatic control with centralized key management and observability.
-</Note>
 
 </div>
