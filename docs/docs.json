@@ -20,9 +20,10 @@
     "navigation": {
         "tabs": [
           {
-            "tab": "Introduction",
+            "tab": "Overview",
+            "icon": "book",
             "pages": [
-              "introduction"
+              "Overview"
             ]
           },
           {

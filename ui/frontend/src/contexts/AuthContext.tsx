@@ -33,6 +33,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const authEnabledResponse = await api.get('/auth/enabled');
       setAuth0Enabled(authEnabledResponse.data?.data?.auth0_enabled ?? false);
 
+      if (!authEnabledResponse.data?.data?.auth_enabled) {
+        setIsAuthenticated(true);
+        return
+      }
+
       // Try to get current user info (this will fail if not authenticated)
       const userResponse = await api.get('/auth/me');
       if (userResponse.data?.data) {
