@@ -62,10 +62,11 @@ jobs:
         with:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
+          scope: '@curaious'
 
       # Publish to NPM
       - name: Publish to NPM
         working-directory: ui/packages/uno-converse
-        run: pnpm publish --no-git-checks --access public --registry https://registry.npmjs.org
+        run: pnpm publish --no-git-checks --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
