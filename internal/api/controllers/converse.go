@@ -251,8 +251,6 @@ func buildAgent(ctx context.Context, svc *services.Services, llmGateway *gateway
 					}
 				}
 
-				options = append(options, mcpclient.WithApprovalRequiredTools("list_enumerations"))
-
 				mcpServer, err := mcpclient.NewSSEClient(context.Background(), mcpServerConfig.Endpoint, options...)
 				if err != nil {
 					slog.WarnContext(ctx, "Failed to connect to MCP server", slog.String("server_id", mcpServerID.String()), slog.Any("error", err))

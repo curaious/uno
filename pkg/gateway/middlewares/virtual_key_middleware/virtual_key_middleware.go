@@ -135,6 +135,11 @@ func (middleware *VirtualKeyMiddleware) getDirectKey(ctx context.Context, provid
 		return key, err
 	}
 
+	// Ollama doesn't require api keys
+	if providerName == llm.ProviderNameOllama {
+		return key, nil
+	}
+
 	providerConfig, err := middleware.configStore.GetProviderConfig(providerName)
 	if err != nil {
 		err = errors.New("failed to get provider config")
