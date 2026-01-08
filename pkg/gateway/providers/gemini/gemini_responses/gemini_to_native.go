@@ -363,6 +363,11 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleStreamEnd() []*respo
 func (c *ResponseChunkToNativeResponseChunkConverter) handlePart(part *Part) []*responses.ResponseChunk {
 	var out []*responses.ResponseChunk
 
+	// Check if it is an empty part
+	if part.Text != nil && *part.Text == "" {
+		return []*responses.ResponseChunk{}
+	}
+
 	// Check if we need to complete previous part (content type changed)
 	if c.shouldEndPreviousPart(part) {
 		out = append(out, c.completeCurrentPart()...)
@@ -446,7 +451,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleTextPart(part *Part)
 	}
 
 	// Avoid emitting empty text if thought signature is present
-	if (part.Text == nil || *part.Text == "") && *part.ThoughtSignature != "" {
+	if (part.Text == nil || *part.Text == "") && (part.ThoughtSignature != nil && *part.ThoughtSignature != "") {
 		return out
 	}
 
@@ -494,7 +499,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleFunctionCallPart(par
 	// Emit start events if this is a new output item
 	if !c.outputItemActive {
 		callID := uuid.NewString() + "_" + part.FunctionCall.Name
-		out = append(out, c.buildOutputItemAddedFunctionCall(callID, part.FunctionCall.Name, argsStr))
+		out = append(out, c.buildOutputItemAddedFunctionCall(callID, part.FunctionCall.Name, argsStr, part.ThoughtSignature))
 	}
 
 	// Emit delta
@@ -670,7 +675,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedMessag
 	}
 }
 
-func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedFunctionCall(callID, name, args string) *responses.ResponseChunk {
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedFunctionCall(callID, name, args string, thoughtSignature *string) *responses.ResponseChunk {
 	c.outputItemID = responses.NewOutputItemFunctionCallID()
 
 	return &responses.ResponseChunk{
@@ -679,12 +684,13 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedFuncti
 			SequenceNumber: c.nextSeqNum(),
 			OutputIndex:    0,
 			Item: responses.ChunkOutputItemData{
-				Type:      "function_call",
-				Id:        c.outputItemID,
-				Status:    "in_progress",
-				CallID:    utils.Ptr(callID),
-				Name:      utils.Ptr(name),
-				Arguments: utils.Ptr(args),
+				Type:             "function_call",
+				Id:               c.outputItemID,
+				Status:           "in_progress",
+				CallID:           utils.Ptr(callID),
+				Name:             utils.Ptr(name),
+				Arguments:        utils.Ptr(args),
+				ThoughtSignature: thoughtSignature, // Special case: gemini can have thought signature of function calls
 			},
 		},
 	}
@@ -809,12 +815,13 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneFunctio
 			SequenceNumber: c.nextSeqNum(),
 			OutputIndex:    0,
 			Item: responses.ChunkOutputItemData{
-				Type:      "function_call",
-				Id:        c.outputItemID,
-				Status:    "completed",
-				CallID:    utils.Ptr(callID),
-				Name:      utils.Ptr(name),
-				Arguments: utils.Ptr(args),
+				Type:             "function_call",
+				Id:               c.outputItemID,
+				Status:           "completed",
+				CallID:           utils.Ptr(callID),
+				Name:             utils.Ptr(name),
+				Arguments:        utils.Ptr(args),
+				ThoughtSignature: c.previousPart.ThoughtSignature,
 			},
 		},
 	}

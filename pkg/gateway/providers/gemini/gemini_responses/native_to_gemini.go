@@ -202,6 +202,7 @@ func NativeMessagesToMessages(in responses.InputUnion) []Content {
 								Name: nativeMessage.OfFunctionCall.Name,
 								Args: args,
 							},
+							ThoughtSignature: nativeMessage.OfFunctionCall.ThoughtSignature,
 						},
 					},
 				})

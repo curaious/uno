@@ -184,7 +184,7 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 						geminiChunk := &gemini_responses.Response{}
 						err = sonic.Unmarshal([]byte(data.String()), &geminiChunk)
 						if err == nil {
-							fmt.Println(data)
+							fmt.Println(data.String())
 							for _, nativeChunk := range converter.ResponseChunkToNativeResponseChunk(geminiChunk) {
 								out <- nativeChunk
 							}

@@ -582,10 +582,11 @@ func (a *Accumulator) ReadStream(stream chan *responses.ResponseChunk, cb func(c
 			if chunk.OfOutputItemDone.Item.Type == "function_call" {
 				finalOutput = append(finalOutput, responses.OutputMessageUnion{
 					OfFunctionCall: &responses.FunctionCallMessage{
-						ID:        chunk.OfOutputItemDone.Item.Id,
-						CallID:    *chunk.OfOutputItemDone.Item.CallID,
-						Name:      *chunk.OfOutputItemDone.Item.Name,
-						Arguments: *chunk.OfOutputItemDone.Item.Arguments,
+						ID:               chunk.OfOutputItemDone.Item.Id,
+						CallID:           *chunk.OfOutputItemDone.Item.CallID,
+						Name:             *chunk.OfOutputItemDone.Item.Name,
+						Arguments:        *chunk.OfOutputItemDone.Item.Arguments,
+						ThoughtSignature: chunk.OfOutputItemDone.Item.ThoughtSignature,
 					},
 				})
 			}

@@ -31,6 +31,7 @@ var ProviderModels = map[llm.ProviderName][]string{
 		"claude-3-5-haiku",
 	},
 	llm.ProviderNameGemini: {
+		"gemini-3-flash-preview",
 		"gemini-3-pro-preview",
 		"gemini-3-pro",
 		"gemini-2.5-pro",

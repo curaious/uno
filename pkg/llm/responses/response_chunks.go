@@ -407,9 +407,10 @@ type ChunkOutputItemData struct {
 	Role    constants.Role `json:"role"`
 
 	// For output_item of type "function_call"
-	CallID    *string `json:"call_id,omitempty"`
-	Name      *string `json:"name,omitempty"`
-	Arguments *string `json:"arguments,omitempty"`
+	CallID           *string `json:"call_id,omitempty"`
+	Name             *string `json:"name,omitempty"`
+	Arguments        *string `json:"arguments,omitempty"`
+	ThoughtSignature *string `json:"thought_signature,omitempty"` // Exception: Gemini function calls can have though signature
 
 	// For "reasoning"
 	EncryptedContent *string              `json:"encrypted_content,omitempty"`
