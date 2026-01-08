@@ -79,9 +79,10 @@ type Agent struct {
 
 // AgentMCPServer represents the relationship between an agent and an MCP server with tool filters
 type AgentMCPServer struct {
-	AgentID     uuid.UUID   `json:"agent_id" db:"agent_id"`
-	MCPServerID uuid.UUID   `json:"mcp_server_id" db:"mcp_server_id"`
-	ToolFilters ToolFilters `json:"tool_filters" db:"tool_filters"`
+	AgentID                     uuid.UUID   `json:"agent_id" db:"agent_id"`
+	MCPServerID                 uuid.UUID   `json:"mcp_server_id" db:"mcp_server_id"`
+	ToolFilters                 ToolFilters `json:"tool_filters" db:"tool_filters"`
+	ToolsRequiringHumanApproval ToolFilters `json:"tools_requiring_human_approval" db:"tools_requiring_human_approval"`
 }
 
 // AgentWithDetails includes related information
@@ -132,8 +133,9 @@ type CreateAgentRequest struct {
 
 // AgentMCPServerReq represents MCP server configuration in a request
 type AgentMCPServerReq struct {
-	MCPServerID uuid.UUID   `json:"mcp_server_id" validate:"required"`
-	ToolFilters ToolFilters `json:"tool_filters,omitempty"`
+	MCPServerID                 uuid.UUID   `json:"mcp_server_id" validate:"required"`
+	ToolFilters                 ToolFilters `json:"tool_filters,omitempty"`
+	ToolsRequiringHumanApproval ToolFilters `json:"tools_requiring_human_approval,omitempty"`
 }
 
 // UpdateAgentRequest represents the request to update an agent

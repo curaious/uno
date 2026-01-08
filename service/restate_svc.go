@@ -402,6 +402,10 @@ func fetchAndConnectMCPServers(ctx context.Context, projectID uuid.UUID, agentCo
 					if agentMcpConfig.ToolFilters != nil && len(agentMcpConfig.ToolFilters) > 0 {
 						options = append(options, mcpclient.WithToolFilter(agentMcpConfig.ToolFilters...))
 					}
+
+					if agentMcpConfig.ToolsRequiringHumanApproval != nil && len(agentMcpConfig.ToolsRequiringHumanApproval) > 0 {
+						options = append(options, mcpclient.WithApprovalRequiredTools(agentMcpConfig.ToolsRequiringHumanApproval...))
+					}
 				}
 
 				mcpServer, err := mcpclient.NewSSEClient(context.Background(), mcpServerConfig.Endpoint, options...)

@@ -182,6 +182,7 @@ export const Agents: React.FC = props => {
     const mcpServersData = (agent.mcp_servers || []).map(ms => ({
       mcp_server_id: ms.mcp_server_id,
       tool_filters: ms.tool_filters || [],
+      tools_requiring_human_approval: ms.tools_requiring_human_approval || [],
     }));
     
     setFormData({
@@ -246,7 +247,7 @@ export const Agents: React.FC = props => {
       ...formData,
       mcp_servers: [
         ...(formData.mcp_servers || []),
-        { mcp_server_id: '', tool_filters: [] }
+        { mcp_server_id: '', tool_filters: [], tools_requiring_human_approval: [] }
       ],
     });
   };
@@ -311,16 +312,17 @@ export const Agents: React.FC = props => {
     }
   };
 
-  const handleMcpServerChange = async (index: number, field: 'mcp_server_id' | 'tool_filters', value: string | string[]) => {
+  const handleMcpServerChange = async (index: number, field: 'mcp_server_id' | 'tool_filters' | 'tools_requiring_human_approval', value: string | string[]) => {
     const updated = [...(formData.mcp_servers || [])];
     updated[index] = {
       ...updated[index],
       [field]: value,
     };
     
-    // If MCP server is being changed, fetch tools and reset tool_filters
+    // If MCP server is being changed, fetch tools and reset tool_filters and tools_requiring_human_approval
     if (field === 'mcp_server_id' && typeof value === 'string') {
       updated[index].tool_filters = [];
+      updated[index].tools_requiring_human_approval = [];
       if (value) {
         await fetchMcpServerTools(value);
       }
@@ -334,6 +336,10 @@ export const Agents: React.FC = props => {
 
   const handleToolFiltersChange = (index: number, selectedTools: string[]) => {
     handleMcpServerChange(index, 'tool_filters', selectedTools);
+  };
+
+  const handleToolsRequiringHumanApprovalChange = (index: number, selectedTools: string[]) => {
+    handleMcpServerChange(index, 'tools_requiring_human_approval', selectedTools);
   };
 
   const validateForm = (): boolean => {
@@ -1016,6 +1022,7 @@ export const Agents: React.FC = props => {
                     )}
                   </Box>
                   {mcpServer.mcp_server_id && (
+                    <>
                     <Box>
                       <label htmlFor={`tool_filters_${index}`} style={{ fontSize: '0.875rem', fontWeight: 500, display: 'block', marginBottom: 0.5 }}>
                         Tool Filters (Optional)
@@ -1084,6 +1091,75 @@ export const Agents: React.FC = props => {
                         </>
                       )}
                     </Box>
+                    <Box sx={{ mt: 2 }}>
+                      <label htmlFor={`tools_requiring_human_approval_${index}`} style={{ fontSize: '0.875rem', fontWeight: 500, display: 'block', marginBottom: 0.5 }}>
+                        Tools Requiring Human Approval (Optional)
+                      </label>
+                      {loadingTools[mcpServer.mcp_server_id] ? (
+                        <Box display="flex" alignItems="center" gap={1} sx={{ py: 1 }}>
+                          <CircularProgress size={16} />
+                          <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Loading tools...</span>
+                        </Box>
+                      ) : toolErrors[mcpServer.mcp_server_id] ? (
+                        <Box sx={{ py: 1 }}>
+                          <span style={{ color: 'red', fontSize: '0.875rem' }}>{toolErrors[mcpServer.mcp_server_id]}</span>
+                        </Box>
+                      ) : (
+                        <>
+                          <Select
+                            id={`tools_requiring_human_approval_${index}`}
+                            multiple
+                            value={mcpServer.tools_requiring_human_approval || []}
+                            onChange={(e) => handleToolsRequiringHumanApprovalChange(index, e.target.value as string[])}
+                            renderValue={(selected) => {
+                              if ((selected as string[]).length === 0) {
+                                return <span style={{ color: 'var(--text-secondary)' }}>No tools require approval</span>;
+                              }
+                              return (
+                                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                                  {(selected as string[]).slice(0, 2).map((value) => (
+                                    <Chip key={value} label={value} size="small" />
+                                  ))}
+                                  {(selected as string[]).length > 2 && (
+                                    <Chip label={`+${(selected as string[]).length - 2} more`} size="small" />
+                                  )}
+                                </Box>
+                              );
+                            }}
+                            fullWidth
+                            size="small"
+                            MenuProps={{
+                              style: { zIndex: 1500 },
+                              PaperProps: {
+                                style: { zIndex: 1500, maxHeight: 300 }
+                              }
+                            }}
+                          >
+                            {mcpServerTools[mcpServer.mcp_server_id]?.length > 0 ? (
+                              mcpServerTools[mcpServer.mcp_server_id].map((tool) => (
+                                <MenuItem key={tool.name} value={tool.name}>
+                                  <Checkbox checked={(mcpServer.tools_requiring_human_approval || []).indexOf(tool.name) > -1} />
+                                  <ListItemText
+                                    primary={tool.name}
+                                    secondary={tool.description ? tool.description.substring(0, 80) + (tool.description.length > 80 ? '...' : '') : undefined}
+                                  />
+                                </MenuItem>
+                              ))
+                            ) : (
+                              <MenuItem disabled>No tools available</MenuItem>
+                            )}
+                          </Select>
+                          <Box sx={{ mt: 0.5 }}>
+                            <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              {mcpServer.tools_requiring_human_approval && mcpServer.tools_requiring_human_approval.length > 0
+                                ? `${mcpServer.tools_requiring_human_approval.length} tool(s) require approval`
+                                : `No tools require human approval`}
+                            </span>
+                          </Box>
+                        </>
+                      )}
+                    </Box>
+                </>
                   )}
                 </Box>
               ))}

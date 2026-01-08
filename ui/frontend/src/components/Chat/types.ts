@@ -309,6 +309,7 @@ export interface AgentMCPServer {
   agent_id: string;
   mcp_server_id: string;
   tool_filters: string[];
+  tools_requiring_human_approval: string[];
 }
 
 export interface AgentMCPServerDetail extends AgentMCPServer {
@@ -326,6 +327,7 @@ export interface AgentWithDetails extends Agent {
 export interface AgentMCPServerReq {
   mcp_server_id: string;
   tool_filters?: string[];
+  tools_requiring_human_approval?: string[];
 }
 
 export interface CreateAgentRequest {
