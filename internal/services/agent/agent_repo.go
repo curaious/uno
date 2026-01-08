@@ -58,10 +58,13 @@ func (r *AgentRepo) Create(ctx context.Context, projectID uuid.UUID, req *Create
 			if mcpServer.ToolFilters == nil {
 				mcpServer.ToolFilters = ToolFilters{}
 			}
+			if mcpServer.ToolsRequiringHumanApproval == nil {
+				mcpServer.ToolsRequiringHumanApproval = ToolFilters{}
+			}
 			_, err = tx.Exec(`
-				INSERT INTO agent_mcp_servers (agent_id, mcp_server_id, tool_filters)
-				VALUES ($1, $2, $3)
-			`, agent.ID, mcpServer.MCPServerID, mcpServer.ToolFilters)
+				INSERT INTO agent_mcp_servers (agent_id, mcp_server_id, tool_filters, tools_requiring_human_approval)
+				VALUES ($1, $2, $3, $4)
+			`, agent.ID, mcpServer.MCPServerID, mcpServer.ToolFilters, mcpServer.ToolsRequiringHumanApproval)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create agent MCP server relationship: %w", err)
 			}
@@ -121,7 +124,7 @@ func (r *AgentRepo) GetByID(ctx context.Context, projectID, id uuid.UUID) (*Agen
 	// Get MCP servers for this agent
 	mcpServersQuery := `
 		SELECT 
-			ams.agent_id, ams.mcp_server_id, ams.tool_filters,
+			ams.agent_id, ams.mcp_server_id, ams.tool_filters, ams.tools_requiring_human_approval,
 			ms.name as mcp_server_name
 		FROM agent_mcp_servers ams
 		JOIN mcp_servers ms ON ams.mcp_server_id = ms.id
@@ -185,7 +188,7 @@ func (r *AgentRepo) GetByName(ctx context.Context, projectID uuid.UUID, name str
 	// Get MCP servers for this agent
 	mcpServersQuery := `
 		SELECT 
-			ams.agent_id, ams.mcp_server_id, ams.tool_filters,
+			ams.agent_id, ams.mcp_server_id, ams.tool_filters, ams.tools_requiring_human_approval,
 			ms.name as mcp_server_name
 		FROM agent_mcp_servers ams
 		JOIN mcp_servers ms ON ams.mcp_server_id = ms.id
@@ -248,7 +251,7 @@ func (r *AgentRepo) List(ctx context.Context, projectID uuid.UUID) ([]*AgentWith
 	for _, agent := range agents {
 		mcpServersQuery := `
 			SELECT 
-				ams.agent_id, ams.mcp_server_id, ams.tool_filters,
+				ams.agent_id, ams.mcp_server_id, ams.tool_filters, ams.tools_requiring_human_approval,
 				ms.name as mcp_server_name
 			FROM agent_mcp_servers ams
 			JOIN mcp_servers ms ON ams.mcp_server_id = ms.id
@@ -408,10 +411,13 @@ func (r *AgentRepo) Update(ctx context.Context, projectID, id uuid.UUID, req *Up
 				if mcpServer.ToolFilters == nil {
 					mcpServer.ToolFilters = ToolFilters{}
 				}
+				if mcpServer.ToolsRequiringHumanApproval == nil {
+					mcpServer.ToolsRequiringHumanApproval = ToolFilters{}
+				}
 				_, err = tx.Exec(`
-					INSERT INTO agent_mcp_servers (agent_id, mcp_server_id, tool_filters)
-					VALUES ($1, $2, $3)
-				`, id, mcpServer.MCPServerID, mcpServer.ToolFilters)
+					INSERT INTO agent_mcp_servers (agent_id, mcp_server_id, tool_filters, tools_requiring_human_approval)
+					VALUES ($1, $2, $3, $4)
+				`, id, mcpServer.MCPServerID, mcpServer.ToolFilters, mcpServer.ToolsRequiringHumanApproval)
 				if err != nil {
 					return nil, fmt.Errorf("failed to create agent MCP server relationship: %w", err)
 				}
