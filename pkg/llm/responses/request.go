@@ -262,11 +262,12 @@ type InputMessage struct {
 }
 
 type FunctionCallMessage struct {
-	Type      constants.MessageTypeFunctionCall `json:"type"`
-	ID        string                            `json:"id,omitempty"`
-	CallID    string                            `json:"call_id,omitempty"`
-	Name      string                            `json:"name"`
-	Arguments string                            `json:"arguments"`
+	Type             constants.MessageTypeFunctionCall `json:"type"`
+	ID               string                            `json:"id,omitempty"`
+	CallID           string                            `json:"call_id,omitempty"`
+	Name             string                            `json:"name"`
+	Arguments        string                            `json:"arguments"`
+	ThoughtSignature *string                           `json:"thought_signature,omitempty"` // Only for gemini
 }
 
 type FunctionCallApprovalResponseMessage struct {
