@@ -183,6 +183,7 @@ type ChunkContentBlockDeltaUnion struct {
 	OfInputJSON         *DeltaInputJSONContent         `json:",omitempty"`
 	OfThinking          *DeltaThinkingContent          `json:",omitempty"`
 	OfThinkingSignature *DeltaThinkingSignatureContent `json:",omitempty"`
+	OfCitation          *DeltaCitation                 `json:",omitempty"`
 }
 
 func (u *ChunkContentBlockDeltaUnion) UnmarshalJSON(data []byte) error {
@@ -210,6 +211,12 @@ func (u *ChunkContentBlockDeltaUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var citation *DeltaCitation
+	if err := sonic.Unmarshal(data, &citation); err == nil {
+		u.OfCitation = citation
+		return nil
+	}
+
 	return errors.New("invalid delta union")
 }
 
@@ -228,6 +235,10 @@ func (u *ChunkContentBlockDeltaUnion) MarshalJSON() ([]byte, error) {
 
 	if u.OfThinkingSignature != nil {
 		return sonic.Marshal(u.OfThinkingSignature)
+	}
+
+	if u.OfCitation != nil {
+		return sonic.Marshal(u.OfCitation)
 	}
 
 	return nil, nil
@@ -251,4 +262,9 @@ type DeltaThinkingContent struct {
 type DeltaThinkingSignatureContent struct {
 	Type      ContentTypeDeltaThinkingSignature `json:"type"`
 	Signature string                            `json:"signature"`
+}
+
+type DeltaCitation struct {
+	Type     ContentTypeDeltaCitation `json:"type"`
+	Citation Citation                 `json:"citation"`
 }

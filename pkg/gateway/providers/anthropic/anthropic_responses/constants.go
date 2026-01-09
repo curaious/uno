@@ -64,6 +64,24 @@ func (m ContentTypeRedactedThinking) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type ContentTypeServerToolUse string
+
+func (m ContentTypeServerToolUse) Value() string                { return "server_tool_use" }
+func (m ContentTypeServerToolUse) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
+func (m ContentTypeServerToolUse) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ContentTypeWebSearchResultContent string
+
+func (m ContentTypeWebSearchResultContent) Value() string { return "web_search_tool_result" }
+func (m ContentTypeWebSearchResultContent) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m ContentTypeWebSearchResultContent) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 type ContentTypeDeltaText string
 
 func (m ContentTypeDeltaText) Value() string                  { return "text_delta" }
@@ -93,6 +111,16 @@ func (m ContentTypeDeltaThinkingSignature) MarshalJSON() ([]byte, error) {
 	return sonic.Marshal(m.Value())
 }
 func (m ContentTypeDeltaThinkingSignature) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ContentTypeDeltaCitation string
+
+func (m ContentTypeDeltaCitation) Value() string { return "citations_delta" }
+func (m ContentTypeDeltaCitation) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m ContentTypeDeltaCitation) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
@@ -169,6 +197,30 @@ func (m ChunkTypeContentBlockStop) UnmarshalJSON(buf []byte) error {
 
 // ------------------ //
 // End Of Chunk Type //
+// ---------------- //
+
+// ------------//
+// Tool types //
+// ----------//
+
+type ToolTypeCustomTool string
+
+func (m ToolTypeCustomTool) Value() string                { return "custom" }
+func (m ToolTypeCustomTool) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
+func (m ToolTypeCustomTool) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ToolTypeWebSearchTool string
+
+func (m ToolTypeWebSearchTool) Value() string                { return "web_search_20250305" }
+func (m ToolTypeWebSearchTool) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
+func (m ToolTypeWebSearchTool) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+// ------------------ //
+// End of tool types //
 // ---------------- //
 
 // ------------ //

@@ -40,6 +40,8 @@ type ContentUnion struct {
 	OfToolResult       *ToolUseResultContent    `json:",omitempty"`
 	OfThinking         *ThinkingContent         `json:",omitempty"`
 	OfRedactedThinking *RedactedThinkingContent `json:",omitempty"`
+	OfServerToolUse    *ServerToolUseContent    `json:",omitempty"`
+	OfWebSearchResult  *WebSearchResultContent  `json:",omitempty"`
 }
 
 func (u *ContentUnion) UnmarshalJSON(data []byte) error {
@@ -73,6 +75,18 @@ func (u *ContentUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var serverToolUseContent ServerToolUseContent
+	if err := sonic.Unmarshal(data, &serverToolUseContent); err == nil {
+		u.OfServerToolUse = &serverToolUseContent
+		return nil
+	}
+
+	var webSearchResultContent WebSearchResultContent
+	if err := sonic.Unmarshal(data, &webSearchResultContent); err == nil {
+		u.OfWebSearchResult = &webSearchResultContent
+		return nil
+	}
+
 	return errors.New("invalid input content union")
 }
 
@@ -97,12 +111,29 @@ func (u *ContentUnion) MarshalJSON() ([]byte, error) {
 		return sonic.Marshal(*u.OfRedactedThinking)
 	}
 
+	if u.OfServerToolUse != nil {
+		return sonic.Marshal(*u.OfServerToolUse)
+	}
+
+	if u.OfWebSearchResult != nil {
+		return sonic.Marshal(*u.OfWebSearchResult)
+	}
+
 	return nil, nil
 }
 
 type TextContent struct {
-	Type ContentTypeText `json:"type"` // "text"
-	Text string          `json:"text"`
+	Type      ContentTypeText `json:"type"` // "text"
+	Text      string          `json:"text"`
+	Citations []Citation      `json:"citations,omitempty"`
+}
+
+type Citation struct {
+	Type           string `json:"type"` // web_search_result_location
+	Url            string `json:"url"`
+	Title          string `json:"title"`
+	EncryptedIndex string `json:"encrypted_index"`
+	CitedText      string `json:"cited_text"`
 }
 
 type ToolUseContent struct {
@@ -130,14 +161,52 @@ type RedactedThinkingContent struct {
 	Data string                      `json:"data"`
 }
 
+type ServerToolUseContent struct {
+	Type  ContentTypeServerToolUse `json:"type"`
+	Id    string                   `json:"id"`
+	Name  string                   `json:"name"` // "web_search"
+	Input struct {
+		Query string `json:"query"`
+	} `json:"input"`
+}
+
+type WebSearchResultContent struct {
+	Type      ContentTypeWebSearchResultContent `json:"type"`
+	ToolUseId string                            `json:"tool_use_id"`
+	Content   []WebSearchResultContentParam     `json:"content"`
+}
+
+type WebSearchResultContentParam struct {
+	Type             string `json:"type"` // "web_search_result"
+	Url              string `json:"url"`
+	Title            string `json:"title"`
+	EncryptedContent string `json:"encrypted_content"`
+	PageAge          string `json:"page_age"`
+}
+
+type WebSearchToolUserLocationParam struct {
+	Type     string `json:"type"`
+	City     string `json:"city"`
+	Region   string `json:"region"`
+	Country  string `json:"country"`
+	Timezone string `json:"timezone"`
+}
+
 type ToolUnion struct {
-	OfCustomTool *CustomTool `json:",omitempty"`
+	OfCustomTool    *CustomTool    `json:",omitempty"`
+	OfWebSearchTool *WebSearchTool `json:",omitempty"`
 }
 
 func (u *ToolUnion) UnmarshalJSON(data []byte) error {
 	var customTool CustomTool
 	if err := sonic.Unmarshal(data, &customTool); err == nil {
 		u.OfCustomTool = &customTool
+		return nil
+	}
+
+	var webSearchTool WebSearchTool
+	if err := sonic.Unmarshal(data, &webSearchTool); err == nil {
+		u.OfWebSearchTool = &webSearchTool
 		return nil
 	}
 
@@ -149,12 +218,25 @@ func (u *ToolUnion) MarshalJSON() ([]byte, error) {
 		return sonic.Marshal(u.OfCustomTool)
 	}
 
+	if u.OfWebSearchTool != nil {
+		return sonic.Marshal(u.OfWebSearchTool)
+	}
+
 	return nil, nil
 }
 
 type CustomTool struct {
-	Type        string         `json:"type"` // "custom"
-	Name        string         `json:"name"`
-	Description *string        `json:"description,omitempty"`
-	InputSchema map[string]any `json:"input_schema"`
+	Type        ToolTypeCustomTool `json:"type"` // "custom"
+	Name        string             `json:"name"`
+	Description *string            `json:"description,omitempty"`
+	InputSchema map[string]any     `json:"input_schema"`
+}
+
+type WebSearchTool struct {
+	Type           ToolTypeWebSearchTool           `json:"type"`
+	Name           string                          `json:"name"`
+	MaxUses        int                             `json:"max_uses"`
+	AllowedDomains []string                        `json:"allowed_domains,omitempty"`
+	BlockedDomains []string                        `json:"blocked_domains,omitempty"`
+	UserLocation   *WebSearchToolUserLocationParam `json:"user_location,omitempty"`
 }
