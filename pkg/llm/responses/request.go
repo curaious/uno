@@ -439,8 +439,7 @@ type Annotation struct {
 	StartIndex int    `json:"start_index"`
 	EndIndex   int    `json:"end_index"`
 
-	Text      string `json:"text"`
-	Operation string `json:"operation"`
+	ExtraParams map[string]any `json:"extra_params"`
 }
 
 type FunctionCallOutputContentUnion struct {
@@ -603,6 +602,7 @@ type WebSearchCallActionOfFind struct {
 }
 
 type WebSearchCallActionOfSearchSource struct {
-	Type string `json:"type"` // always "url"
-	URL  string `json:"url"`
+	Type        string         `json:"type"` // always "url"
+	URL         string         `json:"url"`
+	ExtraParams map[string]any `json:"extra_params"`
 }

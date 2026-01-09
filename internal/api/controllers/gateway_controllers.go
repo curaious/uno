@@ -253,6 +253,8 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 						break loop
 					}
 
+					//b, _ := sonic.Marshal(nativeChunk)
+					//fmt.Println("---\nnative chunk -> " + string(b))
 					anthropicChunks := converter.NativeResponseChunkToResponseChunk(nativeChunk)
 					for _, anthropicChunk := range anthropicChunks {
 						buf, err := sonic.Marshal(&anthropicChunk)
@@ -260,7 +262,7 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 							slog.WarnContext(ctx, "Error encoding response: %v\n", err)
 							continue
 						}
-						fmt.Println(string(buf))
+						//fmt.Println("\t\t <- Anthropic Chunk: " + string(buf))
 
 						_, _ = fmt.Fprintf(w, "event: %s\n", anthropicChunk.ChunkType())
 						_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
@@ -319,6 +321,13 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 			return
 		}
 
+		provider := llm.ProviderNameOpenAI
+		if strings.Contains(openAiRequest.Model, "/") {
+			frag := strings.SplitN(openAiRequest.Model, "/", 2)
+			provider = llm.ProviderName(frag[0])
+			openAiRequest.Model = frag[1]
+		}
+
 		// Convert it into generic responses input
 		nativeRequest := openAiRequest.ToNativeRequest()
 
@@ -330,7 +339,7 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 		// Handle non-streaming request
 		if !nativeRequest.IsStreamingRequest() {
 			// Call gateway to handle the gateway request
-			out, err := llmGateway.HandleRequest(ctx, llm.ProviderNameOpenAI, vk, req)
+			out, err := llmGateway.HandleRequest(ctx, provider, vk, req)
 			if err != nil {
 				writeError(ctx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
 				return

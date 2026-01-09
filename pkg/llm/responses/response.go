@@ -171,3 +171,7 @@ func NewOutputItemFunctionCallID() string {
 func NewOutputItemReasoningID() string {
 	return "rs_" + uuid.NewString()
 }
+
+func NewOutputItemWebSearchCallID() string {
+	return "ws_" + uuid.NewString()
+}

@@ -142,7 +142,10 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 					continue
 				}
 
+				//fmt.Println("---\nAnthropic chunk -> " + strings.TrimPrefix(line, "data:"))
 				for _, nativeChunk := range converter.ResponseChunkToNativeResponseChunk(anthropicResponseChunk) {
+					//d, _ := sonic.Marshal(nativeChunk)
+					//fmt.Println("\t\t <- Native Chunk" + string(d))
 					out <- nativeChunk
 				}
 			}

@@ -85,6 +85,12 @@ func (in *ToolUnion) ToNative() responses.ToolUnion {
 		}
 	}
 
+	if in.OfWebSearchTool != nil {
+		out.OfWebSearch = &responses.WebSearchTool{
+			Type: "web_search",
+		}
+	}
+
 	return out
 }
 
@@ -94,14 +100,20 @@ func MessagesToNativeMessages(msgs []MessageUnion) responses.InputUnion {
 		OfInputMessageList: responses.InputMessageList{},
 	}
 
+	c := anthropicToNativeMessageConverter{}
+
 	for _, msg := range msgs {
-		out.OfInputMessageList = append(out.OfInputMessageList, msg.ToNativeMessage()...)
+		out.OfInputMessageList = append(out.OfInputMessageList, c.ToNativeMessage(&msg)...)
 	}
 
 	return out
 }
 
-func (msg *MessageUnion) ToNativeMessage() []responses.InputMessageUnion {
+type anthropicToNativeMessageConverter struct {
+	previousServerToolUse *ServerToolUseContent
+}
+
+func (c *anthropicToNativeMessageConverter) ToNativeMessage(msg *MessageUnion) []responses.InputMessageUnion {
 	out := []responses.InputMessageUnion{}
 
 	for _, content := range msg.Content {
@@ -183,6 +195,45 @@ func (msg *MessageUnion) ToNativeMessage() []responses.InputMessageUnion {
 				},
 			})
 		}
+
+		if content.OfServerToolUse != nil {
+			c.previousServerToolUse = content.OfServerToolUse
+		}
+
+		if content.OfWebSearchResult != nil {
+			if c.previousServerToolUse != nil && c.previousServerToolUse.Name == "web_search" {
+				id := c.previousServerToolUse.Id
+				query := c.previousServerToolUse.Input.Query
+				var sources []responses.WebSearchCallActionOfSearchSource
+				for _, searchResultContent := range content.OfWebSearchResult.Content {
+					sources = append(sources, responses.WebSearchCallActionOfSearchSource{
+						Type: "url",
+						URL:  searchResultContent.Url,
+						ExtraParams: map[string]any{
+							"Anthropic": searchResultContent,
+						},
+					})
+				}
+
+				out = append(out, responses.InputMessageUnion{
+					OfWebSearchCall: &responses.WebSearchCallMessage{
+						ID: id,
+						Action: responses.WebSearchCallActionUnion{
+							OfSearch: &responses.WebSearchCallActionOfSearch{
+								Queries: []string{
+									query,
+								},
+								Query:   query,
+								Sources: sources,
+							},
+						},
+						Status: "completed",
+					},
+				})
+
+				c.previousServerToolUse = nil
+			}
+		}
 	}
 
 	return out
@@ -191,15 +242,34 @@ func (msg *MessageUnion) ToNativeMessage() []responses.InputMessageUnion {
 func (in *Response) ToNativeResponse() *responses.Response {
 	output := []responses.OutputMessageUnion{}
 
+	var previousWebSearchCall *ServerToolUseContent
+
 	for _, content := range in.Content {
 		if content.OfText != nil {
+			// If the text has citations, we will convert it into annotation of type "url_citation"
+			// we also store the raw citation in extra_params
+			var annotations []responses.Annotation
+			for _, citation := range content.OfText.Citations {
+				annotations = append(annotations, responses.Annotation{
+					Type:       "url_citation",
+					Title:      citation.Title,
+					URL:        citation.Url,
+					StartIndex: 0,
+					EndIndex:   0,
+					ExtraParams: map[string]any{
+						"Anthropic": citation,
+					},
+				})
+			}
+
 			output = append(output, responses.OutputMessageUnion{
 				OfOutputMessage: &responses.OutputMessage{
 					Role: constants.RoleAssistant,
 					Content: responses.OutputContent{
 						{
 							OfOutputText: &responses.OutputTextContent{
-								Text: content.OfText.Text,
+								Text:        content.OfText.Text,
+								Annotations: annotations,
 							},
 						},
 					},
@@ -242,6 +312,42 @@ func (in *Response) ToNativeResponse() *responses.Response {
 					EncryptedContent: utils.Ptr(content.OfThinking.Signature),
 				},
 			})
+		}
+
+		// We simply store the service_tool_use message for later reference
+		if content.OfServerToolUse != nil {
+			previousWebSearchCall = content.OfServerToolUse
+		}
+
+		if content.OfWebSearchResult != nil && previousWebSearchCall != nil {
+			sources := []responses.WebSearchCallActionOfSearchSource{}
+			for _, searchResultContent := range content.OfWebSearchResult.Content {
+				sources = append(sources, responses.WebSearchCallActionOfSearchSource{
+					Type: "url",
+					URL:  searchResultContent.Url,
+					ExtraParams: map[string]any{
+						"Anthropic": searchResultContent,
+					},
+				})
+			}
+
+			output = append(output, responses.OutputMessageUnion{
+				OfWebSearchCall: &responses.WebSearchCallMessage{
+					ID: previousWebSearchCall.Id,
+					Action: responses.WebSearchCallActionUnion{
+						OfSearch: &responses.WebSearchCallActionOfSearch{
+							Queries: []string{
+								previousWebSearchCall.Input.Query,
+							},
+							Query:   previousWebSearchCall.Input.Query,
+							Sources: sources,
+						},
+					},
+					Status: "completed",
+				},
+			})
+
+			previousWebSearchCall = nil
 		}
 	}
 
@@ -371,6 +477,11 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleContentBlockStart(bl
 	case content.OfThinking != nil:
 		c.currentOutputID = responses.NewOutputItemReasoningID()
 		return c.handleThinkingBlockStart(content.OfThinking)
+	case content.OfServerToolUse != nil:
+		c.currentOutputID = content.OfServerToolUse.Id
+		return c.handleServerToolUseBlockStart(content.OfServerToolUse)
+	case content.OfWebSearchResult != nil:
+		return c.handleWebSearchToolResultBlockStart(content.OfWebSearchResult)
 	}
 
 	return nil
@@ -400,6 +511,19 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleThinkingBlockStart(t
 	}
 }
 
+func (c *ResponseChunkToNativeResponseChunkConverter) handleServerToolUseBlockStart(serverToolUse *ServerToolUseContent) []*responses.ResponseChunk {
+	return []*responses.ResponseChunk{
+		c.buildOutputItemAddedWebSearchCall(),
+		c.buildWebSearchCallInProgress(),
+		c.buildWebSearchCallSearching(),
+		c.buildWebSearchCallCompleted(),
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) handleWebSearchToolResultBlockStart(webResultToolResult *WebSearchResultContent) []*responses.ResponseChunk {
+	return nil
+}
+
 // handleContentBlockDelta emits delta chunks based on the current block type
 func (c *ResponseChunkToNativeResponseChunkConverter) handleContentBlockDelta(delta *ChunkContentBlock[ChunkTypeContentBlockDelta]) []*responses.ResponseChunk {
 	if c.currentBlock == nil || c.currentBlock.ContentBlock == nil {
@@ -414,10 +538,21 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleContentBlockDelta(de
 		c.accumulatedDelta += text
 		return []*responses.ResponseChunk{c.buildOutputTextDelta(text)}
 
+	case content.OfText != nil && delta.Delta.OfCitation != nil:
+		citation := delta.Delta.OfCitation.Citation
+		return []*responses.ResponseChunk{
+			c.buildOutputTextAnnotationAdded(citation),
+		}
+
 	case content.OfToolUse != nil && delta.Delta.OfInputJSON != nil:
 		json := delta.Delta.OfInputJSON.PartialJSON
 		c.accumulatedDelta += json
 		return []*responses.ResponseChunk{c.buildFunctionCallArgumentsDelta(json)}
+
+	case content.OfServerToolUse != nil && delta.Delta.OfInputJSON != nil:
+		json := delta.Delta.OfInputJSON.PartialJSON
+		c.accumulatedDelta += json
+		return nil
 
 	case content.OfThinking != nil:
 		return c.handleThinkingDelta(delta.Delta)
@@ -456,6 +591,10 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleContentBlockStop() [
 		result = c.completeToolUseBlock(content.OfToolUse)
 	case content.OfThinking != nil:
 		result = c.completeThinkingBlock()
+	case content.OfServerToolUse != nil:
+		return nil // we don't do anything for server_tool_use content stop, we will wait for content_block_stop of "web_search_tool_result"
+	case content.OfWebSearchResult != nil:
+		result = c.completeWebSearchCallBlock(content.OfWebSearchResult)
 	}
 
 	// Reset for next block
@@ -527,6 +666,12 @@ func (c *ResponseChunkToNativeResponseChunkConverter) completeThinkingBlock() []
 		c.buildReasoningSummaryTextDone(text),
 		c.buildReasoningSummaryPartDone(text),
 		c.buildOutputItemDoneReasoning(text, sig),
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) completeWebSearchCallBlock(webSearchResult *WebSearchResultContent) []*responses.ResponseChunk {
+	return []*responses.ResponseChunk{
+		c.buildOutputItemDoneWebSearchCall(webSearchResult),
 	}
 }
 
@@ -630,6 +775,57 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedReason
 	}
 }
 
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedWebSearchCall() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
+			Type:           constants.ChunkTypeOutputItemAdded(""),
+			SequenceNumber: c.nextSeqNum(),
+			OutputIndex:    0,
+			Item: responses.ChunkOutputItemData{
+				Type:   "web_search_call",
+				Id:     c.currentOutputID,
+				Status: "in_progress",
+				Action: &responses.WebSearchCallActionUnion{
+					OfSearch: &responses.WebSearchCallActionOfSearch{},
+				},
+			},
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildWebSearchCallInProgress() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfWebSearchCallInProgress: &responses.ChunkWebSearchCall[constants.ChunkTypeWebSearchCallInProgress]{
+			Type:           constants.ChunkTypeWebSearchCallInProgress(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildWebSearchCallSearching() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfWebSearchCallSearching: &responses.ChunkWebSearchCall[constants.ChunkTypeWebSearchCallSearching]{
+			Type:           constants.ChunkTypeWebSearchCallSearching(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildWebSearchCallCompleted() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfWebSearchCallCompleted: &responses.ChunkWebSearchCall[constants.ChunkTypeWebSearchCallCompleted]{
+			Type:           constants.ChunkTypeWebSearchCallCompleted(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
 func (c *ResponseChunkToNativeResponseChunkConverter) buildContentPartAddedText() *responses.ResponseChunk {
 	return &responses.ResponseChunk{
 		OfContentPartAdded: &responses.ChunkContentPart[constants.ChunkTypeContentPartAdded]{
@@ -665,6 +861,28 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputTextDelta(delta
 			OutputIndex:    c.outputIndex,
 			ContentIndex:   c.contentIndex,
 			Delta:          delta,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputTextAnnotationAdded(citation Citation) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputTextAnnotationAdded: &responses.ChunkOutputText[constants.ChunkTypeOutputTextAnnotationAdded]{
+			Type:           constants.ChunkTypeOutputTextAnnotationAdded(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+			ContentIndex:   c.contentIndex,
+			Annotation: responses.Annotation{
+				Type:       "url_citation",
+				Title:      citation.Title,
+				URL:        citation.Url,
+				StartIndex: 0,
+				EndIndex:   0,
+				ExtraParams: map[string]any{
+					"Anthropic": citation,
+				},
+			},
 		},
 	}
 }
@@ -818,6 +1036,47 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneReasoni
 				Status:           "completed",
 				EncryptedContent: utils.Ptr(sig),
 				Summary:          []responses.SummaryTextContent{{Text: text}},
+			},
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneWebSearchCall(webSearchResults *WebSearchResultContent) *responses.ResponseChunk {
+	sources := []responses.WebSearchCallActionOfSearchSource{}
+	for _, webSearchResult := range webSearchResults.Content {
+		sources = append(sources, responses.WebSearchCallActionOfSearchSource{
+			Type: "url",
+			URL:  webSearchResult.Url,
+			ExtraParams: map[string]any{
+				"Anthropic": webSearchResult,
+			},
+		})
+	}
+
+	query := ""
+	accumulatedPayload := struct {
+		Query string `json:"query"`
+	}{}
+	if err := sonic.Unmarshal([]byte(c.accumulatedDelta), &accumulatedPayload); err == nil {
+		query = accumulatedPayload.Query
+	}
+
+	return &responses.ResponseChunk{
+		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
+			Type:           constants.ChunkTypeOutputItemDone(""),
+			SequenceNumber: c.nextSeqNum(),
+			OutputIndex:    0,
+			Item: responses.ChunkOutputItemData{
+				Type:   "web_search_call",
+				Id:     c.currentOutputID,
+				Status: "completed",
+				Action: &responses.WebSearchCallActionUnion{
+					OfSearch: &responses.WebSearchCallActionOfSearch{
+						Queries: []string{query},
+						Query:   query,
+						Sources: sources,
+					},
+				},
 			},
 		},
 	}
