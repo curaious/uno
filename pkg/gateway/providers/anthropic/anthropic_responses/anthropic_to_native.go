@@ -88,6 +88,19 @@ func (in *ToolUnion) ToNative() responses.ToolUnion {
 	if in.OfWebSearchTool != nil {
 		out.OfWebSearch = &responses.WebSearchTool{
 			Type: "web_search",
+			Filters: &responses.WebSearchToolFilters{
+				AllowedDomains: in.OfWebSearchTool.AllowedDomains,
+			},
+		}
+
+		if in.OfWebSearchTool.UserLocation != nil {
+			out.OfWebSearch.UserLocation = &responses.WebSearchToolUserLocation{
+				Type:     in.OfWebSearchTool.UserLocation.Type,
+				Country:  in.OfWebSearchTool.UserLocation.Country,
+				City:     in.OfWebSearchTool.UserLocation.City,
+				Region:   in.OfWebSearchTool.UserLocation.Region,
+				Timezone: in.OfWebSearchTool.UserLocation.Timezone,
+			}
 		}
 	}
 

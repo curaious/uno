@@ -91,11 +91,31 @@ func NativeToolsToTools(nativeTools []responses.ToolUnion) []ToolUnion {
 		}
 
 		if nativeTool.OfWebSearch != nil {
+			webSearchTool := &WebSearchTool{
+				Type:           "web_search_20250305",
+				Name:           "web_search",
+				MaxUses:        5,
+				BlockedDomains: nil,
+			}
+
+			if nativeTool.OfWebSearch.Filters != nil {
+				if nativeTool.OfWebSearch.Filters.AllowedDomains != nil {
+					webSearchTool.AllowedDomains = nativeTool.OfWebSearch.Filters.AllowedDomains
+				}
+			}
+
+			if nativeTool.OfWebSearch.UserLocation != nil {
+				webSearchTool.UserLocation = &WebSearchToolUserLocationParam{
+					Type:     nativeTool.OfWebSearch.UserLocation.Type,
+					City:     nativeTool.OfWebSearch.UserLocation.City,
+					Region:   nativeTool.OfWebSearch.UserLocation.Region,
+					Country:  nativeTool.OfWebSearch.UserLocation.Country,
+					Timezone: nativeTool.OfWebSearch.UserLocation.Timezone,
+				}
+			}
+
 			out = append(out, ToolUnion{
-				OfWebSearchTool: &WebSearchTool{
-					Name:    "web_search",
-					MaxUses: 5,
-				},
+				OfWebSearchTool: webSearchTool,
 			})
 		}
 	}

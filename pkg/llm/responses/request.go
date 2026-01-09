@@ -536,7 +536,23 @@ type ImageGenerationTool struct {
 }
 
 type WebSearchTool struct {
-	Type constants.ToolTypeWebSearch `json:"type"` // web_search
+	Type              constants.ToolTypeWebSearch `json:"type"` // web_search
+	Filters           *WebSearchToolFilters       `json:"filters,omitempty"`
+	UserLocation      *WebSearchToolUserLocation  `json:"user_location,omitempty"`
+	ExternalWebAccess *bool                       `json:"external_web_access,omitempty"`
+	SearchContextSize *string                     `json:"search_context_size,omitempty"` // "low", "medium", "high" - "medium" is default
+}
+
+type WebSearchToolFilters struct {
+	AllowedDomains []string `json:"allowed_domains"`
+}
+
+type WebSearchToolUserLocation struct {
+	Type     string `json:"type"`
+	Country  string `json:"country"`
+	City     string `json:"city"`
+	Region   string `json:"region"`
+	Timezone string `json:"timezone"`
 }
 
 type WebSearchCallActionUnion struct {
