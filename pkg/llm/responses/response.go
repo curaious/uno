@@ -32,6 +32,7 @@ type OutputMessageUnion struct {
 	OfFunctionCall        *FunctionCallMessage        `json:",omitempty"`
 	OfReasoning           *ReasoningMessage           `json:",omitempty"`
 	OfImageGenerationCall *ImageGenerationCallMessage `json:",omitempty"`
+	OfWebSearchCall       *WebSearchCallMessage       `json:",omitempty"`
 }
 
 func (u *OutputMessageUnion) UnmarshalJSON(data []byte) error {
@@ -59,6 +60,12 @@ func (u *OutputMessageUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var webSearchCallMessage *WebSearchCallMessage
+	if err := sonic.Unmarshal(data, &webSearchCallMessage); err == nil {
+		u.OfWebSearchCall = webSearchCallMessage
+		return nil
+	}
+
 	return errors.New("invalid output message union type")
 }
 
@@ -79,6 +86,10 @@ func (u *OutputMessageUnion) MarshalJSON() ([]byte, error) {
 		return sonic.Marshal(u.OfImageGenerationCall)
 	}
 
+	if u.OfWebSearchCall != nil {
+		return sonic.Marshal(u.OfWebSearchCall)
+	}
+
 	return nil, nil
 }
 
@@ -97,6 +108,10 @@ func (u *OutputMessageUnion) AsInput() (InputMessageUnion, error) {
 
 	if u.OfImageGenerationCall != nil {
 		return InputMessageUnion{OfImageGenerationCall: u.OfImageGenerationCall}, nil
+	}
+
+	if u.OfWebSearchCall != nil {
+		return InputMessageUnion{OfWebSearchCall: u.OfWebSearchCall}, nil
 	}
 
 	return InputMessageUnion{}, errors.New("invalid output message union type")

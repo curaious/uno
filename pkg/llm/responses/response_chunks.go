@@ -20,10 +20,11 @@ type ResponseChunk struct {
 	OfOutputItemDone  *ChunkOutputItem[constants.ChunkTypeOutputItemDone]  `json:",omitempty"`
 
 	// For output item of type "message"
-	OfContentPartAdded *ChunkContentPart[constants.ChunkTypeContentPartAdded] `json:",omitempty"`
-	OfContentPartDone  *ChunkContentPart[constants.ChunkTypeContentPartDone]  `json:",omitempty"`
-	OfOutputTextDelta  *ChunkOutputText[constants.ChunkTypeOutputTextDelta]   `json:",omitempty"`
-	OfOutputTextDone   *ChunkOutputText[constants.ChunkTypeOutputTextDone]    `json:",omitempty"`
+	OfContentPartAdded          *ChunkContentPart[constants.ChunkTypeContentPartAdded]         `json:",omitempty"`
+	OfContentPartDone           *ChunkContentPart[constants.ChunkTypeContentPartDone]          `json:",omitempty"`
+	OfOutputTextDelta           *ChunkOutputText[constants.ChunkTypeOutputTextDelta]           `json:",omitempty"`
+	OfOutputTextAnnotationAdded *ChunkOutputText[constants.ChunkTypeOutputTextAnnotationAdded] `json:",omitempty"`
+	OfOutputTextDone            *ChunkOutputText[constants.ChunkTypeOutputTextDone]            `json:",omitempty"`
 
 	// For output item of type "function_call"
 	OfFunctionCallArgumentsDelta *ChunkFunctionCall[constants.ChunkTypeFunctionCallArgumentsDelta] `json:",omitempty"`
@@ -39,6 +40,11 @@ type ResponseChunk struct {
 	OfImageGenerationCallInProgress   *ChunkImageGenerationCall[constants.ChunkTypeImageGenerationCallInProgress]   `json:",omitempty"`
 	OfImageGenerationCallGenerating   *ChunkImageGenerationCall[constants.ChunkTypeImageGenerationCallGenerating]   `json:",omitempty"`
 	OfImageGenerationCallPartialImage *ChunkImageGenerationCall[constants.ChunkTypeImageGenerationCallPartialImage] `json:",omitempty"`
+
+	// For output item of type "web_search_call"
+	OfWebSearchCallInProgress *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallInProgress] `json:",omitempty"`
+	OfWebSearchCallSearching  *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallSearching]  `json:",omitempty"`
+	OfWebSearchCallCompleted  *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallCompleted]  `json:",omitempty"`
 
 	// Custom Chunks
 	OfRunCreated         *ChunkRun[constants.ChunkTypeRunCreated]    `json:",omitempty"`
@@ -94,6 +100,12 @@ func (u *ResponseChunk) UnmarshalJSON(data []byte) error {
 	var outputTextDelta *ChunkOutputText[constants.ChunkTypeOutputTextDelta]
 	if err := sonic.Unmarshal(data, &outputTextDelta); err == nil {
 		u.OfOutputTextDelta = outputTextDelta
+		return nil
+	}
+
+	var outputTextAnnotationAdded *ChunkOutputText[constants.ChunkTypeOutputTextAnnotationAdded]
+	if err := sonic.Unmarshal(data, &outputTextAnnotationAdded); err == nil {
+		u.OfOutputTextAnnotationAdded = outputTextAnnotationAdded
 		return nil
 	}
 
@@ -157,6 +169,24 @@ func (u *ResponseChunk) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var webSearchCallInProgress *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallInProgress]
+	if err := sonic.Unmarshal(data, &webSearchCallInProgress); err == nil {
+		u.OfWebSearchCallInProgress = webSearchCallInProgress
+		return nil
+	}
+
+	var webSearchCallSearching *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallSearching]
+	if err := sonic.Unmarshal(data, &webSearchCallSearching); err == nil {
+		u.OfWebSearchCallSearching = webSearchCallSearching
+		return nil
+	}
+
+	var webSearchCallCompleted *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallCompleted]
+	if err := sonic.Unmarshal(data, &webSearchCallCompleted); err == nil {
+		u.OfWebSearchCallCompleted = webSearchCallCompleted
+		return nil
+	}
+
 	return errors.New("invalid response chunk union")
 }
 
@@ -191,6 +221,10 @@ func (u *ResponseChunk) MarshalJSON() ([]byte, error) {
 
 	if u.OfOutputTextDelta != nil {
 		return sonic.Marshal(u.OfOutputTextDelta)
+	}
+
+	if u.OfOutputTextAnnotationAdded != nil {
+		return sonic.Marshal(u.OfOutputTextAnnotationAdded)
 	}
 
 	if u.OfOutputTextDone != nil {
@@ -231,6 +265,18 @@ func (u *ResponseChunk) MarshalJSON() ([]byte, error) {
 
 	if u.OfReasoningSummaryTextDone != nil {
 		return sonic.Marshal(u.OfReasoningSummaryTextDone)
+	}
+
+	if u.OfWebSearchCallInProgress != nil {
+		return sonic.Marshal(u.OfWebSearchCallInProgress)
+	}
+
+	if u.OfWebSearchCallSearching != nil {
+		return sonic.Marshal(u.OfWebSearchCallSearching)
+	}
+
+	if u.OfWebSearchCallCompleted != nil {
+		return sonic.Marshal(u.OfWebSearchCallCompleted)
 	}
 
 	// Custom Chunks
@@ -290,6 +336,10 @@ func (u *ResponseChunk) ChunkType() string {
 		return u.OfOutputTextDelta.Type.Value()
 	}
 
+	if u.OfOutputTextAnnotationAdded != nil {
+		return u.OfOutputTextAnnotationAdded.Type.Value()
+	}
+
 	if u.OfOutputTextDone != nil {
 		return u.OfOutputTextDone.Type.Value()
 	}
@@ -328,6 +378,18 @@ func (u *ResponseChunk) ChunkType() string {
 
 	if u.OfImageGenerationCallPartialImage != nil {
 		return u.OfImageGenerationCallPartialImage.Type.Value()
+	}
+
+	if u.OfWebSearchCallInProgress != nil {
+		return u.OfWebSearchCallInProgress.Type.Value()
+	}
+
+	if u.OfWebSearchCallSearching != nil {
+		return u.OfWebSearchCallSearching.Type.Value()
+	}
+
+	if u.OfWebSearchCallCompleted != nil {
+		return u.OfWebSearchCallCompleted.Type.Value()
 	}
 
 	// Custom Chunks
@@ -396,7 +458,7 @@ type ChunkOutputItem[T any] struct {
 }
 
 type ChunkOutputItemData struct {
-	Type string `json:"type"` // "function_call" , "message", "reasoning", "image_generation_call"
+	Type string `json:"type"` // "function_call" , "message", "reasoning", "image_generation_call", "web_search_call"
 
 	// Common fields
 	Id     string `json:"id"`
@@ -422,6 +484,9 @@ type ChunkOutputItemData struct {
 	Quality      *string `json:"quality,omitempty"`       // "medium"
 	Result       *string `json:"result,omitempty"`        // base64 image
 	Size         *string `json:"size,omitempty"`          // "1024x1024"
+
+	// For "web_search_call"
+	Action *WebSearchCallActionUnion `json:"action,omitempty"`
 }
 
 type ChunkContentPart[T any] struct {
@@ -445,6 +510,10 @@ type ChunkOutputText[T any] struct {
 
 	// Only on content.output_text.done (contains the accumulated content)
 	Text *string `json:"text,omitempty"`
+
+	// Only on response.output_text.annotation.added
+	Annotation      Annotation `json:"annotation,omitempty"`
+	AnnotationIndex int        `json:"annotation_index"`
 }
 
 type ChunkFunctionCall[T any] struct {
@@ -501,6 +570,14 @@ type ChunkImageGenerationCall[T any] struct {
 	OutputFormat       *string `json:"output_format,omitempty"` // "png"
 	Quality            *string `json:"quality,omitempty"`       // "medium"
 	Size               *string `json:"size,omitempty"`          // "1024x1024"
+}
+
+type ChunkWebSearchCall[T any] struct {
+	Type T `json:"type"`
+
+	SequenceNumber int    `json:"sequence_number"`
+	ItemId         string `json:"item_id"`
+	OutputIndex    int    `json:"output_index"`
 }
 
 type ChunkResponseUsage struct {
