@@ -8,6 +8,7 @@ import (
 	"github.com/curaious/uno/pkg/llm/chat_completion"
 	"github.com/curaious/uno/pkg/llm/embeddings"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/speech"
 )
 
 // InternalLLMGateway uses the internal LLMGatewayAdapter for server-side use.
@@ -91,4 +92,30 @@ func (p *InternalLLMGateway) NewStreamingChatCompletion(ctx context.Context, pro
 	}
 
 	return resp.ChatCompletionStreamData, nil
+}
+
+func (p *InternalLLMGateway) NewSpeech(ctx context.Context, providerName llm.ProviderName, req *speech.Request) (*speech.Response, error) {
+	llmReq := &llm.Request{
+		OfSpeech: req,
+	}
+
+	resp, err := p.gateway.HandleRequest(ctx, providerName, p.key, llmReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.OfSpeech, nil
+}
+
+func (p *InternalLLMGateway) NewStreamingSpeech(ctx context.Context, providerName llm.ProviderName, req *speech.Request) (chan *speech.ResponseChunk, error) {
+	llmReq := &llm.Request{
+		OfSpeech: req,
+	}
+
+	resp, err := p.gateway.HandleStreamingRequest(ctx, providerName, p.key, llmReq)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.SpeechStreamData, nil
 }

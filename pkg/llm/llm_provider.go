@@ -7,6 +7,7 @@ import (
 	"github.com/curaious/uno/pkg/llm/chat_completion"
 	"github.com/curaious/uno/pkg/llm/embeddings"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/speech"
 )
 
 type Provider interface {
@@ -15,6 +16,8 @@ type Provider interface {
 	NewEmbedding(ctx context.Context, in *embeddings.Request) (*embeddings.Response, error)
 	NewChatCompletion(ctx context.Context, in *chat_completion.Request) (*chat_completion.Response, error)
 	NewStreamingChatCompletion(ctx context.Context, in *chat_completion.Request) (chan *chat_completion.ResponseChunk, error)
+	NewSpeech(ctx context.Context, in *speech.Request) (*speech.Response, error)
+	NewStreamingSpeech(ctx context.Context, in *speech.Request) (chan *speech.ResponseChunk, error)
 }
 
 type ProviderName string
