@@ -54,7 +54,8 @@
                       "uno-sdk/responses/structured-output"
                     ]
                   },
-                  "uno-sdk/embeddings/embeddings"
+                  "uno-sdk/embeddings/embeddings",
+                  "uno-sdk/speech/speech"
                 ]
               },
               {
