@@ -94,42 +94,73 @@ func (in *ToolUnion) ToNative() responses.ToolUnion {
 	return out
 }
 
+func CitationsToNativeAnnotations(citations []Citation) []responses.Annotation {
+	var annotations []responses.Annotation
+
+	for _, citation := range citations {
+		annotations = append(annotations, responses.Annotation{
+			Type:       "url_citation",
+			Title:      citation.Title,
+			URL:        citation.Url,
+			StartIndex: 0,
+			EndIndex:   0,
+			ExtraParams: map[string]any{
+				"Anthropic": citation,
+			},
+		})
+	}
+
+	return annotations
+}
+
 func MessagesToNativeMessages(msgs []MessageUnion) responses.InputUnion {
 	out := responses.InputUnion{
 		OfString:           nil,
 		OfInputMessageList: responses.InputMessageList{},
 	}
 
-	c := anthropicToNativeMessageConverter{}
-
 	for _, msg := range msgs {
-		out.OfInputMessageList = append(out.OfInputMessageList, c.ToNativeMessage(&msg)...)
+		out.OfInputMessageList = append(out.OfInputMessageList, msg.ToNativeMessage()...)
 	}
 
 	return out
 }
 
-type anthropicToNativeMessageConverter struct {
-	previousServerToolUse *ServerToolUseContent
-}
-
-func (c *anthropicToNativeMessageConverter) ToNativeMessage(msg *MessageUnion) []responses.InputMessageUnion {
+func (msg *MessageUnion) ToNativeMessage() []responses.InputMessageUnion {
 	out := []responses.InputMessageUnion{}
+
+	var previousServerToolUse *ServerToolUseContent
 
 	for _, content := range msg.Content {
 		if content.OfText != nil {
-			out = append(out, responses.InputMessageUnion{
-				OfInputMessage: &responses.InputMessage{
-					Role: msg.Role.ToNativeRole(),
-					Content: responses.InputContent{
-						{
-							OfInputText: &responses.InputTextContent{
-								Text: content.OfText.Text,
+			if content.OfText.Citations != nil {
+				out = append(out, responses.InputMessageUnion{
+					OfInputMessage: &responses.InputMessage{
+						Role: msg.Role.ToNativeRole(),
+						Content: responses.InputContent{
+							{
+								OfOutputText: &responses.OutputTextContent{
+									Text:        content.OfText.Text,
+									Annotations: CitationsToNativeAnnotations(content.OfText.Citations), // Convert citation to annotation
+								},
 							},
 						},
 					},
-				},
-			})
+				})
+			} else {
+				out = append(out, responses.InputMessageUnion{
+					OfInputMessage: &responses.InputMessage{
+						Role: msg.Role.ToNativeRole(),
+						Content: responses.InputContent{
+							{
+								OfInputText: &responses.InputTextContent{
+									Text: content.OfText.Text,
+								},
+							},
+						},
+					},
+				})
+			}
 		}
 
 		if content.OfToolUse != nil {
@@ -197,13 +228,13 @@ func (c *anthropicToNativeMessageConverter) ToNativeMessage(msg *MessageUnion) [
 		}
 
 		if content.OfServerToolUse != nil {
-			c.previousServerToolUse = content.OfServerToolUse
+			previousServerToolUse = content.OfServerToolUse
 		}
 
 		if content.OfWebSearchResult != nil {
-			if c.previousServerToolUse != nil && c.previousServerToolUse.Name == "web_search" {
-				id := c.previousServerToolUse.Id
-				query := c.previousServerToolUse.Input.Query
+			if previousServerToolUse != nil && previousServerToolUse.Name == "web_search" {
+				id := previousServerToolUse.Id
+				query := previousServerToolUse.Input.Query
 				var sources []responses.WebSearchCallActionOfSearchSource
 				for _, searchResultContent := range content.OfWebSearchResult.Content {
 					sources = append(sources, responses.WebSearchCallActionOfSearchSource{
@@ -231,7 +262,7 @@ func (c *anthropicToNativeMessageConverter) ToNativeMessage(msg *MessageUnion) [
 					},
 				})
 
-				c.previousServerToolUse = nil
+				previousServerToolUse = nil
 			}
 		}
 	}
@@ -246,22 +277,6 @@ func (in *Response) ToNativeResponse() *responses.Response {
 
 	for _, content := range in.Content {
 		if content.OfText != nil {
-			// If the text has citations, we will convert it into annotation of type "url_citation"
-			// we also store the raw citation in extra_params
-			var annotations []responses.Annotation
-			for _, citation := range content.OfText.Citations {
-				annotations = append(annotations, responses.Annotation{
-					Type:       "url_citation",
-					Title:      citation.Title,
-					URL:        citation.Url,
-					StartIndex: 0,
-					EndIndex:   0,
-					ExtraParams: map[string]any{
-						"Anthropic": citation,
-					},
-				})
-			}
-
 			output = append(output, responses.OutputMessageUnion{
 				OfOutputMessage: &responses.OutputMessage{
 					Role: constants.RoleAssistant,
@@ -269,7 +284,7 @@ func (in *Response) ToNativeResponse() *responses.Response {
 						{
 							OfOutputText: &responses.OutputTextContent{
 								Text:        content.OfText.Text,
-								Annotations: annotations,
+								Annotations: CitationsToNativeAnnotations(content.OfText.Citations),
 							},
 						},
 					},

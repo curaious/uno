@@ -164,7 +164,8 @@ func NativeMessagesToMessage(in responses.InputUnion) []MessageUnion {
 						if nativeContent.OfOutputText != nil {
 							contents = append(contents, ContentUnion{
 								OfText: &TextContent{
-									Text: nativeContent.OfOutputText.Text,
+									Text:      nativeContent.OfOutputText.Text,
+									Citations: NativeAnnotationsToCitations(nativeContent.OfOutputText.Annotations),
 								},
 							})
 						}
