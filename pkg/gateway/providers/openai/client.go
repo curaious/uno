@@ -3,9 +3,11 @@ package openai
 import (
 	"bufio"
 	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -16,9 +18,11 @@ import (
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_chat_completion"
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_embeddings"
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_responses"
+	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_speech"
 	"github.com/curaious/uno/pkg/llm/chat_completion"
 	"github.com/curaious/uno/pkg/llm/embeddings"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/speech"
 )
 
 type ClientOptions struct {
@@ -285,6 +289,139 @@ func (c *Client) NewStreamingChatCompletion(ctx context.Context, inp *chat_compl
 					continue
 				}
 				out <- openAiChatCompletionChunk.ToNativeResponseChunk()
+			}
+		}
+	}()
+
+	return out, nil
+}
+
+func (c *Client) NewSpeech(ctx context.Context, in *speech.Request) (*speech.Response, error) {
+	openAiRequest := openai_speech.NativeRequestToRequest(in)
+
+	payload, err := sonic.Marshal(openAiRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.opts.BaseURL+"/audio/speech", bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.opts.ApiKey)
+
+	res, err := c.opts.transport.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		var errResp map[string]any
+		err = utils.DecodeJSON(res.Body, &errResp)
+		if err != nil {
+			return nil, err
+		}
+		if errorObj, ok := errResp["error"].(map[string]any); ok {
+			if message, ok := errorObj["message"].(string); ok {
+				return nil, errors.New(message)
+			}
+		}
+		return nil, errors.New("unknown error occurred")
+	}
+
+	// Handle gzip compressed response
+	var reader io.Reader = res.Body
+	if res.Header.Get("Content-Encoding") == "gzip" {
+		gzipReader, err := gzip.NewReader(res.Body)
+		if err != nil {
+			return nil, err
+		}
+		defer gzipReader.Close()
+		reader = gzipReader
+	}
+
+	// Read the raw audio binary data (decompressed if gzip)
+	audioData, err := io.ReadAll(reader)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create response with audio data
+	openAiResponse := &openai_speech.Response{
+		Response: speech.Response{
+			Audio:       audioData,
+			ContentType: res.Header.Get("Content-Type"),
+		},
+	}
+
+	return openAiResponse.ToNativeResponse(), nil
+}
+
+func (c *Client) NewStreamingSpeech(ctx context.Context, in *speech.Request) (chan *speech.ResponseChunk, error) {
+	openAiRequest := openai_speech.NativeRequestToRequest(in)
+
+	payload, err := sonic.Marshal(openAiRequest)
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest(http.MethodPost, c.opts.BaseURL+"/audio/speech", bytes.NewBuffer(payload))
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.opts.ApiKey)
+
+	res, err := c.opts.transport.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if res.StatusCode != http.StatusOK {
+		var errResp map[string]any
+		err = utils.DecodeJSON(res.Body, &errResp)
+		if err != nil {
+			return nil, err
+		}
+		if errorObj, ok := errResp["error"].(map[string]any); ok {
+			if message, ok := errorObj["message"].(string); ok {
+				return nil, errors.New(message)
+			}
+		}
+		return nil, errors.New("unknown error occurred")
+	}
+
+	out := make(chan *speech.ResponseChunk)
+
+	go func() {
+		defer res.Body.Close()
+		defer close(out)
+		reader := bufio.NewReader(res.Body)
+
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+
+			line = strings.TrimRight(line, "\r\n")
+
+			if line == "data: [DONE]" {
+				return
+			}
+
+			if strings.HasPrefix(line, "data:") {
+				openAiSpeechChunk := &openai_speech.ResponseChunk{}
+				err = sonic.Unmarshal([]byte(strings.TrimPrefix(line, "data:")), openAiSpeechChunk)
+				if err != nil {
+					slog.WarnContext(ctx, "unable to unmarshal speech response chunk", slog.String("data", line), slog.Any("error", err))
+					continue
+				}
+				out <- openAiSpeechChunk.ToNativeResponse()
 			}
 		}
 	}()

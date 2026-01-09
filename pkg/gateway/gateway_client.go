@@ -8,6 +8,7 @@ import (
 	"github.com/curaious/uno/pkg/llm/chat_completion"
 	"github.com/curaious/uno/pkg/llm/embeddings"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/speech"
 )
 
 // LLMGatewayAdapter is the interface for making LLM calls.
@@ -29,6 +30,12 @@ type LLMGatewayAdapter interface {
 
 	// NewStreamingChatCompletion
 	NewStreamingChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (chan *chat_completion.ResponseChunk, error)
+
+	// NewSpeech
+	NewSpeech(ctx context.Context, providerName llm.ProviderName, req *speech.Request) (*speech.Response, error)
+
+	// NewStreamingSpeech
+	NewStreamingSpeech(ctx context.Context, providerName llm.ProviderName, req *speech.Request) (chan *speech.ResponseChunk, error)
 }
 
 // LLMClient wraps an LLMGatewayAdapter and provides a high-level interface
@@ -76,4 +83,14 @@ func (c *LLMClient) NewChatCompletion(ctx context.Context, in *chat_completion.R
 func (c *LLMClient) NewStreamingChatCompletion(ctx context.Context, in *chat_completion.Request) (chan *chat_completion.ResponseChunk, error) {
 	in.Model = c.model
 	return c.LLMGatewayAdapter.NewStreamingChatCompletion(ctx, c.provider, in)
+}
+
+func (c *LLMClient) NewSpeech(ctx context.Context, in *speech.Request) (*speech.Response, error) {
+	in.Model = c.model
+	return c.LLMGatewayAdapter.NewSpeech(ctx, c.provider, in)
+}
+
+func (c *LLMClient) NewStreamingSpeech(ctx context.Context, in *speech.Request) (chan *speech.ResponseChunk, error) {
+	in.Model = c.model
+	return c.LLMGatewayAdapter.NewStreamingSpeech(ctx, c.provider, in)
 }

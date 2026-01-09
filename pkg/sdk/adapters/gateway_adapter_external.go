@@ -14,6 +14,7 @@ import (
 	"github.com/curaious/uno/pkg/llm/chat_completion"
 	"github.com/curaious/uno/pkg/llm/embeddings"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/llm/speech"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 )
@@ -202,9 +203,240 @@ func (p *ExternalLLMGateway) NewEmbedding(ctx context.Context, providerName llm.
 }
 
 func (p *ExternalLLMGateway) NewChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (*chat_completion.Response, error) {
-	return nil, nil
+	// Prepend provider to model for gateway routing
+	originalModel := req.Model
+	req.Model = fmt.Sprintf("%s:%s", providerName, req.Model)
+	defer func() { req.Model = originalModel }()
+
+	payload, err := sonic.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/api/gateway/chat_completions", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		httpReq.Header.Add(k, v)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-virtual-key", p.virtualKey)
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		var errResp map[string]any
+		_ = utils.DecodeJSON(resp.Body, &errResp)
+		return nil, fmt.Errorf("gateway error (status %d): %v", resp.StatusCode, errResp)
+	}
+
+	var nativeResp chat_completion.Response
+	if err := utils.DecodeJSON(resp.Body, &nativeResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &nativeResp, nil
 }
 
 func (p *ExternalLLMGateway) NewStreamingChatCompletion(ctx context.Context, providerName llm.ProviderName, req *chat_completion.Request) (chan *chat_completion.ResponseChunk, error) {
-	return nil, nil
+	// Prepend provider to model for gateway routing
+	originalModel := req.Model
+	req.Model = fmt.Sprintf("%s:%s", providerName, req.Model)
+
+	stream := true
+	req.Stream = &stream
+
+	payload, err := sonic.Marshal(req)
+	if err != nil {
+		req.Model = originalModel
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+	req.Model = originalModel
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/api/gateway/chat_completions", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		httpReq.Header.Add(k, v)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-virtual-key", p.virtualKey)
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		defer resp.Body.Close()
+		var errResp map[string]any
+		_ = utils.DecodeJSON(resp.Body, &errResp)
+		return nil, fmt.Errorf("gateway error (status %d): %v", resp.StatusCode, errResp)
+	}
+
+	out := make(chan *chat_completion.ResponseChunk)
+	go func() {
+		defer resp.Body.Close()
+		defer close(out)
+
+		reader := bufio.NewReader(resp.Body)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+
+			line = strings.TrimRight(line, "\r\n")
+			if !strings.HasPrefix(line, "data:") {
+				continue
+			}
+
+			data := strings.TrimPrefix(line, "data:")
+			data = strings.TrimSpace(data)
+			if data == "" || data == "[DONE]" {
+				continue
+			}
+
+			var chunk chat_completion.ResponseChunk
+			if err := sonic.Unmarshal([]byte(data), &chunk); err != nil {
+				continue
+			}
+
+			out <- &chunk
+		}
+	}()
+
+	return out, nil
+}
+
+func (p *ExternalLLMGateway) NewSpeech(ctx context.Context, providerName llm.ProviderName, req *speech.Request) (*speech.Response, error) {
+	// Prepend provider to model for gateway routing
+	originalModel := req.Model
+	req.Model = fmt.Sprintf("%s:%s", providerName, req.Model)
+	defer func() { req.Model = originalModel }()
+
+	payload, err := sonic.Marshal(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/api/gateway/speech", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		httpReq.Header.Add(k, v)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-virtual-key", p.virtualKey)
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		var errResp map[string]any
+		_ = utils.DecodeJSON(resp.Body, &errResp)
+		return nil, fmt.Errorf("gateway error (status %d): %v", resp.StatusCode, errResp)
+	}
+
+	var nativeResp speech.Response
+	if err := utils.DecodeJSON(resp.Body, &nativeResp); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w", err)
+	}
+
+	return &nativeResp, nil
+}
+
+func (p *ExternalLLMGateway) NewStreamingSpeech(ctx context.Context, providerName llm.ProviderName, req *speech.Request) (chan *speech.ResponseChunk, error) {
+	// Prepend provider to model for gateway routing
+	originalModel := req.Model
+	req.Model = fmt.Sprintf("%s:%s", providerName, req.Model)
+
+	payload, err := sonic.Marshal(req)
+	if err != nil {
+		req.Model = originalModel
+		return nil, fmt.Errorf("failed to marshal request: %w", err)
+	}
+	req.Model = originalModel
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, p.endpoint+"/api/gateway/speech", bytes.NewReader(payload))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+
+	carrier := propagation.MapCarrier{}
+	otel.GetTextMapPropagator().Inject(ctx, carrier)
+	for k, v := range carrier {
+		httpReq.Header.Add(k, v)
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+	httpReq.Header.Set("x-virtual-key", p.virtualKey)
+
+	resp, err := p.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	if resp.StatusCode >= 400 {
+		defer resp.Body.Close()
+		var errResp map[string]any
+		_ = utils.DecodeJSON(resp.Body, &errResp)
+		return nil, fmt.Errorf("gateway error (status %d): %v", resp.StatusCode, errResp)
+	}
+
+	out := make(chan *speech.ResponseChunk)
+	go func() {
+		defer resp.Body.Close()
+		defer close(out)
+
+		reader := bufio.NewReader(resp.Body)
+		for {
+			line, err := reader.ReadString('\n')
+			if err != nil {
+				return
+			}
+
+			line = strings.TrimRight(line, "\r\n")
+			if !strings.HasPrefix(line, "data:") {
+				continue
+			}
+
+			data := strings.TrimPrefix(line, "data:")
+			data = strings.TrimSpace(data)
+			if data == "" || data == "[DONE]" {
+				continue
+			}
+
+			var chunk speech.ResponseChunk
+			if err := sonic.Unmarshal([]byte(data), &chunk); err != nil {
+				continue
+			}
+
+			out <- &chunk
+		}
+	}()
+
+	return out, nil
 }

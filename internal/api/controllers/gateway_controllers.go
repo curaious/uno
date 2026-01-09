@@ -19,6 +19,7 @@ import (
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_chat_completion"
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_embeddings"
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_responses"
+	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_speech"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/fasthttp/router"
 	"github.com/valyala/fasthttp"
@@ -498,6 +499,84 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 			for {
 				select {
 				case data, ok := <-out.ChatCompletionStreamData:
+					if !ok {
+						_, _ = fmt.Fprintf(w, "data: [DONE]")
+						break loop
+					}
+
+					buf, err := sonic.Marshal(data)
+					if err != nil {
+						slog.WarnContext(ctx, "Error encoding response: %v\n", err)
+						continue
+					}
+					fmt.Println(string(buf))
+
+					_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
+
+					err = w.Flush()
+					if err != nil {
+						slog.WarnContext(ctx, "Error flushing buffer: %v\n", err)
+					}
+				}
+			}
+		})
+	})
+	r.Handle(http.MethodPost, "/openai/audio/speech", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+
+		// Extract virtual key from headers
+		vkBuf := ctx.Request.Header.Peek("Authorization")
+		vk := strings.TrimPrefix(string(vkBuf), "Bearer ")
+
+		// Parse request body into openai's speech input format
+		var openAiRequest *openai_speech.Request
+		if err := sonic.Unmarshal(ctx.PostBody(), &openAiRequest); err != nil {
+			writeError(ctx, stdCtx, "Error unmarshalling the request body", perrors.NewErrInvalidRequest("Error unmarshalling the request body", err))
+			return
+		}
+
+		// Convert it into generic chat completion input
+		nativeRequest := openAiRequest.ToNativeRequest()
+
+		// Create a gateway request
+		req := &llm.Request{
+			OfSpeech: nativeRequest,
+		}
+
+		if !nativeRequest.IsStreamingRequest() {
+			// Call gateway to handle the gateway request
+			out, err := llmGateway.HandleRequest(stdCtx, llm.ProviderNameOpenAI, vk, req)
+			if err != nil {
+				writeError(ctx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
+				return
+			}
+
+			// Convert generic output into openai specific output
+			openAiOut := openai_speech.NativeResponseToResponse(out.OfSpeech)
+
+			// Set Header
+			ctx.Response.Header.Set("Content-Type", openAiOut.ContentType)
+
+			if _, err = ctx.Write(openAiOut.Audio); err != nil {
+				writeError(ctx, stdCtx, "Error encoding response", perrors.NewErrInternalServerError("Error encoding response", err))
+				return
+			}
+
+			return
+		}
+
+		// Handling streaming request
+		out, err := llmGateway.HandleStreamingRequest(ctx, llm.ProviderNameOpenAI, vk, req)
+		if err != nil {
+			writeError(ctx, stdCtx, "Error handling LLM Gateway streaming request", perrors.NewErrInternalServerError("Error handling LLM Gateway streaming request", err))
+			return
+		}
+
+		ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		loop:
+			for {
+				select {
+				case data, ok := <-out.SpeechStreamData:
 					if !ok {
 						_, _ = fmt.Fprintf(w, "data: [DONE]")
 						break loop
