@@ -85,6 +85,16 @@ func (m *MessageTypeImageGenerationCall) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type MessageTypeWebSearchCall string
+
+func (m *MessageTypeWebSearchCall) Value() string { return "web_search_call" }
+func (m *MessageTypeWebSearchCall) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *MessageTypeWebSearchCall) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 // --------------------- //
 // End Of Message Types //
 // ------------------- //
@@ -252,6 +262,18 @@ func (m *ChunkTypeOutputTextDelta) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type ChunkTypeOutputTextAnnotationAdded string
+
+func (m *ChunkTypeOutputTextAnnotationAdded) Value() string {
+	return "response.output_text.annotation.added"
+}
+func (m *ChunkTypeOutputTextAnnotationAdded) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeOutputTextAnnotationAdded) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 type ChunkTypeOutputTextDone string
 
 func (m *ChunkTypeOutputTextDone) Value() string                { return "response.output_text.done" }
@@ -374,6 +396,42 @@ func (m *ChunkTypeImageGenerationCallPartialImage) UnmarshalJSON(buf []byte) err
 	return unmarshalConstantString(m, buf)
 }
 
+type ChunkTypeWebSearchCallInProgress string
+
+func (m *ChunkTypeWebSearchCallInProgress) Value() string {
+	return "response.web_search_call.in_progress"
+}
+func (m *ChunkTypeWebSearchCallInProgress) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeWebSearchCallInProgress) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeWebSearchCallSearching string
+
+func (m *ChunkTypeWebSearchCallSearching) Value() string {
+	return "response.web_search_call.searching"
+}
+func (m *ChunkTypeWebSearchCallSearching) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeWebSearchCallSearching) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeWebSearchCallCompleted string
+
+func (m *ChunkTypeWebSearchCallCompleted) Value() string {
+	return "response.web_search_call.completed"
+}
+func (m *ChunkTypeWebSearchCallCompleted) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeWebSearchCallCompleted) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 // ------------------ //
 // End Of Chunk Type //
 // ---------------- //
@@ -406,6 +464,62 @@ func (m *ToolTypeImageGeneration) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type ToolTypeWebSearch string
+
+func (m *ToolTypeWebSearch) Value() string {
+	return "web_search"
+}
+func (m *ToolTypeWebSearch) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ToolTypeWebSearch) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 // --------------------- //
 // End Of Function Type //
 // ------------------- //
+
+// ------------------ //
+// Web Search Action //
+// ---------------- //
+
+type WebSearchActionTypeSearch string
+
+func (m *WebSearchActionTypeSearch) Value() string {
+	return "search"
+}
+func (m *WebSearchActionTypeSearch) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *WebSearchActionTypeSearch) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type WebSearchActionTypeOpenPage string
+
+func (m *WebSearchActionTypeOpenPage) Value() string {
+	return "open_page"
+}
+func (m *WebSearchActionTypeOpenPage) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *WebSearchActionTypeOpenPage) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type WebSearchActionTypeFind string
+
+func (m *WebSearchActionTypeFind) Value() string {
+	return "find"
+}
+func (m *WebSearchActionTypeFind) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *WebSearchActionTypeFind) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+// ------------------------- //
+// End Of Web search action //
+// ----------------------- //

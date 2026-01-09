@@ -107,10 +107,10 @@ type InputMessageUnion struct {
 	OfFunctionCallOutput           *FunctionCallOutputMessage           `json:",omitempty"`
 	OfReasoning                    *ReasoningMessage                    `json:",omitempty"`
 	OfImageGenerationCall          *ImageGenerationCallMessage          `json:",omitempty,inline"`
+	OfWebSearchCall                *WebSearchCallMessage                `json:",omitempty,inline"`
 	//OfFileSearchCall       *ResponseFileSearchToolCallParam            `json:",omitempty,inline"`
 	//OfComputerCall         *ResponseComputerToolCallParam              `json:",omitempty,inline"`
 	//OfComputerCallOutput   *ResponseInputItemComputerCallOutputParam   `json:",omitempty,inline"`
-	//OfWebSearchCall        *ResponseFunctionWebSearchParam             `json:",omitempty,inline"`
 	//OfCodeInterpreterCall  *ResponseCodeInterpreterToolCallParam       `json:",omitempty,inline"`
 	//OfLocalShellCall       *ResponseInputItemLocalShellCallParam       `json:",omitempty,inline"`
 	//OfLocalShellCallOutput *ResponseInputItemLocalShellCallOutputParam `json:",omitempty,inline"`
@@ -154,6 +154,10 @@ func (u *InputMessageUnion) ID() string {
 
 	if u.OfImageGenerationCall != nil {
 		return u.OfImageGenerationCall.ID
+	}
+
+	if u.OfWebSearchCall != nil {
+		return u.OfWebSearchCall.ID
 	}
 
 	return ""
@@ -208,6 +212,12 @@ func (u *InputMessageUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var webSearchCallMsg WebSearchCallMessage
+	if err := sonic.Unmarshal(data, &webSearchCallMsg); err == nil {
+		u.OfWebSearchCall = &webSearchCallMsg
+		return nil
+	}
+
 	return errors.New("invalid input message union")
 }
 
@@ -242,6 +252,10 @@ func (u *InputMessageUnion) MarshalJSON() ([]byte, error) {
 
 	if u.OfImageGenerationCall != nil {
 		return sonic.Marshal(u.OfImageGenerationCall)
+	}
+
+	if u.OfWebSearchCall != nil {
+		return sonic.Marshal(u.OfWebSearchCall)
 	}
 
 	return nil, nil
@@ -300,6 +314,13 @@ type ImageGenerationCallMessage struct {
 	Quality      string                                   `json:"quality"`       // "medium"
 	Size         string                                   `json:"size"`          // 100x100
 	Result       string                                   `json:"result"`        // Base64 image
+}
+
+type WebSearchCallMessage struct {
+	Type   constants.MessageTypeWebSearchCall `json:"type"`
+	ID     string                             `json:"id"`
+	Action WebSearchCallActionUnion           `json:"action"`
+	Status string                             `json:"status"` // "in_progress", "searching", "completed", "failed"
 }
 
 type EasyInputContentUnion struct {
@@ -412,11 +433,14 @@ type SummaryTextContent struct {
 }
 
 type Annotation struct {
-	Type       string `json:"type"`
-	Text       string `json:"text"`
+	Type       string `json:"type"` // Any of "file_citation", "url_citation", "container_file_citation", "file_path".
+	Title      string `json:"title"`
+	URL        string `json:"url"`
 	StartIndex int    `json:"start_index"`
 	EndIndex   int    `json:"end_index"`
-	Operation  string `json:"operation"`
+
+	Text      string `json:"text"`
+	Operation string `json:"operation"`
 }
 
 type FunctionCallOutputContentUnion struct {
@@ -455,6 +479,7 @@ func (u *FunctionCallOutputContentUnion) MarshalJSON() ([]byte, error) {
 type ToolUnion struct {
 	OfFunction        *FunctionTool        `json:",omitempty"`
 	OfImageGeneration *ImageGenerationTool `json:",omitempty"`
+	OfWebSearch       *WebSearchTool       `json:",omitempty"`
 }
 
 func (u *ToolUnion) UnmarshalJSON(data []byte) error {
@@ -470,6 +495,12 @@ func (u *ToolUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var webSearchTool WebSearchTool
+	if err := sonic.Unmarshal(data, &webSearchTool); err == nil {
+		u.OfWebSearch = &webSearchTool
+		return nil
+	}
+
 	return errors.New("invalid tool union")
 }
 
@@ -480,6 +511,10 @@ func (u *ToolUnion) MarshalJSON() ([]byte, error) {
 
 	if u.OfImageGeneration != nil {
 		return sonic.Marshal(u.OfImageGeneration)
+	}
+
+	if u.OfWebSearch != nil {
+		return sonic.Marshal(u.OfWebSearch)
 	}
 
 	return nil, nil
@@ -499,4 +534,75 @@ type FunctionTool struct {
 
 type ImageGenerationTool struct {
 	Type constants.ToolTypeImageGeneration `json:"type"` // image_generation
+}
+
+type WebSearchTool struct {
+	Type constants.ToolTypeWebSearch `json:"type"` // web_search
+}
+
+type WebSearchCallActionUnion struct {
+	OfSearch   *WebSearchCallActionOfSearch   `json:",omitempty"`
+	OfOpenPage *WebSearchCallActionOfOpenPage `json:",omitempty"`
+	OfFind     *WebSearchCallActionOfFind     `json:",omitempty"`
+}
+
+func (u *WebSearchCallActionUnion) UnmarshalJSON(data []byte) error {
+	var searchAction WebSearchCallActionOfSearch
+	if err := sonic.Unmarshal(data, &searchAction); err == nil {
+		u.OfSearch = &searchAction
+		return nil
+	}
+
+	var openPageAction WebSearchCallActionOfOpenPage
+	if err := sonic.Unmarshal(data, &openPageAction); err == nil {
+		u.OfOpenPage = &openPageAction
+		return nil
+	}
+
+	var findAction WebSearchCallActionOfFind
+	if err := sonic.Unmarshal(data, &findAction); err == nil {
+		u.OfFind = &findAction
+		return nil
+	}
+
+	return errors.New("invalid web search call action union")
+}
+
+func (u *WebSearchCallActionUnion) MarshalJSON() ([]byte, error) {
+	if u.OfSearch != nil {
+		return sonic.Marshal(u.OfSearch)
+	}
+
+	if u.OfOpenPage != nil {
+		return sonic.Marshal(u.OfOpenPage)
+	}
+
+	if u.OfFind != nil {
+		return sonic.Marshal(u.OfFind)
+	}
+
+	return nil, nil
+}
+
+type WebSearchCallActionOfSearch struct {
+	Type    constants.WebSearchActionTypeSearch `json:"type"`
+	Queries []string                            `json:"queries"`
+	Query   string                              `json:"query"`
+	Sources []WebSearchCallActionOfSearchSource `json:"sources"`
+}
+
+type WebSearchCallActionOfOpenPage struct {
+	Type constants.WebSearchActionTypeOpenPage `json:"type"`
+	URL  string                                `json:"url"`
+}
+
+type WebSearchCallActionOfFind struct {
+	Type    constants.WebSearchActionTypeFind `json:"type"`
+	URL     string                            `json:"url"`
+	Pattern string                            `json:"pattern"`
+}
+
+type WebSearchCallActionOfSearchSource struct {
+	Type string `json:"type"` // always "url"
+	URL  string `json:"url"`
 }
