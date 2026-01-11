@@ -5,7 +5,7 @@ description: Setup Uno SDK in your project in seconds.
 
 ## Prerequisites
 
-- Golang - [v1.25.3](https://go.dev/doc/devel/release#go1.25.3).
+- Golang - [v1.25.0](https://go.dev/doc/devel/release#go1.25.0).
 
 ## Install Uno
 
@@ -29,12 +29,10 @@ func main() {
 		LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
 			{
 				ProviderName:  llm.ProviderNameOpenAI,
-				BaseURL:       "",
-				CustomHeaders: nil,
 				ApiKeys: []*gateway.APIKeyConfig{
 					{
 						Name:   "Key 1",
-						APIKey: "",
+						APIKey: "your-openai-api-key",
 					},
 				},
 			},
@@ -42,3 +40,79 @@ func main() {
 	})
 }
 ```
+
+## Making LLM Calls
+
+Create a model instance by specifying the provider and model name:
+```go
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOpenAI,
+    Model:    "gpt-4.1-mini",
+})
+```
+
+Then, make a call to generate a response:
+```go
+resp, err := model.NewResponses(ctx, &responses.Request{
+    Instructions: utils.Ptr("You are a helpful assistant."),
+    Input: responses.InputUnion{
+        OfString: utils.Ptr("What is the capital of France?"),
+    },
+})
+```
+
+Finally, extract the generated text from the response:
+```go
+for _, output := range resp.Output {
+    if output.OfOutputMessage != nil {
+        for _, content := range output.OfOutputMessage.Content {
+            if content.OfOutputText != nil {
+                fmt.Println(content.OfOutputText.Text)
+            }
+        }
+    }
+}
+```
+
+<Card title="Responses API" icon="arrow-right" href="/uno-sdk/responses/responses-api">
+    Learn more about making LLM calls with the Responses API.
+</Card>
+
+## Creating Agents
+Create a simple agent with system instructions and an LLM:
+```go
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Assistant",
+    Instruction: client.Prompt("You are a helpful assistant."),
+    LLM: client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    }),
+})
+```
+
+Execute the agent with user messages:
+```go
+out, err := agent.Execute(ctx, &agents.AgentInput{
+    Messages: []responses.InputMessageUnion{
+        responses.UserMessage("Hello!"),
+    },
+})
+```
+
+Extract the agent's response:
+```go
+for _, output := range out.Output {
+    if output.OfOutputMessage != nil {
+        for _, content := range output.OfOutputMessage.Content {
+            if content.OfOutputText != nil {
+                fmt.Println(content.OfOutputText.Text)
+            }
+        }
+    }
+}
+```
+
+<Card title="Agents" icon="arrow-right" href="/uno-sdk/agents/simple-agent">
+    Learn more about building agents with the Agent SDK.
+</Card>

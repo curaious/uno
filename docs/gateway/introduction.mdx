@@ -1,56 +1,121 @@
 ---
 title: "Introduction"
+description: "Uno LLM Gateway & Agent Builder - A high-performance LLM gateway & no-code agent builder"
 ---
 
-**Uno LLM Gateway** is a high-performance, open-source gateway written in Golang. It is designed to provide a unified interface to interact with large language models from various providers like OpenAI, Anthropic, and Gemini. It sits between your application and the LLM providers and provides access control via virtual keys, and observability through OTEL traces.
+**Uno LLM Gateway** is a high-performance, open-source gateway written in Golang that provides a unified interface to interact with large language models from various providers. It sits between your application and LLM providers, offering access control via virtual keys, centralized configuration, and deep observability through OpenTelemetry traces.
 
-### Key Features
+## Key Features
 
-- **Unified API**: Interact with different LLM providers using a single, consistent request/response format.
-- **Virtual Keys**: Protect your provider API keys by using Uno-generated virtual keys in your client applications.
-- **Centralized Configuration**: Manage provider settings through a user-friendly UI without changing code.
-- **Deep Observability**: Automatically capture traces, token usage, and latency metrics for every request using ClickHouse and OpenTelemetry.
+- **Unified API**: Interact with different LLM providers using a single, consistent request/response format
+- **Virtual Keys**: Protect your provider API keys by using Uno-generated virtual keys in your client applications
+- **Centralized Configuration**: Manage provider settings through a user-friendly UI without changing code
+- **Deep Observability**: Automatically capture traces, token usage, and latency metrics for every request using ClickHouse and OpenTelemetry
+- **No-Code Agent Builder**: Build and deploy AI agents with tools, conversation history, and structured outputs—all from the dashboard
 
-## Supported Models
+## Capabilities
 
-The gateway currently has support for the OpenAI, Gemini and Anthropic. Support for more provider are in the roadmap.
+Uno Gateway provides two primary capabilities:
 
-<table>
-    <thead>
-        <tr>
-            <th>Providers</th>
-            <th>Text</th>
-            <th>Image</th>
-            <th>Tool calls</th>
-            <th>Reasoning</th>
-        </tr>
-    </thead>
-    <tbody>
-        <tr>
-            <th style={{textAlign:"right"}}>OpenAI</th>
-            <td><center>✅</center></td>
-            <td><center>✅</center></td>
-            <td><center>✅</center></td>
-            <td><center>✅</center></td>
-        </tr>
+## LLM Gateway
 
-        <tr>
-            <th style={{textAlign:"right"}}>Anthropic</th>
-            <td><center>✅</center></td>
-            <td><center>❌</center></td>
-            <td><center>✅</center></td>
-            <td><center>✅</center></td>
-        </tr>
+Point any OpenAI, Anthropic, or Gemini SDK at the gateway and unlock virtual keys, rate limiting, and request logging.
 
-        <tr>
-            <th style={{textAlign:"right"}}>Gemini</th>
-            <td><center>✅</center></td>
-            <td><center>✅</center></td>
-            <td><center>✅</center></td>
-            <td><center>✅</center></td>
-        </tr>
-    </tbody>
-</table>
+<CardGroup cols={2}>
+    <Card title="Virtual Keys" icon="shield-check">
+        Protect your provider API keys. Generate virtual keys with usage limits and revoke them instantly when needed.
+    </Card>
+    <Card title="Drop-in Replacement" icon="plug">
+        Point your existing OpenAI, Anthropic, or Google GenAI client to the gateway and get access to all gateway features.
+    </Card>
+    <Card title="Deep Observability" icon="chart-line">
+        Track every request with OpenTelemetry. Monitor token usage, latency, and costs with ClickHouse-powered analytics.
+    </Card>
+    <Card title="Request Logging" icon="list">
+        Every LLM call is logged with full request/response details for debugging and compliance.
+    </Card>
+</CardGroup>
+
+### Drop-in Replacement
+
+Point any existing SDK to the gateway—no code changes required. Simply update the base URL and use your virtual key:
+
+**Go:**
+
+```go
+client := openai.NewClient(
+    option.WithBaseURL("http://localhost:6060/api/gateway/openai"),
+    option.WithAPIKey("your-virtual-key"),
+)
+```
+
+**Python:**
+
+```python
+client = OpenAI(
+    base_url="http://localhost:6060/api/gateway/openai",
+    api_key="your-virtual-key",
+)
+```
+
+**TypeScript:**
+
+```typescript
+const client = new OpenAI({
+    baseURL: "http://localhost:6060/api/gateway/openai",
+    apiKey: "your-virtual-key",
+});
+```
+
+### Key Management
+
+Manage provider API keys and virtual keys with rate limits, all from a centralized dashboard.
+
+<Frame>
+    <img src="/images/llm-gateway.png" alt="Uno Gateway Dashboard" />
+</Frame>
+
+### Gateway Logs
+
+View all LLM requests with full details—prompts, responses, token usage, and latency metrics.
+
+<Frame>
+    <img src="/images/llm-gateway-logs.png" alt="LLM Gateway Logs" />
+</Frame>
+
+## No-Code Agent Builder
+
+Beyond proxying LLM calls, Uno Gateway includes a complete no-code agent builder. Define model parameters, system prompts, MCP tool servers, and output schemas—all from the dashboard, without writing code.
+
+<Frame>
+    <img src="/images/no-code-agent-builder.png" alt="No-Code Agent Builder" />
+</Frame>
+
+### Conversational UI
+
+Interact with your agents through a built-in chat interface. Test prompts, debug tool calls, and iterate on your agents in real-time without leaving the dashboard.
+
+<Frame>
+    <img src="/images/conversational-ui.png" alt="Conversational UI for Agents" />
+</Frame>
+
+### Agent Traces
+
+Every agent invocation is captured with detailed traces. Debug complex multi-step workflows, monitor performance, and understand exactly how your agents process requests.
+
+<Frame>
+    <img src="/images/traces.png" alt="Agent Traces and Observability" />
+</Frame>
+
+## Supported Providers
+
+Uno Gateway currently supports OpenAI, Anthropic, and Gemini. Support for additional providers is on the roadmap.
+
+| Provider | Text | Image | Tool Calls | Reasoning |
+| :--- | :---: | :---: | :---: | :---: |
+| **OpenAI** | ✅ | ✅ | ✅ | ✅ |
+| **Anthropic** | ✅ | ❌ | ✅ | ✅ |
+| **Gemini** | ✅ | ✅ | ✅ | ✅ |
 
 ---
 

@@ -1,0 +1,73 @@
+---
+title: Introduction
+description: A Golang SDK for making LLM calls, building AI agents, and orchestrating complex workflows across multiple providers.
+---
+
+## Uno SDK
+
+A Golang SDK for developers who want fine-grained control over LLM interactions and agent orchestration. The Uno SDK abstracts away provider differences, letting you switch between OpenAI, Anthropic, and Gemini with a single line change. Build agents, connect MCP tools, and get structured outputs—all through a unified API.
+
+### Core Capabilities
+
+<CardGroup cols={2}>
+  <Card title="Multi-Provider Support" icon="shuffle">
+    Access to multiple providers through a unified API. Seamlessly switch between OpenAI, Anthropic, Gemini, and more.
+  </Card>
+  <Card title="Agent SDK" icon="robot">
+    Build sophisticated AI agents with system instructions, tools, conversation history, summarization, and multi-step reasoning.
+  </Card>
+  <Card title="Human-in-the-loop" icon="person">
+    Integrate human feedback into agent workflows for review and approval.
+  </Card>
+  <Card title="Durable Execution" icon="helmet-safety">
+    Create durable agents that can pause, resume, and recover from failures.
+  </Card>
+</CardGroup>
+
+### Example
+
+<Tabs>
+  <Tab title="LLM Calls">
+    Use the SDK as a lightweight wrapper to call any LLM provider. Simply change the `Provider` and `Model` to switch between providers—your application logic stays the same:
+
+```go
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOpenAI,
+    Model:    "gpt-4.1-mini",
+})
+
+resp, _ := model.NewResponses(ctx, &responses.Request{
+    Instructions: utils.Ptr("You are a helpful assistant."),
+    Input: responses.InputUnion{
+        OfString: utils.Ptr("What is the capital of France?"),
+    },
+})
+```
+  </Tab>
+  <Tab title="Agents">
+    Create agents with tools, memory, and multi-step reasoning. Agents work the same way across all providers:
+
+```go
+agent := client.NewAgent(&sdk.AgentOptions{
+    Name:        "Assistant",
+    Instruction: client.Prompt("You are a helpful assistant."),
+    LLM: client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    }),
+})
+
+out, _ := agent.Execute(ctx, &agents.AgentInput{
+    Messages: []responses.InputMessageUnion{
+        responses.UserMessage("Hello!"),
+    },
+})
+```
+  </Tab>
+</Tabs>
+
+<Card title="Get Started with the SDK →" icon="arrow-right" href="/uno-sdk/setting-up">
+  Install the SDK and make your first LLM call in under 5 minutes.
+</Card>
+
+---

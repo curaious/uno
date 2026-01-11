@@ -2,7 +2,7 @@
 title: Responses API
 ---
 
-The Responses API provides a unified interface for interacting with large language models from various providers. It offers fine-grained control over request parameters and supports advanced features like reasoning, structured output, and streaming.
+The Responses API provides a unified interface for interacting with large language models from various providers. It offers fine-grained control over request parameters and supports advanced features like tool calling, image generation, reasoning, structured output, and streaming.
 
 ## Request Configuration
 
@@ -10,7 +10,6 @@ The `responses.Request` struct allows you to fine-tune your LLM calls with sever
 
 | Parameter | Type | Description |
 | :--- | :--- | :--- |
-| **Model** | `string` | The model identifier (e.g., "gpt-4o-mini", "claude-3-5-sonnet"). |
 | **Instructions** | `*string` | System-level instructions (System Prompt). |
 | **Input** | `InputUnion` | The user prompt (string or list of messages). |
 | **Tools** | `[]ToolUnion` | Definitions for function calling. |
@@ -19,18 +18,21 @@ The `responses.Request` struct allows you to fine-tune your LLM calls with sever
 
 The `Parameters` struct contains additional configuration options:
 
-| Parameter | Type | Description |
-| :--- | :--- | :--- |
-| **Temperature** | `*float64` | Sampling temperature (0.0 to 2.0). Higher values make output more random. |
-| **MaxOutputTokens** | `*int` | Maximum number of tokens to generate in the response. |
-| **TopP** | `*float64` | Nucleus sampling parameter (0.0 to 1.0). Controls diversity via nucleus sampling. |
-| **TopLogprobs** | `*int64` | Number of most likely tokens to return with their log probabilities. |
-| **Text** | `*TextFormat` | Structured output format configuration (JSON schema). See [Structured Output](/uno-sdk/responses/structured-output). |
-| **Stream** | `*bool` | Enable streaming responses. When `true`, responses are returned incrementally. |
+| Parameter | Type | Description                                                                                                                |
+| :--- | :--- |:---------------------------------------------------------------------------------------------------------------------------|
+| **Temperature** | `*float64` | Sampling temperature (0.0 to 2.0). Higher values make output more random.                                                  |
+| **MaxOutputTokens** | `*int` | Maximum number of tokens to generate in the response.                                                                      |
+| **TopP** | `*float64` | Nucleus sampling parameter (0.0 to 1.0). Controls diversity via nucleus sampling.                                          |
+| **TopLogprobs** | `*int64` | Number of most likely tokens to return with their log probabilities.                                                       |
+| **Text** | `*TextFormat` | Structured output format configuration (JSON schema). See [Structured Output](/uno-sdk/responses/structured-output).       |
+| **Stream** | `*bool` | Enable streaming responses. When `true`, responses are returned incrementally.                                             |
 | **Reasoning** | `*ReasoningParam` | Reasoning configuration for models that support chain-of-thought reasoning. See [Reasoning](/uno-sdk/responses/reasoning). |
-| **Metadata** | `map[string]string` | Custom metadata to attach to the request. |
-| **MaxToolCalls** | `*int` | Maximum number of tool calls allowed in a single response. |
-| **ParallelToolCalls** | `*bool` | Allow parallel execution of multiple tool calls. |
+| **Include** | `[]string` | Additional data to include in the response (e.g., `"reasoning.encrypted_content"`).                    |
+| **Metadata** | `map[string]string` | Custom metadata to attach to the request.                                                                                  |
+| **MaxToolCalls** | `*int` | Maximum number of tool calls allowed in a single response.                                                                 |
+| **ParallelToolCalls** | `*bool` | Allow parallel execution of multiple tool calls.                                                                           |
+| **Store** | `*bool` | Whether to store the request and response.                                                                                |
+| **Background** | `*bool` | If `true`, the request is processed in the background and the response is not returned immediately.                        |
 
 ### Reasoning Parameters
 
@@ -65,6 +67,180 @@ Text: &responses.TextFormat{
 ```
 
 See the [Structured Output](/uno-sdk/responses/structured-output) documentation for detailed examples.
+
+## Response Format
+
+The Responses API returns data in two formats depending on whether streaming is enabled:
+
+### Non-Streaming Response
+
+When `Stream` is `false` or not set, the API returns a complete `Response` object:
+
+```go
+type Response struct {
+    ID          string                 `json:"id"`
+    Model       string                 `json:"model"`
+    Output      []OutputMessageUnion   `json:"output"`
+    Usage       *Usage                 `json:"usage"`
+    Error       *Error                 `json:"error"`
+    ServiceTier string                 `json:"service_tier"`
+    Metadata    map[string]interface{} `json:"metadata"`
+}
+```
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **ID** | `string` | Unique identifier for the response. |
+| **Model** | `string` | The model that generated the response. |
+| **Output** | `[]OutputMessageUnion` | Array of output messages. Can contain text messages, function calls, reasoning, image generation calls, or web search calls. |
+| **Usage** | `*Usage` | Token usage statistics for the request. |
+| **Error** | `*Error` | Error information if the request failed. |
+| **ServiceTier** | `string` | The service tier used for this request. |
+| **Metadata** | `map[string]interface{}` | Custom metadata attached to the response. |
+
+#### Output Message Types
+
+The `Output` field contains an array of `OutputMessageUnion`, which can be one of the following types:
+
+- **`OutputMessage`**: Standard text message with content
+  - `ID`: Unique message identifier
+  - `Type`: Always `"message"`
+  - `Role`: Message role (`"user"`, `"system"`, or `"developer"`)
+  - `Content`: Array of content parts (typically text)
+
+- **`FunctionCallMessage`**: Function/tool call from the model
+  - `Type`: Always `"function_call"`
+  - `ID`: Unique function call identifier
+  - `CallID`: Call identifier for tracking
+  - `Name`: Name of the function to call
+  - `Arguments`: JSON string containing function arguments
+
+- **`ReasoningMessage`**: Reasoning content from models that support chain-of-thought
+  - `Type`: Always `"reasoning"`
+  - `ID`: Unique reasoning identifier
+  - `Summary`: Array of summary text content
+  - `EncryptedContent`: Optional encrypted reasoning content (when requested via `Include`)
+
+- **`ImageGenerationCallMessage`**: Image generation request
+  - `Type`: Always `"image_generation_call"`
+  - `ID`: Unique image generation identifier
+  - `Status`: Generation status
+  - `Result`: Base64-encoded image data
+
+- **`WebSearchCallMessage`**: Web search request
+  - `Type`: Always `"web_search_call"`
+  - `ID`: Unique web search identifier
+  - `Action`: Search action details
+
+#### Usage Information
+
+The `Usage` object provides token consumption details:
+
+```go
+type Usage struct {
+    InputTokens        int `json:"input_tokens"`
+    InputTokensDetails struct {
+        CachedTokens int `json:"cached_tokens"`
+    } `json:"input_tokens_details"`
+    OutputTokens        int `json:"output_tokens"`
+    OutputTokensDetails struct {
+        ReasoningTokens int `json:"reasoning_tokens"`
+    } `json:"output_tokens_details"`
+    TotalTokens int `json:"total_tokens"`
+}
+```
+
+| Field | Description |
+| :--- | :--- |
+| **InputTokens** | Total number of input tokens processed. |
+| **InputTokensDetails.CachedTokens** | Number of cached tokens (if caching is enabled). |
+| **OutputTokens** | Total number of tokens generated in the response. |
+| **OutputTokensDetails.ReasoningTokens** | Number of tokens used for reasoning (if applicable). |
+| **TotalTokens** | Sum of input and output tokens. |
+
+#### Error Handling
+
+If an error occurs, the `Error` field contains:
+
+```go
+type Error struct {
+    Type    string `json:"type"`
+    Message string `json:"message"`
+    Param   string `json:"param"`
+    Code    string `json:"code"`
+}
+```
+
+### Streaming Response
+
+When `Stream` is `true`, the API returns a stream of `ResponseChunk` objects via Server-Sent Events (SSE). Each chunk represents a part of the response as it's generated.
+
+#### Chunk Types
+
+The `ResponseChunk` union type can contain various chunk types that indicate different stages of the response:
+
+**Response Lifecycle Chunks:**
+- `response.created`: Initial response object created
+- `response.in_progress`: Response generation in progress
+- `response.completed`: Response generation completed
+
+**Output Item Chunks:**
+- `output_item.added`: A new output item (message, function call, etc.) was added
+- `output_item.done`: An output item is complete
+
+**Text Content Chunks:**
+- `content_part.added`: A new content part was added to a message
+- `content_part.done`: A content part is complete
+- `output_text.delta`: Incremental text delta (new text fragment)
+- `output_text.annotation.added`: A text annotation was added
+- `output_text.done`: Text generation is complete (includes full accumulated text)
+
+**Function Call Chunks:**
+- `function_call.arguments.delta`: Incremental function call arguments
+- `function_call.arguments.done`: Function call arguments are complete
+
+**Reasoning Chunks:**
+- `reasoning_summary_part.added`: A new reasoning summary part was added
+- `reasoning_summary_part.done`: A reasoning summary part is complete
+- `reasoning_summary_text.delta`: Incremental reasoning summary text
+- `reasoning_summary_text.done`: Reasoning summary text is complete
+
+**Image Generation Chunks:**
+- `image_generation_call.in_progress`: Image generation started
+- `image_generation_call.generating`: Image is being generated
+- `image_generation_call.partial_image`: Partial image data available
+
+**Web Search Chunks:**
+- `web_search_call.in_progress`: Web search started
+- `web_search_call.searching`: Search in progress
+- `web_search_call.completed`: Search completed
+
+#### Streaming Example
+
+When streaming, chunks are delivered in this general order:
+
+1. `response.created` - Response object initialized
+2. `output_item.added` - First output item (e.g., a message) added
+3. `content_part.added` - Content part added to the message
+4. `output_text.delta` - Text deltas streamed incrementally (multiple chunks)
+5. `output_text.done` - Text generation complete (contains full text)
+6. `content_part.done` - Content part complete
+7. `output_item.done` - Output item complete
+8. `response.completed` - Response generation finished (includes final usage stats)
+
+Each chunk includes:
+- `type`: The chunk type identifier
+- `sequence_number`: Ordering number for the chunk
+- Relevant data fields for that chunk type
+
+#### Processing Streaming Responses
+
+To process streaming responses, you'll receive chunks via a channel (Go) or SSE stream (HTTP). Each chunk should be handled based on its type:
+
+- **Text deltas**: Accumulate `output_text.delta` chunks to build the complete text
+- **Function calls**: Accumulate `function_call.arguments.delta` chunks to build complete arguments
+- **Usage stats**: Available in `response.completed` chunk
+- **Final text**: Available in `output_text.done` chunk's `text` field
 
 ## Supported Providers
 

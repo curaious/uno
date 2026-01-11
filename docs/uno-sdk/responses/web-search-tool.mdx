@@ -1,0 +1,318 @@
+---
+title: Web Search Tool
+---
+
+The Web Search tool allows LLMs to search the web and retrieve information from web pages. This tool is supported for **OpenAI** and **Gemini** providers, enabling models to access real-time information from the internet.
+
+## Overview
+
+The Web Search tool enables models to:
+- Search the web for information
+- Open and read specific web pages
+- Find specific content within web pages
+
+When a model uses the web search tool, it can retrieve up-to-date information that wasn't part of its training data, making it ideal for queries about current events, recent developments, or specific web content.
+
+## Defining the Web Search Tool
+
+To enable web search capabilities, add the `WebSearchTool` to your request's `Tools` array:
+
+```go
+import (
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/internal/utils"
+)
+
+webSearchTool := responses.ToolUnion{
+    OfWebSearch: &responses.WebSearchTool{
+        Type:              "web_search",
+        Filters:           nil,                        // Optional domain filters
+        UserLocation:      nil,                        // Optional user location
+        ExternalWebAccess: utils.Ptr(true),           // Enable external web access
+        SearchContextSize: utils.Ptr("medium"),       // "low", "medium", or "high"
+    },
+}
+```
+
+### Tool Parameters
+
+| Parameter | Type | Description |
+| :--- | :--- | :--- |
+| **Type** | `string` | Always `"web_search"` |
+| **Filters** | `*WebSearchToolFilters` | Optional domain filtering configuration |
+| **UserLocation** | `*WebSearchToolUserLocation` | Optional user location for localized results |
+| **ExternalWebAccess** | `*bool` | Whether to allow access to external websites (default: `true`) |
+| **SearchContextSize** | `*string` | Amount of context to retrieve: `"low"`, `"medium"`, or `"high"` (default: `"medium"`) |
+
+### Domain Filtering
+
+You can restrict web searches to specific domains using the `Filters` parameter:
+
+```go
+webSearchTool := responses.ToolUnion{
+    OfWebSearch: &responses.WebSearchTool{
+        Type: "web_search",
+        Filters: &responses.WebSearchToolFilters{
+            AllowedDomains: []string{
+                "example.com",
+                "docs.example.com",
+            },
+        },
+    },
+}
+```
+
+### User Location
+
+Specify the user's location to get localized search results:
+
+```go
+webSearchTool := responses.ToolUnion{
+    OfWebSearch: &responses.WebSearchTool{
+        Type: "web_search",
+        UserLocation: &responses.WebSearchToolUserLocation{
+            Type:     "location",
+            Country:  "US",
+            City:     "San Francisco",
+            Region:   "CA",
+            Timezone: "America/Los_Angeles",
+        },
+    },
+}
+```
+
+## Making a Request with Web Search
+
+Include the web search tool in your request:
+
+```go
+resp, err := model.NewResponses(ctx, &responses.Request{
+    Input: responses.InputUnion{
+        OfString: utils.Ptr("What are the latest developments in AI?"),
+    },
+    Tools: []responses.ToolUnion{webSearchTool},
+})
+```
+
+## Handling Web Search Calls
+
+When the model decides to use web search, it will return a `WebSearchCallMessage` in the response output. You can detect and process these calls:
+
+```go
+for _, output := range resp.Output {
+    if output.OfWebSearchCall != nil {
+        webSearchCall := output.OfWebSearchCall
+        
+        fmt.Printf("Web Search ID: %s\n", webSearchCall.ID)
+        fmt.Printf("Status: %s\n", webSearchCall.Status)
+        
+        // Handle different action types
+        if webSearchCall.Action.OfSearch != nil {
+            searchAction := webSearchCall.Action.OfSearch
+            fmt.Printf("Search Query: %s\n", searchAction.Query)
+            fmt.Printf("Queries: %v\n", searchAction.Queries)
+            
+            // Process search results
+            for _, source := range searchAction.Sources {
+                fmt.Printf("Source URL: %s\n", source.URL)
+            }
+        } else if webSearchCall.Action.OfOpenPage != nil {
+            openPageAction := webSearchCall.Action.OfOpenPage
+            fmt.Printf("Opening page: %s\n", openPageAction.URL)
+        } else if webSearchCall.Action.OfFind != nil {
+            findAction := webSearchCall.Action.OfFind
+            fmt.Printf("Finding pattern '%s' in %s\n", findAction.Pattern, findAction.URL)
+        }
+    }
+}
+```
+
+### Web Search Action Types
+
+The web search tool supports three types of actions:
+
+#### 1. Search Action
+
+Performs a web search query:
+
+```go
+type WebSearchCallActionOfSearch struct {
+    Type    string   `json:"type"`    // "search"
+    Query   string   `json:"query"`   // Main search query
+    Queries []string `json:"queries"` // Alternative queries
+    Sources []WebSearchCallActionOfSearchSource `json:"sources"`
+}
+```
+
+#### 2. Open Page Action
+
+Opens and reads a specific web page:
+
+```go
+type WebSearchCallActionOfOpenPage struct {
+    Type string `json:"type"` // "open_page"
+    URL  string `json:"url"`   // URL to open
+}
+```
+
+#### 3. Find Action
+
+Searches for specific content within a web page:
+
+```go
+type WebSearchCallActionOfFind struct {
+    Type    string `json:"type"`    // "find"
+    URL     string `json:"url"`     // URL to search within
+    Pattern string `json:"pattern"` // Pattern to find
+}
+```
+
+## Streaming Web Search Calls
+
+When using streaming responses, web search calls are delivered through specific chunk types:
+
+```go
+stream, err := model.NewStreamingResponses(ctx, &responses.Request{
+    Input: responses.InputUnion{
+        OfString: utils.Ptr("What's happening in the tech world today?"),
+    },
+    Tools: []responses.ToolUnion{webSearchTool},
+})
+
+for chunk := range stream {
+    switch chunk.ChunkType() {
+    case "response.web_search_call.in_progress":
+        // Web search has started
+        fmt.Println("Web search initiated")
+        
+    case "response.web_search_call.searching":
+        // Search is in progress
+        fmt.Println("Searching the web...")
+        
+    case "response.web_search_call.completed":
+        // Search completed
+        fmt.Println("Web search completed")
+        
+    case "response.output_item.done":
+        // Check if the completed item is a web search call
+        if chunk.OfOutputItemDone.Item.Type == "web_search_call" {
+            item := chunk.OfOutputItemDone.Item
+            if item.Action != nil && item.Action.OfSearch != nil {
+                searchAction := item.Action.OfSearch
+                fmt.Printf("Search query: %s\n", searchAction.Query)
+                
+                // Process search results
+                for _, source := range searchAction.Sources {
+                    fmt.Printf("Found: %s\n", source.URL)
+                }
+            }
+        }
+    }
+}
+```
+
+## Complete Example
+
+Here's a complete example demonstrating web search usage:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    "github.com/curaious/uno/internal/utils"
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {Name: "default", APIKey: os.Getenv("OPENAI_API_KEY")},
+                },
+            },
+        }),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o",
+    })
+
+    // Define web search tool
+    webSearchTool := responses.ToolUnion{
+        OfWebSearch: &responses.WebSearchTool{
+            Type:              "web_search",
+            ExternalWebAccess: utils.Ptr(true),
+            SearchContextSize: utils.Ptr("medium"),
+        },
+    }
+
+    // Make request with web search
+    resp, err := model.NewResponses(context.Background(), &responses.Request{
+        Input: responses.InputUnion{
+            OfString: utils.Ptr("What are the latest news about artificial intelligence?"),
+        },
+        Tools: []responses.ToolUnion{webSearchTool},
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Process response
+    for _, output := range resp.Output {
+        if output.OfWebSearchCall != nil {
+            fmt.Printf("Web search performed: %s\n", output.OfWebSearchCall.ID)
+            if output.OfWebSearchCall.Action.OfSearch != nil {
+                fmt.Printf("Query: %s\n", output.OfWebSearchCall.Action.OfSearch.Query)
+            }
+        } else if output.OfOutputMessage != nil {
+            // Model's response using the search results
+            fmt.Println(output.OfOutputMessage.Content[0].OfOutputText.Text)
+        }
+    }
+}
+```
+
+## Provider Support
+
+The Web Search tool is supported by the following providers:
+
+| Provider | Support |
+| :--- | :---: |
+| **OpenAI** | ✅ |
+| **Gemini** | ✅ |
+| **Anthropic** | ❌ |
+| **xAI** | ❌ |
+| **Ollama** | ❌ |
+
+## Best Practices
+
+1. **Use appropriate search context size**: Choose `"low"` for quick searches, `"medium"` for balanced results, or `"high"` for comprehensive information.
+
+2. **Domain filtering**: When you need information from specific sources, use domain filters to ensure the model only searches within trusted domains.
+
+3. **User location**: Specify user location when you need localized results (e.g., local news, regional information).
+
+4. **Error handling**: Always check the `Status` field of `WebSearchCallMessage` to handle cases where the search might have failed.
+
+5. **Streaming**: For better user experience, use streaming responses to show search progress in real-time.
+
+## Limitations
+
+- Web search results depend on the search engine's capabilities and may vary by provider
+- Some websites may block automated access
+- Search results may not always be up-to-date or accurate
+- Rate limits may apply depending on your provider and plan

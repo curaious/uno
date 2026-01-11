@@ -2,9 +2,53 @@
 title: Simple Agent
 ---
 
-You can create a simple agent like this:
+A simple agent is the most basic type of agent in the Uno SDK. It executes in-process without durability, making it perfect for stateless interactions, testing, and simple use cases that don't require crash recovery or long-running workflows.
+
+## Overview
+
+Simple agents provide:
+- **System instructions**: Define the agent's behavior and personality
+- **LLM integration**: Use any supported LLM provider (OpenAI, Anthropic, Gemini, etc.)
+- **Tool support**: Optional tools for function calling
+- **Conversation history**: Optional memory across interactions
+- **Streaming responses**: Real-time response chunks via callbacks
+
+Unlike durable agents, simple agents execute synchronously and don't persist state between runs. They're ideal for stateless applications, quick prototypes, and scenarios where you don't need crash recovery.
+
+## Creating a Simple Agent
+
+To create a simple agent, use `client.NewAgent()` with `AgentOptions`:
 
 ```go
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/curaious/uno/internal/utils"
+    "github.com/curaious/uno/pkg/agent-framework/agents"
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/pkg/sdk"
+)
+
+// Initialize the SDK client
+client, err := sdk.New(&sdk.ClientOptions{
+    LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+        {
+            ProviderName: llm.ProviderNameOpenAI,
+            ApiKeys: []*gateway.APIKeyConfig{
+                {Name: "default", APIKey: os.Getenv("OPENAI_API_KEY")},
+            },
+        },
+    }),
+})
+if err != nil {
+    log.Fatal(err)
+}
+
+// Create the agent
 agent := client.NewAgent(&sdk.AgentOptions{
     Name:        "Hello world agent",
     Instruction: client.Prompt("You are helpful assistant. You greet user with a light-joke"),
@@ -16,9 +60,28 @@ agent := client.NewAgent(&sdk.AgentOptions{
         Temperature: utils.Ptr(0.2),
     },
 })
+```
 
+### AgentOptions Fields
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **Name** | `string` | A unique identifier for the agent |
+| **Instruction** | `core.SystemPromptProvider` | System prompt defining agent behavior (use `client.Prompt()` for simple strings) |
+| **LLM** | `llm.Provider` | The LLM provider instance (created via `client.NewLLM()`) |
+| **Parameters** | `responses.Parameters` | Optional LLM parameters (temperature, max tokens, etc.) |
+| **Tools** | `[]core.Tool` | Optional array of tools the agent can use |
+| **History** | `*history.CommonConversationManager` | Optional conversation history manager |
+| **Output** | `map[string]any` | Optional JSON schema for structured output |
+| **McpServers** | `[]*mcpclient.MCPClient` | Optional MCP server clients |
+
+## Executing an Agent
+
+Execute an agent using the `Execute()` method with `AgentInput`:
+
+```go
 out, err := agent.Execute(context.Background(), &agents.AgentInput{
-	Messages: []responses.InputMessageUnion{
+    Messages: []responses.InputMessageUnion{
         responses.UserMessage("Hello!"),
     },
 })
@@ -26,5 +89,136 @@ if err != nil {
     log.Fatal(err)
 }
 
+// Access the response
 fmt.Println(out[0].OfOutputMessage.Content[0].OfOutputText.Text)
 ```
+
+### AgentInput Fields
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **Messages** | `[]responses.InputMessageUnion` | Array of input messages (use `responses.UserMessage()` helper) |
+| **Namespace** | `string` | Optional namespace for conversation isolation |
+| **PreviousMessageID** | `string` | Optional ID of previous message for conversation continuity |
+| **RunContext** | `map[string]any` | Optional context data for template variable resolution |
+| **Callback** | `func(chunk *responses.ResponseChunk)` | Optional callback for streaming responses |
+
+### AgentOutput Structure
+
+The `Execute()` method returns an `AgentOutput`:
+
+```go
+type AgentOutput struct {
+    RunID            string                        // Unique run identifier
+    Status           core.RunStatus                // Execution status
+    Output           []responses.InputMessageUnion  // Agent's response messages
+    PendingApprovals []responses.FunctionCallMessage // Tool calls requiring approval
+}
+```
+
+## Complete Example
+
+Here's a complete working example:
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "os"
+
+    "github.com/curaious/uno/internal/utils"
+    "github.com/curaious/uno/pkg/agent-framework/agents"
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/pkg/sdk"
+)
+
+func main() {
+    // Initialize SDK client
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {Name: "default", APIKey: os.Getenv("OPENAI_API_KEY")},
+                },
+            },
+        }),
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create agent
+    agent := client.NewAgent(&sdk.AgentOptions{
+        Name:        "Hello world agent",
+        Instruction: client.Prompt("You are helpful assistant. You greet user with a light-joke"),
+        LLM: client.NewLLM(sdk.LLMOptions{
+            Provider: llm.ProviderNameOpenAI,
+            Model:    "gpt-4o-mini",
+        }),
+        Parameters: responses.Parameters{
+            Temperature: utils.Ptr(0.2),
+        },
+    })
+
+    // Execute agent
+    out, err := agent.Execute(context.Background(), &agents.AgentInput{
+        Messages: []responses.InputMessageUnion{
+            responses.UserMessage("Hello!"),
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Print response
+    fmt.Println(out[0].OfOutputMessage.Content[0].OfOutputText.Text)
+}
+```
+
+## Streaming Responses
+
+To receive streaming responses, provide a `Callback` function in `AgentInput`:
+
+```go
+out, err := agent.Execute(context.Background(), &agents.AgentInput{
+    Messages: []responses.InputMessageUnion{
+        responses.UserMessage("Tell me a story"),
+    },
+    Callback: func(chunk *responses.ResponseChunk) {
+        // Handle different chunk types
+        switch chunk.ChunkType() {
+        case "response.output_text.delta":
+            // Print text deltas as they arrive
+            if chunk.OfOutputTextDelta != nil {
+                fmt.Print(chunk.OfOutputTextDelta.Delta)
+            }
+        case "response.output_text.done":
+            // Text generation complete
+            if chunk.OfOutputTextDone != nil && chunk.OfOutputTextDone.Text != nil {
+                fmt.Printf("\n\nComplete text: %s\n", *chunk.OfOutputTextDone.Text)
+            }
+        }
+    },
+})
+```
+
+## Helper Functions
+
+The SDK provides convenient helper functions for creating messages:
+
+- **`responses.UserMessage(msg string)`**: Creates a user message from a string
+- **`responses.SystemMessage(msg string)`**: Creates a system message
+- **`responses.AssistantMessage(msg string)`**: Creates an assistant message
+
+## Next Steps
+
+- Learn about [system instructions](/uno-sdk/agents/system-instruction) for customizing agent behavior
+- Add [conversation history](/uno-sdk/agents/conversations/history) for context-aware interactions
+- Integrate [tools](/uno-sdk/agents/tools/function-tools) to extend agent capabilities
+- Explore [durable agents](/uno-sdk/agents/durable/restate) for production workloads
