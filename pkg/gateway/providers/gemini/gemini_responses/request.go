@@ -10,11 +10,12 @@ type Request struct {
 }
 
 type GenerationConfig struct {
-	MaxOutputTokens *int            `json:"maxOutputTokens,omitempty"`
-	Temperature     *float64        `json:"temperature,omitempty"`
-	TopP            *float64        `json:"topP,omitempty"`
-	TopK            *int64          `json:"topK,omitempty"`
-	ThinkingConfig  *ThinkingConfig `json:"thinkingConfig,omitempty"`
+	MaxOutputTokens    *int            `json:"maxOutputTokens,omitempty"`
+	Temperature        *float64        `json:"temperature,omitempty"`
+	TopP               *float64        `json:"topP,omitempty"`
+	TopK               *int64          `json:"topK,omitempty"`
+	ThinkingConfig     *ThinkingConfig `json:"thinkingConfig,omitempty"`
+	ResponseModalities []string        `json:"responseModalities"`
 
 	// Structured output
 	ResponseMimeType   *string        `json:"responseMimeType,omitempty"`

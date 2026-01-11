@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"slices"
 	"strings"
 
 	"github.com/bytedance/sonic"
@@ -16,6 +17,7 @@ import (
 	"github.com/curaious/uno/pkg/gateway/providers/anthropic/anthropic_responses"
 	"github.com/curaious/uno/pkg/gateway/providers/gemini/gemini_embeddings"
 	"github.com/curaious/uno/pkg/gateway/providers/gemini/gemini_responses"
+	"github.com/curaious/uno/pkg/gateway/providers/gemini/gemini_speech"
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_chat_completion"
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_embeddings"
 	"github.com/curaious/uno/pkg/gateway/providers/openai/openai_responses"
@@ -535,6 +537,13 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 			return
 		}
 
+		provider := llm.ProviderNameOpenAI
+		if strings.Contains(openAiRequest.Model, "/") {
+			frag := strings.SplitN(openAiRequest.Model, "/", 2)
+			provider = llm.ProviderName(frag[0])
+			openAiRequest.Model = frag[1]
+		}
+
 		// Convert it into generic chat completion input
 		nativeRequest := openAiRequest.ToNativeRequest()
 
@@ -545,7 +554,7 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 
 		if !nativeRequest.IsStreamingRequest() {
 			// Call gateway to handle the gateway request
-			out, err := llmGateway.HandleRequest(stdCtx, llm.ProviderNameOpenAI, vk, req)
+			out, err := llmGateway.HandleRequest(stdCtx, provider, vk, req)
 			if err != nil {
 				writeError(ctx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
 				return
@@ -566,7 +575,7 @@ func RegisterGatewayRoutes(r *router.Group, svc *services.Services, llmGateway *
 		}
 
 		// Handling streaming request
-		out, err := llmGateway.HandleStreamingRequest(ctx, llm.ProviderNameOpenAI, vk, req)
+		out, err := llmGateway.HandleStreamingRequest(ctx, provider, vk, req)
 		if err != nil {
 			writeError(ctx, stdCtx, "Error handling LLM Gateway streaming request", perrors.NewErrInternalServerError("Error handling LLM Gateway streaming request", err))
 			return
@@ -606,6 +615,11 @@ func GeminiResponse(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, act
 	var geminiRequest *gemini_responses.Request
 	if err := sonic.Unmarshal(ctx.PostBody(), &geminiRequest); err != nil {
 		writeError(ctx, stdCtx, "Error unmarshalling the request body", perrors.NewErrInvalidRequest("Error unmarshalling the request body", err))
+		return
+	}
+
+	if slices.Contains(geminiRequest.GenerationConfig.ResponseModalities, "AUDIO") {
+		GeminiSpeech(ctx, stdCtx, model, action, vk, llmGateway)
 		return
 	}
 
@@ -723,6 +737,86 @@ func GeminiEmbedding(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, ac
 	}
 
 	return
+}
+
+func GeminiSpeech(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, action, vk string, llmGateway *gateway.LLMGateway) {
+	// Parse request body into openai's responses input format
+	var geminiRequest *gemini_speech.Request
+	if err := sonic.Unmarshal(ctx.PostBody(), &geminiRequest); err != nil {
+		writeError(ctx, stdCtx, "Error unmarshalling the request body", perrors.NewErrInvalidRequest("Error unmarshalling the request body", err))
+		return
+	}
+
+	geminiRequest.Model = model
+	isStream := action == "streamGenerateContent"
+
+	// Convert it into generic responses input
+	nativeRequest := geminiRequest.ToNativeRequest()
+
+	// Create a gateway request
+	req := &llm.Request{
+		OfSpeech: nativeRequest,
+	}
+
+	if !isStream {
+		// Call gateway to handle the gateway request
+		out, err := llmGateway.HandleRequest(ctx, llm.ProviderNameGemini, vk, req)
+		if err != nil {
+			writeError(ctx, stdCtx, "Error handling request", perrors.NewErrInternalServerError("Error handling request", err))
+			return
+		}
+
+		// Convert generic output into openai specific output
+		geminiResponse := gemini_speech.NativeResponseToResponse(out.OfSpeech)
+
+		buf, err := sonic.Marshal(geminiResponse)
+		if err != nil {
+			writeError(ctx, stdCtx, "Error marshalling response", perrors.NewErrInternalServerError("Error marshalling response", err))
+			return
+		}
+
+		if _, err = ctx.Write(buf); err != nil {
+			writeError(ctx, stdCtx, "Error encoding response", perrors.NewErrInternalServerError("Error encoding response", err))
+			return
+		}
+	}
+
+	out, err := llmGateway.HandleStreamingRequest(ctx, llm.ProviderNameGemini, vk, req)
+	if err != nil {
+		writeError(ctx, stdCtx, "Error handling streaming request", perrors.NewErrInternalServerError("Error handling streaming request", err))
+		return
+	}
+
+	converter := gemini_speech.NativeResponseChunkToResponseChunkConverter{}
+
+	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+	loop:
+		for {
+			select {
+			case nativeChunk, ok := <-out.SpeechStreamData:
+				if !ok {
+					break loop
+				}
+
+				geminiChunks := converter.NativeResponseChunkToResponseChunk(nativeChunk)
+				for _, geminiChunk := range geminiChunks {
+					buf, err := sonic.Marshal(&geminiChunk)
+					if err != nil {
+						slog.WarnContext(ctx, "Error encoding response: %v\n", err)
+						continue
+					}
+					fmt.Println(string(buf))
+
+					_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
+
+					err = w.Flush()
+					if err != nil {
+						slog.WarnContext(ctx, "Error flushing buffer: %v\n", err)
+					}
+				}
+			}
+		}
+	})
 }
 
 func extractKey(ctx *fasthttp.RequestCtx) string {

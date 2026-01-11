@@ -1,8 +1,10 @@
 package speech
 
 type Response struct {
-	Audio       []byte `json:"audio"`
-	ContentType string `json:"content_type"`
+	Audio       []byte         `json:"audio"`
+	ContentType string         `json:"content_type"`
+	Usage       Usage          `json:"usage"`
+	RawFields   map[string]any `json:"raw_fields"`
 }
 
 type ResponseChunk struct {
@@ -21,7 +23,13 @@ type ChunkAudioDone[T any] struct {
 }
 
 type Usage struct {
-	InputTokens  int `json:"input_tokens"`
-	OutputTokens int `json:"output_tokens"`
-	TotalTokens  int `json:"total_tokens"`
+	InputTokens        int `json:"input_tokens"`
+	InputTokensDetails struct {
+		CachedTokens int `json:"cached_tokens"`
+	} `json:"input_tokens_details"`
+	OutputTokens        int `json:"output_tokens"`
+	OutputTokensDetails struct {
+		ReasoningTokens int `json:"reasoning_tokens"`
+	} `json:"output_tokens_details"`
+	TotalTokens int `json:"total_tokens"`
 }
