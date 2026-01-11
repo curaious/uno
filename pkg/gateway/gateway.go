@@ -133,6 +133,7 @@ func (g *LLMGateway) baseStreamingRequestHandler(ctx context.Context, providerNa
 
 		resp.ResponsesStreamData = respOut
 		return resp, nil
+
 	case r.OfChatCompletionInput != nil:
 		respOut, err := g.handleStreamingChatCompletionRequest(ctx, providerName, p, r.OfChatCompletionInput)
 		if err != nil {
@@ -140,6 +141,15 @@ func (g *LLMGateway) baseStreamingRequestHandler(ctx context.Context, providerNa
 		}
 
 		resp.ChatCompletionStreamData = respOut
+		return resp, nil
+
+	case r.OfSpeech != nil:
+		respOut, err := g.handleStreamingSpeechRequest(ctx, providerName, p, r.OfSpeech)
+		if err != nil {
+			return nil, err
+		}
+
+		resp.SpeechStreamData = respOut
 		return resp, nil
 	}
 
