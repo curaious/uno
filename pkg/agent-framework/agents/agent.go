@@ -18,6 +18,7 @@ import (
 	internal_adapters "github.com/curaious/uno/pkg/sdk/adapters"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
@@ -33,6 +34,10 @@ type DurableExecutor interface {
 	core.SystemPromptProvider
 	NewStreamingResponses(ctx context.Context, in *responses.Request) (*responses.Response, error)
 	CallTool(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error)
+	// StartSpan creates a trace span appropriate for the runtime.
+	// For local execution: creates a real OTel span.
+	// For durable runtimes (Temporal/Restate): no-op since the runtime handles tracing.
+	StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func())
 }
 
 type Agent struct {
@@ -152,6 +157,13 @@ func (e *Agent) CallTool(ctx context.Context, toolCall *responses.FunctionCallMe
 	return tool.Execute(ctx, toolCall)
 }
 
+// StartSpan creates a real OTel span for local (non-durable) execution.
+func (e *Agent) StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func()) {
+	ctx, span := tracer.Start(ctx, name)
+	span.SetAttributes(attrs...)
+	return ctx, func() { span.End() }
+}
+
 type AgentInput struct {
 	Namespace         string
 	PreviousMessageID string
@@ -179,10 +191,8 @@ func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, erro
 }
 
 func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executor DurableExecutor) (*AgentOutput, error) {
-	ctx, span := tracer.Start(ctx, "Agent.Execute")
-	defer span.End()
-
-	span.SetAttributes(attribute.String("agent.name", e.name))
+	ctx, endSpan := executor.StartSpan(ctx, "Agent.Execute", attribute.String("agent.name", e.name))
+	defer endSpan()
 
 	/* Prepare MCP Tools Activity */
 	mcpTools, err := e.PrepareMCPTools(ctx, in.RunContext)
@@ -208,7 +218,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	_, err = chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
 	if err != nil {
-		span.RecordError(err)
 		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 	}
 
@@ -219,8 +228,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	var rejectedToolCallIds []string
 	var traceid string
-	sc := span.SpanContext()
-	if sc.IsValid() {
+	if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() {
 		traceid = sc.TraceID().String()
 	}
 
@@ -271,7 +279,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 	if e.instruction != nil {
 		instruction, err = executor.GetPrompt(ctx, in.RunContext)
 		if err != nil {
-			span.RecordError(err)
 			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 		}
 	}
@@ -300,7 +307,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			// TODO: make `GetMessages` as durable step
 			convMessages, err := chatHistory.GetMessages(ctx)
 			if err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
@@ -313,7 +319,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				Parameters: parameters,
 			})
 			if err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
@@ -388,7 +393,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				} else {
 					toolResult, err = executor.CallTool(ctx, &toolCall)
 					if err != nil {
-						span.RecordError(err)
 						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 				}
@@ -419,7 +423,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			// DURABLE CHECKPOINT: Save state and exit - will resume when approval comes (DB write)
 			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
 			if err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
@@ -446,7 +449,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			// DURABLE CHECKPOINT: Save final state (DB write)
 			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
 			if err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 

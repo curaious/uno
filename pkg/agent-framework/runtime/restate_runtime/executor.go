@@ -7,6 +7,7 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/agents"
 	"github.com/curaious/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func NewRestateExecutor(workflowCtx restate.WorkflowContext, wrappedAgent *agents.Agent) *RestateExecutor {
@@ -59,4 +60,11 @@ func (a *RestateExecutor) CallTool(ctx context.Context, toolCall *responses.Func
 	return restate.Run(a.workflowCtx, func(ctx restate.RunContext) (*responses.FunctionCallOutputMessage, error) {
 		return a.wrappedAgent.CallTool(ctx, toolCall)
 	})
+}
+
+// StartSpan is a no-op for Restate workflows.
+// Restate handles workflow tracing via its framework-level OpenTelemetry integration.
+// Spans inside restate.Run() blocks (Agent.NewStreamingResponses, Agent.CallTool) provide detailed tracing.
+func (a *RestateExecutor) StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func()) {
+	return ctx, func() {}
 }

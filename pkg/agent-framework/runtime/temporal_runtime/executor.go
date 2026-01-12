@@ -5,6 +5,7 @@ import (
 
 	"github.com/curaious/uno/internal/services/conversation"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"go.opentelemetry.io/otel/attribute"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -59,4 +60,11 @@ func (a *TemporalExecutor) CallTool(ctx context.Context, toolCall *responses.Fun
 	}
 
 	return output, nil
+}
+
+// StartSpan is a no-op for Temporal workflows.
+// Temporal handles workflow and activity tracing via interceptors.
+// Spans inside activity implementations (Agent.NewStreamingResponses, Agent.CallTool) provide detailed tracing.
+func (a *TemporalExecutor) StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func()) {
+	return ctx, func() {}
 }
