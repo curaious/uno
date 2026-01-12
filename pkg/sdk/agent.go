@@ -18,8 +18,10 @@ import (
 	"github.com/curaious/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/server"
+	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
 )
 
 type AgentOptions struct {
@@ -143,6 +145,9 @@ func (c *SDK) NewTemporalAgent(options *AgentOptions) *agents.Agent {
 
 	c.agents[options.Name] = agent
 
+	// Wrap the agent IO to call temporal activities
+	c.temporalAgentConfigs[options.Name] = options
+
 	return agent
 }
 
@@ -156,6 +161,21 @@ func (c *SDK) StartTemporalService() {
 		w := worker.New(cli, "AgentWorkflowTaskQueue", worker.Options{})
 
 		// Register workflows and activities based on the agents available in the SDK
+		for agentName := range c.temporalAgentConfigs {
+			agent := c.agents[agentName]
+			temporalAgent := temporal_runtime.NewTemporalAgent(agent)
+
+			w.RegisterActivityWithOptions(agent.LoadMessages, activity.RegisterOptions{Name: agentName + "_LoadMessagesActivity"})
+			w.RegisterActivityWithOptions(agent.SaveMessages, activity.RegisterOptions{Name: agentName + "_SaveMessagesActivity"})
+			w.RegisterActivityWithOptions(agent.SaveSummary, activity.RegisterOptions{Name: agentName + "_SaveSummaryActivity"})
+			w.RegisterActivityWithOptions(agent.GetPrompt, activity.RegisterOptions{Name: agentName + "_GetPromptActivity"})
+			w.RegisterActivityWithOptions(agent.NewStreamingResponses, activity.RegisterOptions{Name: agentName + "_NewStreamingResponsesActivity"})
+			w.RegisterActivityWithOptions(agent.CallTool, activity.RegisterOptions{Name: agentName + "_CallToolActivity"})
+
+			w.RegisterWorkflowWithOptions(temporalAgent.Execute, workflow.RegisterOptions{
+				Name: agentName + "_AgentWorkflow",
+			})
+		}
 
 		err = w.Run(worker.InterruptCh())
 		if err != nil {

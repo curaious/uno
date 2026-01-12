@@ -24,13 +24,13 @@ type ConversationPersistenceAdapter interface {
 
 type CommonConversationManager struct {
 	ConversationPersistenceAdapter ConversationPersistenceAdapter
-	options                        []ConversationManagerOptions
+	Options                        []ConversationManagerOptions
 }
 
 func NewConversationManager(p ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *CommonConversationManager {
 	return &CommonConversationManager{
 		ConversationPersistenceAdapter: p,
-		options:                        opts,
+		Options:                        opts,
 	}
 }
 
@@ -80,14 +80,13 @@ type ConversationRunManager struct {
 	summaries  *core.SummaryResult
 }
 
-func (cm *CommonConversationManager) NewRun() *ConversationRunManager {
+func NewRun(persistence ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *ConversationRunManager {
 	cr := &ConversationRunManager{
-		ConversationPersistenceAdapter: cm.ConversationPersistenceAdapter,
-		msgId:                          uuid.NewString(),
+		ConversationPersistenceAdapter: persistence,
 		msgIdToRunId:                   make(map[string]string),
 	}
 
-	for _, o := range cm.options {
+	for _, o := range opts {
 		o(cr)
 	}
 

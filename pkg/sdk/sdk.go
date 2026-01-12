@@ -21,7 +21,8 @@ type SDK struct {
 	restateConfig  RestateConfig
 	temporalConfig TemporalConfig
 
-	agents map[string]*agents.Agent
+	agents               map[string]*agents.Agent
+	temporalAgentConfigs map[string]*AgentOptions
 }
 
 type ServerConfig struct {
@@ -59,12 +60,13 @@ func New(opts *ClientOptions) (*SDK, error) {
 	}
 
 	sdk := &SDK{
-		llmConfigs:    opts.LLMConfigs,
-		directMode:    opts.LLMConfigs != nil,
-		endpoint:      opts.ServerConfig.Endpoint,
-		virtualKey:    opts.ServerConfig.VirtualKey,
-		restateConfig: opts.RestateConfig,
-		agents:        map[string]*agents.Agent{},
+		llmConfigs:           opts.LLMConfigs,
+		directMode:           opts.LLMConfigs != nil,
+		endpoint:             opts.ServerConfig.Endpoint,
+		virtualKey:           opts.ServerConfig.VirtualKey,
+		restateConfig:        opts.RestateConfig,
+		agents:               map[string]*agents.Agent{},
+		temporalAgentConfigs: map[string]*AgentOptions{},
 	}
 
 	if opts.ServerConfig.ProjectName == "" {

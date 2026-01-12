@@ -20,7 +20,7 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/history"
 	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/curaious/uno/pkg/agent-framework/prompts"
-	restateExec "github.com/curaious/uno/pkg/agent-framework/providers/restate"
+	"github.com/curaious/uno/pkg/agent-framework/runtime/restate_runtime"
 	"github.com/curaious/uno/pkg/agent-framework/summariser"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/gateway/middlewares/logger"
@@ -163,9 +163,6 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 	streamChannel := runID
 
 	slog.Info("agent workflow started", "run_id", runID, "project_id", input.ProjectID, "agent_name", input.AgentName)
-
-	// Create RestateExecutor
-	executor := restateExec.NewRestateExecutor(reStateCtx)
 
 	// Parse project ID
 	projectID, err := uuid.Parse(input.ProjectID)
@@ -313,7 +310,7 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 		Messages:          []responses.InputMessageUnion{input.Message},
 		Callback:          streamCallback,
 		RunContext:        contextData,
-	}, executor)
+	}, restate_runtime.NewRestateExecutor(reStateCtx, agent))
 
 	if err != nil {
 		publishStreamEvent(streamChannel, StreamEvent{

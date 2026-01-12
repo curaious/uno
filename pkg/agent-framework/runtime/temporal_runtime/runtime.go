@@ -24,9 +24,8 @@ func NewTemporalRuntime() *TemporalRuntime {
 
 func (r *TemporalRuntime) Run(ctx context.Context, agent *agents.Agent, in *agents.AgentInput) (*agents.AgentOutput, error) {
 	run, err := r.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
-		ID:        "AgentWorkflow_" + agent.Name(),
-		TaskQueue: "",
-	}, "AgentWorkflow", in)
+		TaskQueue: "AgentWorkflowTaskQueue",
+	}, agent.Name()+"_AgentWorkflow", agent.Name(), in)
 	if err != nil {
 		return nil, err
 	}

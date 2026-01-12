@@ -23,7 +23,7 @@ func (w AgentWorkflow) Run(restateCtx restate.WorkflowContext, input *WorkflowIn
 	}
 
 	// Create RestateExecutor from workflow context
-	executor := NewRestateExecutor(restateCtx)
+	executor := NewRestateExecutor(restateCtx, agent)
 
 	// Execute using the SAME agent instance with durability
 	// Note: The callback won't work across process boundaries, so we use a no-op callback

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/services/conversation"
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/history"
@@ -23,6 +23,17 @@ import (
 var (
 	tracer = otel.Tracer("Agent")
 )
+
+type AgentRuntime interface {
+	Run(ctx context.Context, agent *Agent, in *AgentInput) (*AgentOutput, error)
+}
+
+type DurableExecutor interface {
+	history.ConversationPersistenceAdapter
+	core.SystemPromptProvider
+	NewStreamingResponses(ctx context.Context, in *responses.Request) (*responses.Response, error)
+	CallTool(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error)
+}
 
 type Agent struct {
 	name        string
@@ -106,6 +117,41 @@ func (e *Agent) PrepareMCPTools(ctx context.Context, runContext map[string]any) 
 	return coreTools, nil
 }
 
+func (e *Agent) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {
+	return e.history.ConversationPersistenceAdapter.LoadMessages(ctx, namespace, previousMessageID)
+}
+
+func (e *Agent) SaveMessages(ctx context.Context, namespace string, msgId string, previousMsgId string, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
+	return e.history.ConversationPersistenceAdapter.SaveMessages(ctx, namespace, msgId, previousMsgId, conversationId, messages, meta)
+}
+
+func (e *Agent) SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error {
+	return e.history.ConversationPersistenceAdapter.SaveSummary(ctx, namespace, summary)
+}
+
+func (e *Agent) GetPrompt(ctx context.Context, runContext map[string]any) (string, error) {
+	return e.instruction.GetPrompt(ctx, runContext)
+}
+
+func (e *Agent) NewStreamingResponses(ctx context.Context, req *responses.Request) (*responses.Response, error) {
+	stream, err := e.llm.NewStreamingResponses(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	acc := Accumulator{}
+	return acc.ReadStream(stream, core.NilCallback)
+}
+
+func (e *Agent) CallTool(ctx context.Context, toolCall *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+	tool := findTool(ctx, e.tools, toolCall.Name)
+	if tool == nil {
+		return nil, errors.New("tool not found: " + toolCall.Name)
+	}
+
+	return tool.Execute(ctx, toolCall)
+}
+
 type AgentInput struct {
 	Namespace         string
 	PreviousMessageID string
@@ -125,10 +171,11 @@ type AgentOutput struct {
 func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, error) {
 	// Delegate to runtime, or use default LocalRuntime if none is set
 	runtime := e.runtime
-	if runtime == nil {
-		runtime = NewLocalRuntime()
+	if runtime != nil {
+		return runtime.Run(ctx, e, in)
 	}
-	return runtime.Run(ctx, e, in)
+
+	return e.ExecuteWithExecutor(ctx, in, e)
 }
 
 func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executor DurableExecutor) (*AgentOutput, error) {
@@ -137,10 +184,12 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	span.SetAttributes(attribute.String("agent.name", e.name))
 
+	/* Prepare MCP Tools Activity */
 	mcpTools, err := e.PrepareMCPTools(ctx, in.RunContext)
 	if err != nil {
 		return nil, err
 	}
+	/* End Activity */
 
 	tools := append(e.tools, mcpTools...)
 
@@ -154,24 +203,20 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		cb = core.NilCallback
 	}
 
-	chatHistory := e.history.NewRun()
+	var runId string
+	chatHistory := history.NewRun(executor, e.history.Options...)
 
-	runId := chatHistory.GetMessageID()
-
-	// DURABLE CHECKPOINT: Load the conversation history (DB read)
-	_, err = executor.Run(ctx, "load-messages", func(ctx context.Context) (any, error) {
-		return chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
-	})
+	_, err = chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
 	if err != nil {
 		span.RecordError(err)
 		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 	}
 
-	runId = chatHistory.GetMessageID()
-
 	// Load run state from meta (in-memory, no DB call)
+	runId = chatHistory.GetMessageID()
 	meta := chatHistory.GetMeta()
 	runState := core.LoadRunStateFromMeta(meta)
+
 	var rejectedToolCallIds []string
 	var traceid string
 	sc := span.SpanContext()
@@ -187,19 +232,15 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			chatHistory.AddMessages(ctx, in.Messages, nil)
 		}
 
-		// DURABLE: Emit run created event (side effect)
-		executor.Run(ctx, "emit-run-created", func(ctx context.Context) (any, error) {
-			cb(&responses.ResponseChunk{
-				OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
-					RunState: responses.ChunkRunData{
-						Id:      runId,
-						Object:  "run",
-						Status:  "created",
-						TraceID: traceid,
-					},
+		cb(&responses.ResponseChunk{
+			OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
+				RunState: responses.ChunkRunData{
+					Id:      runId,
+					Object:  "run",
+					Status:  "created",
+					TraceID: traceid,
 				},
-			})
-			return nil, nil
+			},
 		})
 	} else if runState.IsPaused() {
 		// RESUME: Transition to execute the approved tools
@@ -214,33 +255,24 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		}
 	}
 
-	// DURABLE: Emit run in progress event (side effect)
-	executor.Run(ctx, "emit-run-in-progress", func(ctx context.Context) (any, error) {
-		cb(&responses.ResponseChunk{
-			OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
-				RunState: responses.ChunkRunData{
-					Id:      runId,
-					Object:  "run",
-					Status:  "in_progress",
-					TraceID: traceid,
-				},
+	cb(&responses.ResponseChunk{
+		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "in_progress",
+				TraceID: traceid,
 			},
-		})
-		return nil, nil
+		},
 	})
 
 	// DURABLE CHECKPOINT: Load system instruction (potential DB read)
 	instruction := "You are a helpful assistant."
 	if e.instruction != nil {
-		instructionAny, err := executor.Run(ctx, "load-instruction", func(ctx context.Context) (any, error) {
-			return e.instruction.GetPrompt(ctx, in.RunContext)
-		})
+		instruction, err = executor.GetPrompt(ctx, in.RunContext)
 		if err != nil {
 			span.RecordError(err)
 			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-		}
-		if instructionAny != nil {
-			instruction = instructionAny.(string)
 		}
 	}
 
@@ -265,54 +297,22 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		switch runState.NextStep() {
 
 		case core.StepCallLLM:
-			// Get the messages from the conversation history
-			convMessagesAny, err := executor.Run(ctx, fmt.Sprintf("get-messages-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
-				return chatHistory.GetMessages(ctx)
-			})
-
-			buf, err := sonic.Marshal(convMessagesAny)
+			// TODO: make `GetMessages` as durable step
+			convMessages, err := chatHistory.GetMessages(ctx)
 			if err != nil {
 				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			var convMessages []responses.InputMessageUnion
-			if err := sonic.Unmarshal(buf, &convMessages); err != nil {
-				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-			}
-
-			// DURABLE CHECKPOINT: LLM Call
-			respAny, err := executor.Run(ctx, fmt.Sprintf("llm-call-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
-				stream, err := e.llm.NewStreamingResponses(ctx, &responses.Request{
-					Instructions: utils.Ptr(instruction),
-					Input: responses.InputUnion{
-						OfInputMessageList: convMessages,
-					},
-					Tools:      toolDefs,
-					Parameters: parameters,
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				acc := Accumulator{}
-				return acc.ReadStream(stream, cb)
+			resp, err := executor.NewStreamingResponses(ctx, &responses.Request{
+				Instructions: utils.Ptr(instruction),
+				Input: responses.InputUnion{
+					OfInputMessageList: convMessages,
+				},
+				Tools:      toolDefs,
+				Parameters: parameters,
 			})
 			if err != nil {
-				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-			}
-
-			// Unmarshal response
-			buf, err = sonic.Marshal(respAny)
-			if err != nil {
-				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-			}
-
-			resp := &responses.Response{}
-			if err := sonic.Unmarshal(buf, resp); err != nil {
 				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
@@ -333,6 +333,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				}
 				inputMsgs = append(inputMsgs, inputMsg)
 			}
+
 			chatHistory.AddMessages(ctx, inputMsgs, resp.Usage)
 			finalOutput = append(finalOutput, inputMsgs...)
 
@@ -385,36 +386,15 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 						},
 					}
 				} else {
-					// DURABLE CHECKPOINT: Tool execution
-					toolResultAny, err := executor.Run(ctx, fmt.Sprintf("tool-%s-%s", toolCall.ID, toolCall.Name), func(ctx context.Context) (any, error) {
-						return tool.Execute(ctx, &toolCall)
-					})
+					toolResult, err = executor.CallTool(ctx, &toolCall)
 					if err != nil {
-						span.RecordError(err)
-						slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
-						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-					}
-
-					// Unmarshal tool result
-					buf, err := sonic.Marshal(toolResultAny)
-					if err != nil {
-						span.RecordError(err)
-						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-					}
-
-					toolResult = &responses.FunctionCallOutputMessage{}
-					if err := sonic.Unmarshal(buf, toolResult); err != nil {
 						span.RecordError(err)
 						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 				}
 
-				// DURABLE: Emit tool result event (side effect)
-				executor.Run(ctx, fmt.Sprintf("emit-tool-result-%s", toolCall.ID), func(ctx context.Context) (any, error) {
-					cb(&responses.ResponseChunk{
-						OfFunctionCallOutput: toolResult,
-					})
-					return nil, nil
+				cb(&responses.ResponseChunk{
+					OfFunctionCallOutput: toolResult,
 				})
 
 				toolResultMsg := []responses.InputMessageUnion{
@@ -437,29 +417,23 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 		case core.StepAwaitApproval:
 			// DURABLE CHECKPOINT: Save state and exit - will resume when approval comes (DB write)
-			_, err := executor.Run(ctx, "save-messages-paused", func(ctx context.Context) (any, error) {
-				return nil, chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
-			})
+			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
 			if err != nil {
 				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			// DURABLE: Emit run paused event (side effect)
-			executor.Run(ctx, "emit-run-paused", func(ctx context.Context) (any, error) {
-				cb(&responses.ResponseChunk{
-					OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
-						RunState: responses.ChunkRunData{
-							Id:               runId,
-							Object:           "run",
-							Status:           "paused",
-							PendingToolCalls: runState.PendingToolCalls,
-							Usage:            runState.Usage,
-							TraceID:          traceid,
-						},
+			cb(&responses.ResponseChunk{
+				OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
+					RunState: responses.ChunkRunData{
+						Id:               runId,
+						Object:           "run",
+						Status:           "paused",
+						PendingToolCalls: runState.PendingToolCalls,
+						Usage:            runState.Usage,
+						TraceID:          traceid,
 					},
-				})
-				return nil, nil
+				},
 			})
 
 			return &AgentOutput{
@@ -470,28 +444,23 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 		case core.StepComplete:
 			// DURABLE CHECKPOINT: Save final state (DB write)
-			_, err := executor.Run(ctx, "save-messages-complete", func(ctx context.Context) (any, error) {
-				return nil, chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
-			})
+			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
 			if err != nil {
 				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			// DURABLE: Emit run completed event (side effect)
-			executor.Run(ctx, "emit-run-completed", func(ctx context.Context) (any, error) {
-				cb(&responses.ResponseChunk{
-					OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
-						RunState: responses.ChunkRunData{
-							Id:      runId,
-							Object:  "run",
-							Status:  "completed",
-							Usage:   runState.Usage,
-							TraceID: traceid,
-						},
+			cb(&responses.ResponseChunk{
+				OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
+					RunState: responses.ChunkRunData{
+						Id:      runId,
+						Object:  "run",
+						Status:  "completed",
+						Usage:   runState.Usage,
+						TraceID: traceid,
 					},
-				})
-				return nil, nil
+				},
 			})
 
 			return &AgentOutput{
