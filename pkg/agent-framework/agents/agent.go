@@ -87,8 +87,12 @@ func NewAgent(opts *AgentOptions) *Agent {
 	}
 }
 
-func (e *Agent) PrepareTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
-	coreTools := e.tools
+func (e *Agent) Name() string {
+	return e.name
+}
+
+func (e *Agent) PrepareMCPTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
+	coreTools := []core.Tool{}
 	if e.mcpServers != nil {
 		for _, mcpServer := range e.mcpServers {
 			cli, err := mcpServer.GetClient(ctx, runContext)
@@ -122,21 +126,23 @@ func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, erro
 	// Delegate to runtime, or use default LocalRuntime if none is set
 	runtime := e.runtime
 	if runtime == nil {
-		runtime = DefaultRuntime()
+		runtime = NewLocalRuntime()
 	}
 	return runtime.Run(ctx, e, in)
 }
 
-func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executor core.DurableExecutor) (*AgentOutput, error) {
+func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executor DurableExecutor) (*AgentOutput, error) {
 	ctx, span := tracer.Start(ctx, "Agent.Execute")
 	defer span.End()
 
 	span.SetAttributes(attribute.String("agent.name", e.name))
 
-	tools, err := e.PrepareTools(ctx, in.RunContext)
+	mcpTools, err := e.PrepareMCPTools(ctx, in.RunContext)
 	if err != nil {
 		return nil, err
 	}
+
+	tools := append(e.tools, mcpTools...)
 
 	toolDefs := make([]responses.ToolUnion, len(tools))
 	for idx, coreTool := range tools {
@@ -256,12 +262,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	// Main loop - driven by state machine
 	for runState.LoopIteration < e.maxLoops {
-		// Check for cancellation (durable)
-		if cancelled, ok, _ := executor.Get(ctx, "cancelled"); ok && cancelled.(bool) {
-			slog.InfoContext(ctx, "agent execution cancelled")
-			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, fmt.Errorf("execution cancelled")
-		}
-
 		switch runState.NextStep() {
 
 		case core.StepCallLLM:
@@ -504,14 +504,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	// Max loops exceeded
 	return &AgentOutput{Status: core.RunStatusError, RunID: runId}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
-}
-
-// Cancel signals the agent to stop execution (requires a durable executor with state).
-func (e *Agent) Cancel(ctx context.Context, executor core.DurableExecutor, reason string) error {
-	if executor == nil {
-		return fmt.Errorf("cancel requires a durable executor")
-	}
-	return executor.Set(ctx, "cancelled", true)
 }
 
 // partitionByApproval splits tool calls into those needing approval and those that can execute immediately

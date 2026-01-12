@@ -12,10 +12,14 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/history"
 	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
+	"github.com/curaious/uno/pkg/agent-framework/runtime/restate_runtime"
+	"github.com/curaious/uno/pkg/agent-framework/runtime/temporal_runtime"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/server"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
 )
 
 type AgentOptions struct {
@@ -102,20 +106,59 @@ func (c *SDK) NewRestateAgent(options *AgentOptions) *agents.Agent {
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
-		Runtime:     agents.NewRestateRuntime(c.restateConfig.Endpoint),
+		Runtime:     restate_runtime.NewRestateRuntime(c.restateConfig.Endpoint),
 	})
 
 	c.agents[options.Name] = agent
-	agents.RegisterAgent(options.Name, agent)
 
 	return agent
 }
 
 func (c *SDK) StartRestateService(host, port string) {
+	for _, agent := range c.agents {
+		agents.RegisterAgent(agent.Name(), agent)
+	}
+
 	go func() {
 		if err := server.NewRestate().
-			Bind(restate.Reflect(agents.AgentWorkflow{})).
+			Bind(restate.Reflect(restate_runtime.AgentWorkflow{})).
 			Start(context.Background(), fmt.Sprintf("%s:%s", host, port)); err != nil {
+			log.Fatal(err)
+		}
+	}()
+}
+
+func (c *SDK) NewTemporalAgent(options *AgentOptions) *agents.Agent {
+	agent := agents.NewAgent(&agents.AgentOptions{
+		Name:        options.Name,
+		LLM:         options.LLM,
+		History:     options.History,
+		Parameters:  options.Parameters,
+		Output:      options.Output,
+		Tools:       options.Tools,
+		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
+		Runtime:     temporal_runtime.NewTemporalRuntime(),
+	})
+
+	c.agents[options.Name] = agent
+
+	return agent
+}
+
+func (c *SDK) StartTemporalService() {
+	cli, err := client.Dial(client.Options{})
+	if err != nil {
+		panic("unable to create temporal client")
+	}
+
+	go func() {
+		w := worker.New(cli, "AgentWorkflowTaskQueue", worker.Options{})
+
+		// Register workflows and activities based on the agents available in the SDK
+
+		err = w.Run(worker.InterruptCh())
+		if err != nil {
 			log.Fatal(err)
 		}
 	}()

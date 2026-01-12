@@ -13,12 +13,13 @@ import (
 )
 
 type SDK struct {
-	endpoint      string
-	projectId     uuid.UUID
-	virtualKey    string
-	directMode    bool
-	llmConfigs    gateway.ConfigStore
-	restateConfig RestateConfig
+	endpoint       string
+	projectId      uuid.UUID
+	virtualKey     string
+	directMode     bool
+	llmConfigs     gateway.ConfigStore
+	restateConfig  RestateConfig
+	temporalConfig TemporalConfig
 
 	agents map[string]*agents.Agent
 }
@@ -35,6 +36,10 @@ type ServerConfig struct {
 }
 
 type RestateConfig struct {
+	Endpoint string
+}
+
+type TemporalConfig struct {
 	Endpoint string
 }
 
