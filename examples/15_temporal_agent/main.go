@@ -31,6 +31,9 @@ func main() {
 		TemporalConfig: sdk.TemporalConfig{
 			Endpoint: "0.0.0.0:7233",
 		},
+		RedisConfig: sdk.RedisConfig{
+			Endpoint: "localhost:6379",
+		},
 	})
 	if err != nil {
 		log.Fatal(err)

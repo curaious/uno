@@ -11,10 +11,8 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/agents"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/history"
-	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/curaious/uno/pkg/agent-framework/runtime/restate_runtime"
 	"github.com/curaious/uno/pkg/agent-framework/runtime/temporal_runtime"
-	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
@@ -33,7 +31,7 @@ type AgentOptions struct {
 	History     *history.CommonConversationManager
 	Parameters  responses.Parameters
 	Instruction core.SystemPromptProvider
-	McpServers  []*mcpclient.MCPClient
+	McpServers  []agents.MCPToolset
 }
 
 func (c *SDK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -109,31 +107,30 @@ func (c *SDK) NewRestateAgent(options *AgentOptions) *agents.Agent {
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
-		Runtime:     restate_runtime.NewRestateRuntime(c.restateConfig.Endpoint),
+		Runtime:     restate_runtime.NewRestateRuntime(c.restateConfig.Endpoint, c.redisBroker),
 	})
-
-	streamHandler, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
-		Addr: "localhost:6379",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	agent.SetStreamBroker(streamHandler)
 
 	c.agents[options.Name] = agent
+	c.restateAgentConfigs[options.Name] = &agents.AgentOptions{
+		Name:        options.Name,
+		LLM:         options.LLM,
+		History:     options.History,
+		Parameters:  options.Parameters,
+		Output:      options.Output,
+		Tools:       options.Tools,
+		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
+	}
 
 	return agent
 }
 
 func (c *SDK) StartRestateService(host, port string) {
-	for _, agent := range c.agents {
-		agents.RegisterAgent(agent.Name(), agent)
-	}
+	wf := restate_runtime.NewRestateWorkflow(c.restateAgentConfigs, c.redisBroker)
 
 	go func() {
 		if err := server.NewRestate().
-			Bind(restate.Reflect(restate_runtime.AgentWorkflow{})).
+			Bind(restate.Reflect(wf)).
 			Start(context.Background(), fmt.Sprintf("%s:%s", host, port)); err != nil {
 			log.Fatal(err)
 		}
@@ -150,22 +147,20 @@ func (c *SDK) NewTemporalAgent(options *AgentOptions) *agents.Agent {
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
-		Runtime:     temporal_runtime.NewTemporalRuntime(c.temporalConfig.Endpoint),
+		Runtime:     temporal_runtime.NewTemporalRuntime(c.temporalConfig.Endpoint, c.redisBroker),
 	})
-
-	streamHandler, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
-		Addr: "localhost:6379",
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	agent.SetStreamBroker(streamHandler)
 
 	c.agents[options.Name] = agent
-
-	// Wrap the agent IO to call temporal activities
-	c.temporalAgentConfigs[options.Name] = options
+	c.temporalAgentConfigs[options.Name] = &agents.AgentOptions{
+		Name:        options.Name,
+		LLM:         options.LLM,
+		History:     options.History,
+		Parameters:  options.Parameters,
+		Output:      options.Output,
+		Tools:       options.Tools,
+		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
+	}
 
 	return agent
 }
@@ -182,21 +177,12 @@ func (c *SDK) StartTemporalService() {
 		w := worker.New(cli, "AgentWorkflowTaskQueue", worker.Options{})
 
 		// Register workflows and activities based on the agents available in the SDK
-		for agentName := range c.temporalAgentConfigs {
-			agent := c.agents[agentName]
-			temporalAgent := temporal_runtime.NewTemporalAgent(agent)
-
-			w.RegisterActivityWithOptions(temporalAgent.LoadMessages, activity.RegisterOptions{Name: agentName + "_LoadMessagesActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.SaveMessages, activity.RegisterOptions{Name: agentName + "_SaveMessagesActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.SaveSummary, activity.RegisterOptions{Name: agentName + "_SaveSummaryActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.GetPrompt, activity.RegisterOptions{Name: agentName + "_GetPromptActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.NewStreamingResponses, activity.RegisterOptions{Name: agentName + "_NewStreamingResponsesActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.CallTool, activity.RegisterOptions{Name: agentName + "_CallToolActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.RunCreated, activity.RegisterOptions{Name: agentName + "_RunCreatedActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.RunPaused, activity.RegisterOptions{Name: agentName + "_RunPausedActivity"})
-			w.RegisterActivityWithOptions(temporalAgent.RunCompleted, activity.RegisterOptions{Name: agentName + "_RunCompletedActivity"})
-
-			w.RegisterWorkflowWithOptions(temporalAgent.Execute, workflow.RegisterOptions{
+		for agentName, agentOptions := range c.temporalAgentConfigs {
+			temporalAgentProxy := temporal_runtime.NewTemporalAgent(agentOptions, c.redisBroker)
+			for name, fn := range temporalAgentProxy.GetActivities() {
+				w.RegisterActivityWithOptions(fn, activity.RegisterOptions{Name: name})
+			}
+			w.RegisterWorkflowWithOptions(temporalAgentProxy.Execute, workflow.RegisterOptions{
 				Name: agentName + "_AgentWorkflow",
 			})
 		}

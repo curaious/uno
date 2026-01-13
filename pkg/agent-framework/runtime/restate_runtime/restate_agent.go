@@ -1,0 +1,75 @@
+package restate_runtime
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/agent-framework/history"
+	"github.com/curaious/uno/pkg/llm/responses"
+	restate "github.com/restatedev/sdk-go"
+)
+
+// AgentWorkflow is the Restate workflow that executes agents with durability.
+type AgentWorkflow struct {
+	agentConfigs map[string]*agents.AgentOptions
+	broker       core.StreamBroker
+}
+
+func NewRestateWorkflow(agentConfigs map[string]*agents.AgentOptions, broker core.StreamBroker) *AgentWorkflow {
+	return &AgentWorkflow{
+		agentConfigs: agentConfigs,
+		broker:       broker,
+	}
+}
+
+// Run executes the agent inside a Restate workflow context.
+func (w *AgentWorkflow) Run(restateCtx restate.WorkflowContext, input *WorkflowInput) (*agents.AgentOutput, error) {
+	agentOptions, ok := w.agentConfigs[input.AgentName]
+	if !ok {
+		return &agents.AgentOutput{Status: core.RunStatusError}, fmt.Errorf("agent not found: %s", input.AgentName)
+	}
+
+	workflowId := restate.Key(restateCtx)
+	cb := func(chunk *responses.ResponseChunk) {
+		w.broker.Publish(context.Background(), workflowId, chunk)
+	}
+	defer w.broker.Close(context.Background(), workflowId)
+
+	promptProxy := NewRestatePrompt(restateCtx, agentOptions.Instruction)
+
+	llmProxy := NewRestateLLM(restateCtx, agentOptions.LLM)
+
+	conversationPersistenceProxy := NewRestateConversationPersistence(restateCtx, agentOptions.History.ConversationPersistenceAdapter)
+	conversationHistory := history.NewConversationManager(conversationPersistenceProxy)
+
+	var restateTools []core.Tool
+	for _, tool := range agentOptions.Tools {
+		restateTools = append(restateTools, NewRestateTool(restateCtx, tool))
+	}
+
+	var mcpClients []agents.MCPToolset
+	for _, mcpClient := range agentOptions.McpServers {
+		mcpClients = append(mcpClients, NewRestateMCPServer(restateCtx, mcpClient))
+	}
+
+	agent := agents.NewAgent(&agents.AgentOptions{
+		Name:       agentOptions.Name,
+		Output:     agentOptions.Output,
+		Parameters: agentOptions.Parameters,
+
+		Instruction: promptProxy,
+		History:     conversationHistory,
+		Tools:       restateTools,
+		McpServers:  mcpClients,
+	}).WithLLM(llmProxy)
+
+	// Execute using the SAME agent instance with durability
+	return agent.ExecuteWithExecutor(restateCtx, &agents.AgentInput{
+		Namespace:         input.Namespace,
+		PreviousMessageID: input.PreviousMessageID,
+		Messages:          input.Messages,
+		RunContext:        input.RunContext,
+	}, cb)
+}

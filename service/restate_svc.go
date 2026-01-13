@@ -20,7 +20,6 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/history"
 	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/curaious/uno/pkg/agent-framework/prompts"
-	"github.com/curaious/uno/pkg/agent-framework/runtime/restate_runtime"
 	"github.com/curaious/uno/pkg/agent-framework/summariser"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/gateway/middlewares/logger"
@@ -310,7 +309,7 @@ func (w AgentBuilderWorkflow) Run(reStateCtx restate.WorkflowContext, input Agen
 		Messages:          []responses.InputMessageUnion{input.Message},
 		Callback:          streamCallback,
 		RunContext:        contextData,
-	}, restate_runtime.NewRestateExecutor(reStateCtx, agent))
+	}, streamCallback)
 
 	if err != nil {
 		publishStreamEvent(streamChannel, StreamEvent{
@@ -362,7 +361,7 @@ func (AgentBuilderWorkflow) Cancel(ctx restate.WorkflowSharedContext, reason str
 // Helper Functions
 // ============================================================================
 
-func fetchAndConnectMCPServers(ctx context.Context, projectID uuid.UUID, agentConfig *agent.AgentWithDetails, sessionID string, contextData map[string]any) ([]*mcpclient.MCPClient, error) {
+func fetchAndConnectMCPServers(ctx context.Context, projectID uuid.UUID, agentConfig *agent.AgentWithDetails, sessionID string, contextData map[string]any) ([]agents.MCPToolset, error) {
 	if len(agentConfig.MCPServers) == 0 {
 		return nil, nil
 	}
@@ -377,7 +376,7 @@ func fetchAndConnectMCPServers(ctx context.Context, projectID uuid.UUID, agentCo
 	}
 
 	// Fetch uncached servers from DB
-	mcpServers := make([]*mcpclient.MCPClient, len(mcpServerIDsToFetch))
+	mcpServers := make([]agents.MCPToolset, len(mcpServerIDsToFetch))
 	if len(mcpServerIDsToFetch) > 0 {
 		mcpServerConfigs, err := svc.MCPServer.GetByIDs(ctx, projectID, mcpServerIDsToFetch)
 		if err != nil {

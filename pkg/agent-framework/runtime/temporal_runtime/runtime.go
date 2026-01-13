@@ -5,14 +5,16 @@ import (
 	"fmt"
 
 	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
 	"go.temporal.io/sdk/client"
 )
 
 type TemporalRuntime struct {
 	client client.Client
+	broker core.StreamBroker
 }
 
-func NewTemporalRuntime(endpoint string) *TemporalRuntime {
+func NewTemporalRuntime(endpoint string, broker core.StreamBroker) *TemporalRuntime {
 	c, err := client.Dial(client.Options{
 		HostPort: endpoint,
 	})
@@ -22,24 +24,25 @@ func NewTemporalRuntime(endpoint string) *TemporalRuntime {
 
 	return &TemporalRuntime{
 		client: c,
+		broker: broker,
 	}
 }
 
 func (r *TemporalRuntime) Run(ctx context.Context, agent *agents.Agent, in *agents.AgentInput) (*agents.AgentOutput, error) {
 	run, err := r.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		TaskQueue: "AgentWorkflowTaskQueue",
-	}, agent.Name()+"_AgentWorkflow", in)
+	}, agent.Name+"_AgentWorkflow", in)
 	if err != nil {
 		return nil, err
 	}
 
 	runID := run.GetID()
 
-	if streamBroker := agent.GetStreamBroker(); streamBroker != nil && in.Callback != nil {
+	if r.broker != nil && in.Callback != nil {
 		// Handle streaming via callback
 		go func() {
 			fmt.Println("Subscribing to stream for run ID:", runID)
-			stream, err := streamBroker.Subscribe(ctx, runID)
+			stream, err := r.broker.Subscribe(ctx, runID)
 			if err != nil {
 				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
 				return

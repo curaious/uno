@@ -7,11 +7,9 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/curaious/uno/internal/services/conversation"
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/history"
-	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/constants"
 	"github.com/curaious/uno/pkg/llm/responses"
@@ -26,34 +24,42 @@ var (
 	tracer = otel.Tracer("Agent")
 )
 
+type MCPToolset interface {
+	GetName() string
+	ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error)
+}
+
+type LLM interface {
+	NewStreamingResponses(ctx context.Context, in *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error)
+}
+
+type WrappedLLM struct {
+	llm llm.Provider
+}
+
+func (l *WrappedLLM) NewStreamingResponses(ctx context.Context, in *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error) {
+	acc := Accumulator{}
+
+	stream, err := l.llm.NewStreamingResponses(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	return acc.ReadStream(stream, cb)
+}
+
 type AgentRuntime interface {
 	Run(ctx context.Context, agent *Agent, in *AgentInput) (*AgentOutput, error)
 }
 
-type DurableExecutor interface {
-	history.ConversationPersistenceAdapter
-	core.SystemPromptProvider
-	NewStreamingResponses(ctx context.Context, in *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error)
-	CallTool(ctx context.Context, params *responses.FunctionCallMessage, runContext map[string]any, cb func(chunk *responses.ResponseChunk)) (*responses.FunctionCallOutputMessage, error)
-	// StartSpan creates a trace span appropriate for the runtime.
-	// For local execution: creates a real OTel span.
-	// For durable runtimes (Temporal/Restate): no-op since the runtime handles tracing.
-	StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func())
-
-	RunCreated(ctx context.Context, runId string, traceId string, cb func(chunk *responses.ResponseChunk)) error
-	RunPaused(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error
-	RunCompleted(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error
-	GetRunID(ctx context.Context) string
-}
-
 type Agent struct {
-	name         string
+	Name         string
 	output       map[string]any
 	history      *history.CommonConversationManager
 	instruction  core.SystemPromptProvider
 	tools        []core.Tool
-	mcpServers   []*mcpclient.MCPClient
-	llm          llm.Provider
+	mcpServers   []MCPToolset
+	llm          LLM
 	parameters   responses.Parameters
 	runtime      AgentRuntime
 	maxLoops     int
@@ -69,7 +75,7 @@ type AgentOptions struct {
 	LLM        llm.Provider
 	Output     map[string]any
 	Tools      []core.Tool
-	McpServers []*mcpclient.MCPClient
+	McpServers []MCPToolset
 	Runtime    AgentRuntime
 	MaxLoops   int
 }
@@ -97,150 +103,49 @@ func NewAgent(opts *AgentOptions) *Agent {
 	}
 
 	return &Agent{
-		name:        opts.Name,
+		Name:        opts.Name,
 		output:      opts.Output,
 		history:     opts.History,
 		instruction: opts.Instruction,
 		tools:       opts.Tools,
 		mcpServers:  opts.McpServers,
-		llm:         opts.LLM,
+		llm:         &WrappedLLM{opts.LLM},
 		parameters:  opts.Parameters,
 		runtime:     opts.Runtime,
 		maxLoops:    maxLoops,
 	}
 }
 
-func (e *Agent) Name() string {
-	return e.name
-}
-
-// SetStreamBroker sets the stream broker for activity-level streaming.
-// This is used by Temporal activities to publish LLM chunks directly.
-func (e *Agent) SetStreamBroker(broker core.StreamBroker) {
-	e.streamBroker = broker
-}
-
-func (e *Agent) GetStreamBroker() core.StreamBroker {
-	return e.streamBroker
+func (e *Agent) WithLLM(wrappedLLM LLM) *Agent {
+	return &Agent{
+		Name:         e.Name,
+		output:       e.output,
+		history:      e.history,
+		instruction:  e.instruction,
+		tools:        e.tools,
+		mcpServers:   e.mcpServers,
+		llm:          wrappedLLM,
+		parameters:   e.parameters,
+		runtime:      e.runtime,
+		maxLoops:     e.maxLoops,
+		streamBroker: e.streamBroker,
+	}
 }
 
 func (e *Agent) PrepareMCPTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
 	coreTools := []core.Tool{}
 	if e.mcpServers != nil {
 		for _, mcpServer := range e.mcpServers {
-			cli, err := mcpServer.GetClient(ctx, runContext)
+			mcpTools, err := mcpServer.ListTools(ctx, runContext)
 			if err != nil {
-				return nil, fmt.Errorf("failed to initialize MCP server: %w", err)
+				return nil, fmt.Errorf("failed to list MCP tools: %w", err)
 			}
-			coreTools = append(coreTools, cli.GetTools()...)
+
+			coreTools = append(coreTools, mcpTools...)
 		}
 	}
 
 	return coreTools, nil
-}
-
-func (e *Agent) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {
-	return e.history.ConversationPersistenceAdapter.LoadMessages(ctx, namespace, previousMessageID)
-}
-
-func (e *Agent) SaveMessages(ctx context.Context, namespace string, msgId string, previousMsgId string, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
-	return e.history.ConversationPersistenceAdapter.SaveMessages(ctx, namespace, msgId, previousMsgId, conversationId, messages, meta)
-}
-
-func (e *Agent) SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error {
-	return e.history.ConversationPersistenceAdapter.SaveSummary(ctx, namespace, summary)
-}
-
-func (e *Agent) GetPrompt(ctx context.Context, runContext map[string]any) (string, error) {
-	return e.instruction.GetPrompt(ctx, runContext)
-}
-
-func (e *Agent) NewStreamingResponses(ctx context.Context, req *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error) {
-	stream, err := e.llm.NewStreamingResponses(ctx, req)
-	if err != nil {
-		return nil, err
-	}
-
-	acc := Accumulator{}
-	return acc.ReadStream(stream, cb)
-}
-
-func (e *Agent) CallTool(ctx context.Context, toolCall *responses.FunctionCallMessage, runContext map[string]any, cb func(chunk *responses.ResponseChunk)) (*responses.FunctionCallOutputMessage, error) {
-	mcpTools, err := e.PrepareMCPTools(ctx, runContext)
-	if err != nil {
-		return nil, err
-	}
-
-	tool := findTool(ctx, append(e.tools, mcpTools...), toolCall.Name)
-	if tool == nil {
-		return nil, errors.New("tool not found: " + toolCall.Name)
-	}
-
-	out, err := tool.Execute(ctx, toolCall)
-
-	cb(&responses.ResponseChunk{
-		OfFunctionCallOutput: out,
-	})
-
-	return out, err
-}
-
-func (e *Agent) RunCreated(ctx context.Context, runId string, traceId string, cb func(chunk *responses.ResponseChunk)) error {
-	cb(&responses.ResponseChunk{
-		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
-			RunState: responses.ChunkRunData{
-				Id:      runId,
-				Object:  "run",
-				Status:  "created",
-				TraceID: traceId,
-			},
-		},
-	})
-
-	cb(&responses.ResponseChunk{
-		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
-			RunState: responses.ChunkRunData{
-				Id:      runId,
-				Object:  "run",
-				Status:  "in_progress",
-				TraceID: traceId,
-			},
-		},
-	})
-
-	return nil
-}
-
-func (e *Agent) RunPaused(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
-	cb(&responses.ResponseChunk{
-		OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
-			RunState: responses.ChunkRunData{
-				Id:               runId,
-				Object:           "run",
-				Status:           "paused",
-				PendingToolCalls: runState.PendingToolCalls,
-				Usage:            runState.Usage,
-				TraceID:          traceId,
-			},
-		},
-	})
-
-	return nil
-}
-
-func (e *Agent) RunCompleted(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
-	cb(&responses.ResponseChunk{
-		OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
-			RunState: responses.ChunkRunData{
-				Id:      runId,
-				Object:  "run",
-				Status:  "completed",
-				Usage:   runState.Usage,
-				TraceID: traceId,
-			},
-		},
-	})
-	return nil
 }
 
 func (e *Agent) GetRunID(ctx context.Context) string {
@@ -282,24 +187,18 @@ func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, erro
 		return runtime.Run(ctx, e, in)
 	}
 
-	return e.ExecuteWithExecutor(ctx, in, e)
+	return e.ExecuteWithExecutor(ctx, in, in.Callback)
 }
 
-func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executor DurableExecutor) (*AgentOutput, error) {
-	ctx, endSpan := executor.StartSpan(ctx, "Agent.Execute", attribute.String("agent.name", e.name))
-	defer endSpan()
-
-	/* Prepare MCP Tools Activity */
+func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func(chunk *responses.ResponseChunk)) (*AgentOutput, error) {
 	mcpTools, err := e.PrepareMCPTools(ctx, in.RunContext)
 	if err != nil {
 		return nil, err
 	}
-	/* End Activity */
 
 	tools := append(e.tools, mcpTools...)
 
 	var toolDefs []responses.ToolUnion
-
 	if len(tools) > 0 {
 		toolDefs = make([]responses.ToolUnion, len(tools))
 		for idx, coreTool := range tools {
@@ -307,8 +206,8 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		}
 	}
 
-	runId := executor.GetRunID(ctx)
-	chatHistory := history.NewRun(runId, executor, e.history.Options...)
+	runId := e.GetRunID(ctx)
+	chatHistory := history.NewRun(runId, e.history.ConversationPersistenceAdapter, e.history.Options...)
 
 	_, err = chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
 	if err != nil {
@@ -343,13 +242,11 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		}
 	}
 
-	if err := executor.RunCreated(ctx, runId, traceid, in.Callback); err != nil {
-		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-	}
+	e.runCreated(ctx, runId, traceid, cb)
 
 	instruction := "You are a helpful assistant."
 	if e.instruction != nil {
-		instruction, err = executor.GetPrompt(ctx, in.RunContext)
+		instruction, err = e.instruction.GetPrompt(ctx, in.RunContext)
 		if err != nil {
 			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 		}
@@ -382,14 +279,14 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			resp, err := executor.NewStreamingResponses(ctx, &responses.Request{
+			resp, err := e.llm.NewStreamingResponses(ctx, &responses.Request{
 				Instructions: utils.Ptr(instruction),
 				Input: responses.InputUnion{
 					OfInputMessageList: convMessages,
 				},
 				Tools:      toolDefs,
 				Parameters: parameters,
-			}, in.Callback)
+			}, cb)
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
@@ -463,11 +360,15 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 						},
 					}
 				} else {
-					toolResult, err = executor.CallTool(ctx, &toolCall, in.RunContext, in.Callback)
+					toolResult, err = tool.Execute(ctx, &toolCall)
 					if err != nil {
 						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 				}
+
+				cb(&responses.ResponseChunk{
+					OfFunctionCallOutput: toolResult,
+				})
 
 				toolResultMsg := []responses.InputMessageUnion{
 					{OfFunctionCallOutput: toolResult},
@@ -493,7 +394,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			executor.RunPaused(ctx, runId, traceid, runState, in.Callback)
+			e.runPaused(ctx, runId, traceid, runState, cb)
 
 			return &AgentOutput{
 				RunID:            runId,
@@ -507,7 +408,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			executor.RunCompleted(ctx, runId, traceid, runState, in.Callback)
+			e.runCompleted(ctx, runId, traceid, runState, cb)
 
 			return &AgentOutput{
 				RunID:  runId,
@@ -519,6 +420,64 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	// Max loops exceeded
 	return &AgentOutput{Status: core.RunStatusError, RunID: runId}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
+}
+
+func (e *Agent) runCreated(ctx context.Context, runId string, traceId string, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "created",
+				TraceID: traceId,
+			},
+		},
+	})
+
+	cb(&responses.ResponseChunk{
+		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "in_progress",
+				TraceID: traceId,
+			},
+		},
+	})
+
+	return nil
+}
+
+func (e *Agent) runPaused(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
+			RunState: responses.ChunkRunData{
+				Id:               runId,
+				Object:           "run",
+				Status:           "paused",
+				PendingToolCalls: runState.PendingToolCalls,
+				Usage:            runState.Usage,
+				TraceID:          traceId,
+			},
+		},
+	})
+
+	return nil
+}
+
+func (e *Agent) runCompleted(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "completed",
+				Usage:   runState.Usage,
+				TraceID: traceId,
+			},
+		},
+	})
+	return nil
 }
 
 // partitionByApproval splits tool calls into those needing approval and those that can execute immediately

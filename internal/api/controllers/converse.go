@@ -220,7 +220,7 @@ func buildAgent(ctx context.Context, svc *services.Services, llmGateway *gateway
 		mcpServerIDsToFetch = append(mcpServerIDsToFetch, agentMCP.MCPServerID)
 	}
 
-	mcpServers := make([]*mcpclient.MCPClient, len(mcpServerIDsToFetch))
+	mcpServers := make([]agents.MCPToolset, len(mcpServerIDsToFetch))
 	if len(mcpServerIDsToFetch) > 0 {
 		// Trace MCP server config fetch from DB
 		_, mcpDbSpan := tracer.Start(ctx, "DB.GetMCPServersByIDs")

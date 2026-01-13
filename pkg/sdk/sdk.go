@@ -7,6 +7,8 @@ import (
 	"github.com/curaious/uno/internal/services/project"
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/sdk/adapters"
 	"github.com/google/uuid"
@@ -20,9 +22,12 @@ type SDK struct {
 	llmConfigs     gateway.ConfigStore
 	restateConfig  RestateConfig
 	temporalConfig TemporalConfig
+	redisConfig    RedisConfig
 
 	agents               map[string]*agents.Agent
-	temporalAgentConfigs map[string]*AgentOptions
+	restateAgentConfigs  map[string]*agents.AgentOptions
+	temporalAgentConfigs map[string]*agents.AgentOptions
+	redisBroker          core.StreamBroker
 }
 
 type ServerConfig struct {
@@ -44,6 +49,10 @@ type TemporalConfig struct {
 	Endpoint string
 }
 
+type RedisConfig struct {
+	Endpoint string
+}
+
 type ClientOptions struct {
 	ServerConfig ServerConfig
 
@@ -53,11 +62,23 @@ type ClientOptions struct {
 
 	RestateConfig  RestateConfig
 	TemporalConfig TemporalConfig
+	RedisConfig    RedisConfig
 }
 
 func New(opts *ClientOptions) (*SDK, error) {
 	if opts.LLMConfigs == nil && opts.ServerConfig.Endpoint == "" {
 		return nil, fmt.Errorf("must provide either ServerConfig.Endpoint or LLMConfigs")
+	}
+
+	var broker core.StreamBroker
+	var err error
+	if opts.RedisConfig.Endpoint != "" {
+		broker, err = streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+			Addr: opts.RedisConfig.Endpoint,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error creating redis stream broker: %w", err)
+		}
 	}
 
 	sdk := &SDK{
@@ -67,9 +88,12 @@ func New(opts *ClientOptions) (*SDK, error) {
 		virtualKey:     opts.ServerConfig.VirtualKey,
 		restateConfig:  opts.RestateConfig,
 		temporalConfig: opts.TemporalConfig,
+		redisConfig:    opts.RedisConfig,
 
 		agents:               map[string]*agents.Agent{},
-		temporalAgentConfigs: map[string]*AgentOptions{},
+		restateAgentConfigs:  map[string]*agents.AgentOptions{},
+		temporalAgentConfigs: map[string]*agents.AgentOptions{},
+		redisBroker:          broker,
 	}
 
 	if opts.ServerConfig.ProjectName == "" {

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
 	"github.com/restatedev/sdk-go/ingress"
@@ -25,14 +26,16 @@ type WorkflowInput struct {
 // that reconstructs the agent with RestateExecutor for crash recovery.
 type RestateRuntime struct {
 	client *ingress.Client
+	broker core.StreamBroker
 }
 
 // NewRestateRuntime creates a new Restate runtime.
 // The agentName is used to look up the agent config inside the workflow.
-func NewRestateRuntime(endpoint string) *RestateRuntime {
+func NewRestateRuntime(endpoint string, broker core.StreamBroker) *RestateRuntime {
 	client := ingress.NewClient(endpoint)
 	return &RestateRuntime{
 		client: client,
+		broker: broker,
 	}
 }
 
@@ -41,18 +44,18 @@ func (r *RestateRuntime) Run(ctx context.Context, agent *agents.Agent, in *agent
 	// Invoke workflow with agent name and messages
 	runID := uuid.NewString()
 	input := &WorkflowInput{
-		AgentName:         agent.Name(),
+		AgentName:         agent.Name,
 		Namespace:         in.Namespace,
 		PreviousMessageID: in.PreviousMessageID,
 		Messages:          in.Messages,
 		RunContext:        in.RunContext,
 	}
 
-	if streamBroker := agent.GetStreamBroker(); streamBroker != nil && in.Callback != nil {
+	if r.broker != nil && in.Callback != nil {
 		// Handle streaming via callback
 		go func() {
 			fmt.Println("Subscribing to stream for run ID:", runID)
-			stream, err := streamBroker.Subscribe(ctx, runID)
+			stream, err := r.broker.Subscribe(ctx, runID)
 			if err != nil {
 				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
 				return

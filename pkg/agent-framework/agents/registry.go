@@ -7,14 +7,14 @@ import (
 // agentRegistry is a global thread-safe registry for agent configurations.
 // It allows Restate workflows to look up agent configs by name.
 var (
-	agentRegistry     = make(map[string]*Agent)
+	agentRegistry     = make(map[string]*AgentOptions)
 	agentRegistryLock sync.RWMutex
 )
 
 // RegisterAgent registers an agent configuration in the global registry.
 // This is called when an agent is created with a Runtime that needs
 // to look up the agent inside a workflow (e.g., RestateRuntime).
-func RegisterAgent(name string, agent *Agent) {
+func RegisterAgent(name string, agent *AgentOptions) {
 	agentRegistryLock.Lock()
 	defer agentRegistryLock.Unlock()
 	agentRegistry[name] = agent
@@ -22,7 +22,7 @@ func RegisterAgent(name string, agent *Agent) {
 
 // GetAgent retrieves an agent configuration from the global registry.
 // Returns nil if the agent is not found.
-func GetAgent(name string) *Agent {
+func GetAgent(name string) *AgentOptions {
 	agentRegistryLock.RLock()
 	defer agentRegistryLock.RUnlock()
 	return agentRegistry[name]
