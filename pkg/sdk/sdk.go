@@ -51,7 +51,8 @@ type ClientOptions struct {
 	// If `LLMConfigs` is set, then `ApiKey` will be ignored.
 	LLMConfigs gateway.ConfigStore
 
-	RestateConfig RestateConfig
+	RestateConfig  RestateConfig
+	TemporalConfig TemporalConfig
 }
 
 func New(opts *ClientOptions) (*SDK, error) {
@@ -60,11 +61,13 @@ func New(opts *ClientOptions) (*SDK, error) {
 	}
 
 	sdk := &SDK{
-		llmConfigs:           opts.LLMConfigs,
-		directMode:           opts.LLMConfigs != nil,
-		endpoint:             opts.ServerConfig.Endpoint,
-		virtualKey:           opts.ServerConfig.VirtualKey,
-		restateConfig:        opts.RestateConfig,
+		llmConfigs:     opts.LLMConfigs,
+		directMode:     opts.LLMConfigs != nil,
+		endpoint:       opts.ServerConfig.Endpoint,
+		virtualKey:     opts.ServerConfig.VirtualKey,
+		restateConfig:  opts.RestateConfig,
+		temporalConfig: opts.TemporalConfig,
+
 		agents:               map[string]*agents.Agent{},
 		temporalAgentConfigs: map[string]*AgentOptions{},
 	}

@@ -80,9 +80,10 @@ type ConversationRunManager struct {
 	summaries  *core.SummaryResult
 }
 
-func NewRun(persistence ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *ConversationRunManager {
+func NewRun(runId string, persistence ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *ConversationRunManager {
 	cr := &ConversationRunManager{
 		ConversationPersistenceAdapter: persistence,
+		msgId:                          runId,
 		msgIdToRunId:                   make(map[string]string),
 	}
 

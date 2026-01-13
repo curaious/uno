@@ -14,6 +14,7 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/curaious/uno/pkg/agent-framework/runtime/restate_runtime"
 	"github.com/curaious/uno/pkg/agent-framework/runtime/temporal_runtime"
+	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
@@ -111,6 +112,15 @@ func (c *SDK) NewRestateAgent(options *AgentOptions) *agents.Agent {
 		Runtime:     restate_runtime.NewRestateRuntime(c.restateConfig.Endpoint),
 	})
 
+	streamHandler, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+		Addr: "localhost:6379",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	agent.SetStreamBroker(streamHandler)
+
 	c.agents[options.Name] = agent
 
 	return agent
@@ -140,8 +150,17 @@ func (c *SDK) NewTemporalAgent(options *AgentOptions) *agents.Agent {
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
-		Runtime:     temporal_runtime.NewTemporalRuntime(),
+		Runtime:     temporal_runtime.NewTemporalRuntime(c.temporalConfig.Endpoint),
 	})
+
+	streamHandler, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+		Addr: "localhost:6379",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	agent.SetStreamBroker(streamHandler)
 
 	c.agents[options.Name] = agent
 
@@ -152,7 +171,9 @@ func (c *SDK) NewTemporalAgent(options *AgentOptions) *agents.Agent {
 }
 
 func (c *SDK) StartTemporalService() {
-	cli, err := client.Dial(client.Options{})
+	cli, err := client.Dial(client.Options{
+		HostPort: c.temporalConfig.Endpoint,
+	})
 	if err != nil {
 		panic("unable to create temporal client")
 	}
@@ -165,12 +186,15 @@ func (c *SDK) StartTemporalService() {
 			agent := c.agents[agentName]
 			temporalAgent := temporal_runtime.NewTemporalAgent(agent)
 
-			w.RegisterActivityWithOptions(agent.LoadMessages, activity.RegisterOptions{Name: agentName + "_LoadMessagesActivity"})
-			w.RegisterActivityWithOptions(agent.SaveMessages, activity.RegisterOptions{Name: agentName + "_SaveMessagesActivity"})
-			w.RegisterActivityWithOptions(agent.SaveSummary, activity.RegisterOptions{Name: agentName + "_SaveSummaryActivity"})
-			w.RegisterActivityWithOptions(agent.GetPrompt, activity.RegisterOptions{Name: agentName + "_GetPromptActivity"})
-			w.RegisterActivityWithOptions(agent.NewStreamingResponses, activity.RegisterOptions{Name: agentName + "_NewStreamingResponsesActivity"})
-			w.RegisterActivityWithOptions(agent.CallTool, activity.RegisterOptions{Name: agentName + "_CallToolActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.LoadMessages, activity.RegisterOptions{Name: agentName + "_LoadMessagesActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.SaveMessages, activity.RegisterOptions{Name: agentName + "_SaveMessagesActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.SaveSummary, activity.RegisterOptions{Name: agentName + "_SaveSummaryActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.GetPrompt, activity.RegisterOptions{Name: agentName + "_GetPromptActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.NewStreamingResponses, activity.RegisterOptions{Name: agentName + "_NewStreamingResponsesActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.CallTool, activity.RegisterOptions{Name: agentName + "_CallToolActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.RunCreated, activity.RegisterOptions{Name: agentName + "_RunCreatedActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.RunPaused, activity.RegisterOptions{Name: agentName + "_RunPausedActivity"})
+			w.RegisterActivityWithOptions(temporalAgent.RunCompleted, activity.RegisterOptions{Name: agentName + "_RunCompletedActivity"})
 
 			w.RegisterWorkflowWithOptions(temporalAgent.Execute, workflow.RegisterOptions{
 				Name: agentName + "_AgentWorkflow",

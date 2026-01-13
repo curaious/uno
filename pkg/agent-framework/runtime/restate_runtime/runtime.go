@@ -2,6 +2,7 @@ package restate_runtime
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/curaious/uno/pkg/agent-framework/agents"
 	"github.com/curaious/uno/pkg/llm/responses"
@@ -47,7 +48,22 @@ func (r *RestateRuntime) Run(ctx context.Context, agent *agents.Agent, in *agent
 		RunContext:        in.RunContext,
 	}
 
-	in.Callback = nil
+	if streamBroker := agent.GetStreamBroker(); streamBroker != nil && in.Callback != nil {
+		// Handle streaming via callback
+		go func() {
+			fmt.Println("Subscribing to stream for run ID:", runID)
+			stream, err := streamBroker.Subscribe(ctx, runID)
+			if err != nil {
+				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
+				return
+			}
+
+			for chunk := range stream {
+				fmt.Println("Received chunk for run ID:", runID, "chunk:", chunk)
+				in.Callback(chunk)
+			}
+		}()
+	}
 
 	return ingress.Workflow[*WorkflowInput, *agents.AgentOutput](
 		r.client,

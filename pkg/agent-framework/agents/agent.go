@@ -16,6 +16,7 @@ import (
 	"github.com/curaious/uno/pkg/llm/constants"
 	"github.com/curaious/uno/pkg/llm/responses"
 	internal_adapters "github.com/curaious/uno/pkg/sdk/adapters"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
@@ -32,25 +33,31 @@ type AgentRuntime interface {
 type DurableExecutor interface {
 	history.ConversationPersistenceAdapter
 	core.SystemPromptProvider
-	NewStreamingResponses(ctx context.Context, in *responses.Request) (*responses.Response, error)
-	CallTool(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error)
+	NewStreamingResponses(ctx context.Context, in *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error)
+	CallTool(ctx context.Context, params *responses.FunctionCallMessage, runContext map[string]any, cb func(chunk *responses.ResponseChunk)) (*responses.FunctionCallOutputMessage, error)
 	// StartSpan creates a trace span appropriate for the runtime.
 	// For local execution: creates a real OTel span.
 	// For durable runtimes (Temporal/Restate): no-op since the runtime handles tracing.
 	StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func())
+
+	RunCreated(ctx context.Context, runId string, traceId string, cb func(chunk *responses.ResponseChunk)) error
+	RunPaused(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error
+	RunCompleted(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error
+	GetRunID(ctx context.Context) string
 }
 
 type Agent struct {
-	name        string
-	output      map[string]any
-	history     *history.CommonConversationManager
-	instruction core.SystemPromptProvider
-	tools       []core.Tool
-	mcpServers  []*mcpclient.MCPClient
-	llm         llm.Provider
-	parameters  responses.Parameters
-	runtime     AgentRuntime
-	maxLoops    int
+	name         string
+	output       map[string]any
+	history      *history.CommonConversationManager
+	instruction  core.SystemPromptProvider
+	tools        []core.Tool
+	mcpServers   []*mcpclient.MCPClient
+	llm          llm.Provider
+	parameters   responses.Parameters
+	runtime      AgentRuntime
+	maxLoops     int
+	streamBroker core.StreamBroker
 }
 
 type AgentOptions struct {
@@ -107,6 +114,16 @@ func (e *Agent) Name() string {
 	return e.name
 }
 
+// SetStreamBroker sets the stream broker for activity-level streaming.
+// This is used by Temporal activities to publish LLM chunks directly.
+func (e *Agent) SetStreamBroker(broker core.StreamBroker) {
+	e.streamBroker = broker
+}
+
+func (e *Agent) GetStreamBroker() core.StreamBroker {
+	return e.streamBroker
+}
+
 func (e *Agent) PrepareMCPTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
 	coreTools := []core.Tool{}
 	if e.mcpServers != nil {
@@ -138,23 +155,96 @@ func (e *Agent) GetPrompt(ctx context.Context, runContext map[string]any) (strin
 	return e.instruction.GetPrompt(ctx, runContext)
 }
 
-func (e *Agent) NewStreamingResponses(ctx context.Context, req *responses.Request) (*responses.Response, error) {
+func (e *Agent) NewStreamingResponses(ctx context.Context, req *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error) {
 	stream, err := e.llm.NewStreamingResponses(ctx, req)
 	if err != nil {
 		return nil, err
 	}
 
 	acc := Accumulator{}
-	return acc.ReadStream(stream, core.NilCallback)
+	return acc.ReadStream(stream, cb)
 }
 
-func (e *Agent) CallTool(ctx context.Context, toolCall *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
-	tool := findTool(ctx, e.tools, toolCall.Name)
+func (e *Agent) CallTool(ctx context.Context, toolCall *responses.FunctionCallMessage, runContext map[string]any, cb func(chunk *responses.ResponseChunk)) (*responses.FunctionCallOutputMessage, error) {
+	mcpTools, err := e.PrepareMCPTools(ctx, runContext)
+	if err != nil {
+		return nil, err
+	}
+
+	tool := findTool(ctx, append(e.tools, mcpTools...), toolCall.Name)
 	if tool == nil {
 		return nil, errors.New("tool not found: " + toolCall.Name)
 	}
 
-	return tool.Execute(ctx, toolCall)
+	out, err := tool.Execute(ctx, toolCall)
+
+	cb(&responses.ResponseChunk{
+		OfFunctionCallOutput: out,
+	})
+
+	return out, err
+}
+
+func (e *Agent) RunCreated(ctx context.Context, runId string, traceId string, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "created",
+				TraceID: traceId,
+			},
+		},
+	})
+
+	cb(&responses.ResponseChunk{
+		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "in_progress",
+				TraceID: traceId,
+			},
+		},
+	})
+
+	return nil
+}
+
+func (e *Agent) RunPaused(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
+			RunState: responses.ChunkRunData{
+				Id:               runId,
+				Object:           "run",
+				Status:           "paused",
+				PendingToolCalls: runState.PendingToolCalls,
+				Usage:            runState.Usage,
+				TraceID:          traceId,
+			},
+		},
+	})
+
+	return nil
+}
+
+func (e *Agent) RunCompleted(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "completed",
+				Usage:   runState.Usage,
+				TraceID: traceId,
+			},
+		},
+	})
+	return nil
+}
+
+func (e *Agent) GetRunID(ctx context.Context) string {
+	return uuid.NewString()
 }
 
 // StartSpan creates a real OTel span for local (non-durable) execution.
@@ -165,11 +255,12 @@ func (e *Agent) StartSpan(ctx context.Context, name string, attrs ...attribute.K
 }
 
 type AgentInput struct {
-	Namespace         string
-	PreviousMessageID string
-	Messages          []responses.InputMessageUnion
-	RunContext        map[string]any
-	Callback          func(chunk *responses.ResponseChunk)
+	Namespace         string                               `json:"namespace"`
+	PreviousMessageID string                               `json:"previous_message_id"`
+	Messages          []responses.InputMessageUnion        `json:"messages"`
+	RunContext        map[string]any                       `json:"run_context"`
+	Callback          func(chunk *responses.ResponseChunk) `json:"-"`
+	StreamBroker      core.StreamBroker                    `json:"-"`
 }
 
 // AgentOutput represents the result of agent execution
@@ -181,6 +272,10 @@ type AgentOutput struct {
 }
 
 func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, error) {
+	if in.Callback == nil {
+		in.Callback = core.NilCallback
+	}
+
 	// Delegate to runtime, or use default LocalRuntime if none is set
 	runtime := e.runtime
 	if runtime != nil {
@@ -203,18 +298,17 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	tools := append(e.tools, mcpTools...)
 
-	toolDefs := make([]responses.ToolUnion, len(tools))
-	for idx, coreTool := range tools {
-		toolDefs[idx] = *coreTool.Tool(ctx)
+	var toolDefs []responses.ToolUnion
+
+	if len(tools) > 0 {
+		toolDefs = make([]responses.ToolUnion, len(tools))
+		for idx, coreTool := range tools {
+			toolDefs[idx] = *coreTool.Tool(ctx)
+		}
 	}
 
-	cb := in.Callback
-	if cb == nil {
-		cb = core.NilCallback
-	}
-
-	var runId string
-	chatHistory := history.NewRun(executor, e.history.Options...)
+	runId := executor.GetRunID(ctx)
+	chatHistory := history.NewRun(runId, executor, e.history.Options...)
 
 	_, err = chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
 	if err != nil {
@@ -234,25 +328,11 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 	// Initialize state
 	if runState == nil || runState.IsComplete() {
-		// FRESH RUN: No state or previous run completed
 		runState = core.NewRunState()
 		if len(in.Messages) > 0 {
 			chatHistory.AddMessages(ctx, in.Messages, nil)
 		}
-
-		cb(&responses.ResponseChunk{
-			OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
-				RunState: responses.ChunkRunData{
-					Id:      runId,
-					Object:  "run",
-					Status:  "created",
-					TraceID: traceid,
-				},
-			},
-		})
 	} else if runState.IsPaused() {
-		// RESUME: Transition to execute the approved tools
-		// msgs is ignored on resume - we continue from existing messages with pending tools
 		if runState.CurrentStep == core.StepAwaitApproval {
 			// Expected an approval response message
 			if len(in.Messages) == 0 || in.Messages[0].OfFunctionCallApprovalResponse == nil {
@@ -263,18 +343,10 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 		}
 	}
 
-	cb(&responses.ResponseChunk{
-		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
-			RunState: responses.ChunkRunData{
-				Id:      runId,
-				Object:  "run",
-				Status:  "in_progress",
-				TraceID: traceid,
-			},
-		},
-	})
+	if err := executor.RunCreated(ctx, runId, traceid, in.Callback); err != nil {
+		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
+	}
 
-	// DURABLE CHECKPOINT: Load system instruction (potential DB read)
 	instruction := "You are a helpful assistant."
 	if e.instruction != nil {
 		instruction, err = executor.GetPrompt(ctx, in.RunContext)
@@ -317,7 +389,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				},
 				Tools:      toolDefs,
 				Parameters: parameters,
-			})
+			}, in.Callback)
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
@@ -391,15 +463,11 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 						},
 					}
 				} else {
-					toolResult, err = executor.CallTool(ctx, &toolCall)
+					toolResult, err = executor.CallTool(ctx, &toolCall, in.RunContext, in.Callback)
 					if err != nil {
 						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 				}
-
-				cb(&responses.ResponseChunk{
-					OfFunctionCallOutput: toolResult,
-				})
 
 				toolResultMsg := []responses.InputMessageUnion{
 					{OfFunctionCallOutput: toolResult},
@@ -420,24 +488,12 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			}
 
 		case core.StepAwaitApproval:
-			// DURABLE CHECKPOINT: Save state and exit - will resume when approval comes (DB write)
 			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			cb(&responses.ResponseChunk{
-				OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
-					RunState: responses.ChunkRunData{
-						Id:               runId,
-						Object:           "run",
-						Status:           "paused",
-						PendingToolCalls: runState.PendingToolCalls,
-						Usage:            runState.Usage,
-						TraceID:          traceid,
-					},
-				},
-			})
+			executor.RunPaused(ctx, runId, traceid, runState, in.Callback)
 
 			return &AgentOutput{
 				RunID:            runId,
@@ -446,24 +502,12 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 			}, nil
 
 		case core.StepComplete:
-			// DURABLE CHECKPOINT: Save final state (DB write)
 			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			// DURABLE: Emit run completed event (side effect)
-			cb(&responses.ResponseChunk{
-				OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
-					RunState: responses.ChunkRunData{
-						Id:      runId,
-						Object:  "run",
-						Status:  "completed",
-						Usage:   runState.Usage,
-						TraceID: traceid,
-					},
-				},
-			})
+			executor.RunCompleted(ctx, runId, traceid, runState, in.Callback)
 
 			return &AgentOutput{
 				RunID:  runId,
