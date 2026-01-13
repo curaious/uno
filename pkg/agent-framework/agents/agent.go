@@ -424,7 +424,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 
 func (e *Agent) runCreated(ctx context.Context, runId string, traceId string, cb func(chunk *responses.ResponseChunk)) error {
 	cb(&responses.ResponseChunk{
-		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+		OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
 			RunState: responses.ChunkRunData{
 				Id:      runId,
 				Object:  "run",
