@@ -42,7 +42,12 @@ func (w *AgentWorkflow) Run(restateCtx restate.WorkflowContext, input *WorkflowI
 	llmProxy := NewRestateLLM(restateCtx, agentOptions.LLM)
 
 	conversationPersistenceProxy := NewRestateConversationPersistence(restateCtx, agentOptions.History.ConversationPersistenceAdapter)
-	conversationHistory := history.NewConversationManager(conversationPersistenceProxy)
+	var options []history.ConversationManagerOptions
+	if agentOptions.History.Summarizer != nil {
+		conversationSummarizerProxy := NewRestateConversationSummarizer(restateCtx, agentOptions.History.Summarizer)
+		options = append(options, history.WithSummarizer(conversationSummarizerProxy))
+	}
+	conversationHistory := history.NewConversationManager(conversationPersistenceProxy, options...)
 
 	var restateTools []core.Tool
 	for _, tool := range agentOptions.Tools {

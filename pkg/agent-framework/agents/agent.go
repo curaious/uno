@@ -209,7 +209,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 	}
 
 	// Generate a run ID
-	run, err := history.NewRun(ctx, e.history.ConversationPersistenceAdapter, in.Namespace, in.PreviousMessageID, in.Messages)
+	run, err := history.NewRun(ctx, e.history, in.Namespace, in.PreviousMessageID, in.Messages)
 	if err != nil {
 		return &AgentOutput{Status: core.RunStatusError, RunID: ""}, err
 	}
@@ -265,7 +265,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 		switch run.RunState.NextStep() {
 
 		case core.StepCallLLM:
-			// TODO: make `GetMessages` as durable step, to avoid summarisation on replays
 			convMessages, err := run.GetMessages(ctx)
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err

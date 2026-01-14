@@ -45,29 +45,11 @@ func NewConversationManager(p ConversationPersistenceAdapter, opts ...Conversati
 
 type ConversationManagerOptions func(*CommonConversationManager)
 
-//func WithConversationID(conversationId string) ConversationManagerOptions {
-//	return func(cm *CommonConversationManager) {
-//		cm.conversationId = conversationId
-//	}
-//}
-
 func WithSummarizer(summarizer core.HistorySummarizer) ConversationManagerOptions {
 	return func(cm *CommonConversationManager) {
 		cm.Summarizer = summarizer
 	}
 }
-
-//func WithPersistence(customAdapter ConversationPersistenceAdapter) ConversationManagerOptions {
-//	return func(cm *CommonConversationManager) {
-//		cm.ConversationPersistenceAdapter = customAdapter
-//	}
-//}
-//
-//func WithMessageID(msgId string) ConversationManagerOptions {
-//	return func(cm *CommonConversationManager) {
-//		cm.msgId = msgId
-//	}
-//}
 
 type ConversationRunManager struct {
 	ConversationPersistenceAdapter
@@ -90,9 +72,10 @@ type ConversationRunManager struct {
 	summaries  *core.SummaryResult
 }
 
-func NewRun(ctx context.Context, persistence ConversationPersistenceAdapter, namespace string, previousRunID string, messages []responses.InputMessageUnion) (*ConversationRunManager, error) {
+func NewRun(ctx context.Context, cm *CommonConversationManager, namespace string, previousRunID string, messages []responses.InputMessageUnion) (*ConversationRunManager, error) {
 	cr := &ConversationRunManager{
-		ConversationPersistenceAdapter: persistence,
+		ConversationPersistenceAdapter: cm.ConversationPersistenceAdapter,
+		summarizer:                     cm.Summarizer,
 		msgIdToRunId:                   make(map[string]string),
 	}
 
@@ -106,7 +89,7 @@ func NewRun(ctx context.Context, persistence ConversationPersistenceAdapter, nam
 	var runID string
 	if cr.RunState == nil || cr.RunState.IsComplete() {
 		// Create a new run id
-		runID = persistence.NewRunID(ctx)
+		runID = cr.ConversationPersistenceAdapter.NewRunID(ctx)
 		cr.RunState = core.NewRunState()
 		cr.AddMessages(ctx, messages, nil)
 	} else {
