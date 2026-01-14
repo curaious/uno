@@ -28,6 +28,9 @@ func main() {
 		RestateConfig: sdk.RestateConfig{
 			Endpoint: "http://localhost:8081",
 		},
+		RedisConfig: sdk.RedisConfig{
+			Endpoint: "localhost:6379",
+		},
 	})
 	if err != nil {
 		log.Fatal(err)

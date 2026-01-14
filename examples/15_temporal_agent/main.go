@@ -25,9 +25,6 @@ func main() {
 				},
 			},
 		}),
-		RestateConfig: sdk.RestateConfig{
-			Endpoint: "http://localhost:8081",
-		},
 		TemporalConfig: sdk.TemporalConfig{
 			Endpoint: "0.0.0.0:7233",
 		},
@@ -54,7 +51,7 @@ func main() {
 	})
 
 	client.StartTemporalService()              // Do this on the temporal service
-	err = http.ListenAndServe(":8070", client) // Do this on the application that invokes the restate workflow
+	err = http.ListenAndServe(":8070", client) // Do this on the application that invokes the temporal workflow
 	if err != nil {
 		log.Fatal(err)
 	}

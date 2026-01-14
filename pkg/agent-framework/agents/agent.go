@@ -177,7 +177,7 @@ type AgentOutput struct {
 
 func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, error) {
 	if in.Callback == nil {
-		in.Callback = core.NilCallback
+		in.Callback = NilCallback
 	}
 
 	// Delegate to runtime, or use default LocalRuntime if none is set
@@ -571,4 +571,8 @@ func (a *Accumulator) ReadStream(stream chan *responses.ResponseChunk, cb func(c
 		Output: finalOutput,
 		Usage:  usage,
 	}, nil
+}
+
+func NilCallback(msg *responses.ResponseChunk) {
+	// No-op
 }
