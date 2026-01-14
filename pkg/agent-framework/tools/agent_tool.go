@@ -32,7 +32,6 @@ func (t *AgentTool) Execute(ctx context.Context, params *responses.FunctionCallM
 				},
 			},
 		},
-		Callback: core.NilCallback,
 	})
 	if err != nil {
 		return nil, err
