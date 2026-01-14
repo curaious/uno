@@ -21,6 +21,10 @@ func NewRestateConversationPersistence(restateCtx restate.WorkflowContext, wrapp
 	}
 }
 
+func (t *RestateHistory) NewRunID(ctx context.Context) string {
+	return restate.UUID(t.restateCtx).String()
+}
+
 func (t *RestateHistory) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {
 	return restate.Run(t.restateCtx, func(ctx restate.RunContext) ([]conversation.ConversationMessage, error) {
 		return t.wrappedPersistence.LoadMessages(ctx, namespace, previousMessageID)

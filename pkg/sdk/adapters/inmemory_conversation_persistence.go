@@ -67,6 +67,11 @@ func NewInMemoryConversationPersistence() *InMemoryConversationPersistence {
 	}
 }
 
+// NewRunID generates a unique ID for a run
+func (p *InMemoryConversationPersistence) NewRunID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 // LoadMessages retrieves all messages up to and including the previousMessageID
 func (p *InMemoryConversationPersistence) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {
 	if previousMessageID == "" {

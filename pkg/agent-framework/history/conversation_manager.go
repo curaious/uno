@@ -2,6 +2,7 @@ package history
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -17,6 +18,7 @@ import (
 var convTracer = otel.Tracer("ConversationManager")
 
 type ConversationPersistenceAdapter interface {
+	NewRunID(ctx context.Context) string
 	LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error)
 	SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error
 	SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error
@@ -24,41 +26,48 @@ type ConversationPersistenceAdapter interface {
 
 type CommonConversationManager struct {
 	ConversationPersistenceAdapter ConversationPersistenceAdapter
-	Options                        []ConversationManagerOptions
+	Summarizer                     core.HistorySummarizer
+
+	Options []ConversationManagerOptions
 }
 
 func NewConversationManager(p ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *CommonConversationManager {
-	return &CommonConversationManager{
+	cm := &CommonConversationManager{
 		ConversationPersistenceAdapter: p,
-		Options:                        opts,
 	}
+
+	for _, o := range opts {
+		o(cm)
+	}
+
+	return cm
 }
 
-type ConversationManagerOptions func(*ConversationRunManager)
+type ConversationManagerOptions func(*CommonConversationManager)
 
-func WithConversationID(conversationId string) ConversationManagerOptions {
-	return func(cm *ConversationRunManager) {
-		cm.conversationId = conversationId
-	}
-}
+//func WithConversationID(conversationId string) ConversationManagerOptions {
+//	return func(cm *CommonConversationManager) {
+//		cm.conversationId = conversationId
+//	}
+//}
 
 func WithSummarizer(summarizer core.HistorySummarizer) ConversationManagerOptions {
-	return func(cm *ConversationRunManager) {
-		cm.summarizer = summarizer
+	return func(cm *CommonConversationManager) {
+		cm.Summarizer = summarizer
 	}
 }
 
-func WithPersistence(customAdapter ConversationPersistenceAdapter) ConversationManagerOptions {
-	return func(cm *ConversationRunManager) {
-		cm.ConversationPersistenceAdapter = customAdapter
-	}
-}
-
-func WithMessageID(msgId string) ConversationManagerOptions {
-	return func(cm *ConversationRunManager) {
-		cm.msgId = msgId
-	}
-}
+//func WithPersistence(customAdapter ConversationPersistenceAdapter) ConversationManagerOptions {
+//	return func(cm *CommonConversationManager) {
+//		cm.ConversationPersistenceAdapter = customAdapter
+//	}
+//}
+//
+//func WithMessageID(msgId string) ConversationManagerOptions {
+//	return func(cm *CommonConversationManager) {
+//		cm.msgId = msgId
+//	}
+//}
 
 type ConversationRunManager struct {
 	ConversationPersistenceAdapter
@@ -75,23 +84,50 @@ type ConversationRunManager struct {
 	newMessages     []responses.InputMessageUnion
 	usage           *responses.Usage
 	lastMessageMeta map[string]any
+	RunState        *core.RunState
 
 	summarizer core.HistorySummarizer
 	summaries  *core.SummaryResult
 }
 
-func NewRun(runId string, persistence ConversationPersistenceAdapter, opts ...ConversationManagerOptions) *ConversationRunManager {
+func NewRun(ctx context.Context, persistence ConversationPersistenceAdapter, namespace string, previousRunID string, messages []responses.InputMessageUnion) (*ConversationRunManager, error) {
 	cr := &ConversationRunManager{
 		ConversationPersistenceAdapter: persistence,
-		msgId:                          runId,
 		msgIdToRunId:                   make(map[string]string),
 	}
 
-	for _, o := range opts {
-		o(cr)
+	// Load messages
+	_, err := cr.LoadMessages(ctx, namespace, previousRunID)
+	if err != nil {
+		return nil, err
 	}
 
-	return cr
+	// Load the run state
+	var runID string
+	if cr.RunState == nil || cr.RunState.IsComplete() {
+		// Create a new run id
+		runID = persistence.NewRunID(ctx)
+		cr.RunState = core.NewRunState()
+		cr.AddMessages(ctx, messages, nil)
+	} else {
+		// Continuing the previous run
+		runID = previousRunID
+
+		if cr.RunState.CurrentStep == core.StepAwaitApproval {
+			// Expect approval
+			if len(messages) == 0 || messages[0].OfFunctionCallApprovalResponse == nil {
+				return nil, errors.New("expected approval response message to resume the run")
+			}
+
+			// Transition to tool execution, as we have approval message
+			cr.RunState.CurrentStep = core.StepExecuteTools
+		}
+	}
+
+	// Store the run id
+	cr.msgId = runID
+
+	return cr, nil
 }
 
 func (cm *ConversationRunManager) AddMessages(ctx context.Context, messages []responses.InputMessageUnion, usage *responses.Usage) {
@@ -179,11 +215,6 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 	// Initialize lastMessageMeta if no messages were found
 	if cm.lastMessageMeta == nil {
 		cm.lastMessageMeta = make(map[string]any)
-	} else {
-		runState := core.LoadRunStateFromMeta(cm.lastMessageMeta)
-		if !runState.IsComplete() {
-			cm.msgId = previousMessageID
-		}
 	}
 
 	cm.namespace = namespace
@@ -191,6 +222,7 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 	cm.convMessages = convMessages
 	cm.oldMessages = messages
 	cm.usage = usage
+	cm.RunState = core.LoadRunStateFromMeta(cm.lastMessageMeta)
 
 	return messages, nil
 }
@@ -263,4 +295,11 @@ func (cm *ConversationRunManager) SaveMessages(ctx context.Context, meta map[str
 	cm.newMessages = []responses.InputMessageUnion{}
 
 	return nil
+}
+
+func (cm *ConversationRunManager) TrackUsage(usage *responses.Usage) {
+	cm.RunState.Usage.InputTokens += usage.InputTokens
+	cm.RunState.Usage.OutputTokens += usage.OutputTokens
+	cm.RunState.Usage.InputTokensDetails.CachedTokens += usage.InputTokensDetails.CachedTokens
+	cm.RunState.Usage.TotalTokens += usage.TotalTokens
 }

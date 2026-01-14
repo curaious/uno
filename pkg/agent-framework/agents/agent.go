@@ -209,7 +209,6 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 	}
 
 	// Generate a run ID
-	// TODO: replaying should produce deterministic UUID
 	run, err := history.NewRun(ctx, e.history.ConversationPersistenceAdapter, in.Namespace, in.PreviousMessageID, in.Messages)
 	if err != nil {
 		return &AgentOutput{Status: core.RunStatusError, RunID: ""}, err

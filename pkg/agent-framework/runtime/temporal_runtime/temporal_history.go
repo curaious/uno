@@ -6,6 +6,7 @@ import (
 	"github.com/curaious/uno/internal/services/conversation"
 	"github.com/curaious/uno/pkg/agent-framework/history"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/google/uuid"
 	"go.temporal.io/sdk/workflow"
 )
 
@@ -41,6 +42,19 @@ func NewTemporalConversationPersistenceProxy(workflowCtx workflow.Context, prefi
 		workflowCtx: workflowCtx,
 		prefix:      prefix,
 	}
+}
+
+func (t TemporalConversationPersistenceProxy) NewRunID(ctx context.Context) string {
+	idAny := workflow.SideEffect(t.workflowCtx, func(ctx workflow.Context) interface{} {
+		return uuid.NewString()
+	})
+
+	var id string
+	if err := idAny.Get(&idAny); err != nil {
+		return uuid.NewString() // ideally, we won't get here as uuid.NewString() is not supposed to throw errors
+	}
+
+	return id
 }
 
 func (t TemporalConversationPersistenceProxy) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {

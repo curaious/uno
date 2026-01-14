@@ -33,6 +33,11 @@ func NewExternalConversationPersistence(endpoint string, projectID uuid.UUID) *E
 	}
 }
 
+// NewRunID generates a unique ID for a run
+func (p *ExternalConversationPersistence) NewRunID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 // LoadMessages implements core.ChatHistory
 func (p *ExternalConversationPersistence) LoadMessages(ctx context.Context, namespace string, previousMessageId string) ([]conversation.ConversationMessage, error) {
 	// If no previous message ID, return empty list

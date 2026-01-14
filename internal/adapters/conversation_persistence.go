@@ -20,6 +20,11 @@ func NewInternalConversationPersistence(svc *conversation.ConversationService, p
 	}
 }
 
+// NewRunID generates a unique ID for a run
+func (p *InternalConversationPersistence) NewRunID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 // LoadMessages implements core.ChatHistory
 func (p *InternalConversationPersistence) LoadMessages(ctx context.Context, namespace string, previousMessageId string) ([]conversation.ConversationMessage, error) {
 	// If no previous message ID, return empty list
