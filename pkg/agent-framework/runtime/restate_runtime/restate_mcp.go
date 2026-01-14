@@ -27,6 +27,7 @@ func (t *RestateMCPServer) GetName() string {
 }
 
 func (t *RestateMCPServer) ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
+	// TODO: `RestateMCPServer` is created per workflow, so we can connect to MCP and keep the connection
 	toolDefs, err := restate.Run(t.restateCtx, func(ctx restate.RunContext) ([]*responses.ToolUnion, error) {
 		mcpTools, err := t.wrappedMcpServer.ListTools(ctx, runContext)
 		if err != nil {

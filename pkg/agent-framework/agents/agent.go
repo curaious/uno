@@ -2,7 +2,6 @@ package agents
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -191,13 +190,16 @@ func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, erro
 }
 
 func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func(chunk *responses.ResponseChunk)) (*AgentOutput, error) {
+	// Connect to MCP servers, and list the tools
 	mcpTools, err := e.PrepareMCPTools(ctx, in.RunContext)
 	if err != nil {
 		return nil, err
 	}
 
+	// Merge MCP tools with other tools
 	tools := append(e.tools, mcpTools...)
 
+	// Create tool schemas for input payload
 	var toolDefs []responses.ToolUnion
 	if len(tools) > 0 {
 		toolDefs = make([]responses.ToolUnion, len(tools))
@@ -206,44 +208,35 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 		}
 	}
 
-	runId := e.GetRunID(ctx)
-	chatHistory := history.NewRun(runId, e.history.ConversationPersistenceAdapter, e.history.Options...)
-
-	_, err = chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
+	// Generate a run ID
+	// TODO: replaying should produce deterministic UUID
+	run, err := history.NewRun(ctx, e.history.ConversationPersistenceAdapter, in.Namespace, in.PreviousMessageID, in.Messages)
 	if err != nil {
-		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
+		return &AgentOutput{Status: core.RunStatusError, RunID: ""}, err
 	}
 
 	// Load run state from meta (in-memory, no DB call)
-	runId = chatHistory.GetMessageID()
-	meta := chatHistory.GetMeta()
-	runState := core.LoadRunStateFromMeta(meta)
+	runId := run.GetMessageID()
 
-	var rejectedToolCallIds []string
+	// TODO: what's the implication of obtaining traceid from context in case of durable execution?
 	var traceid string
 	if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() {
 		traceid = sc.TraceID().String()
 	}
 
-	// Initialize state
-	if runState == nil || runState.IsComplete() {
-		runState = core.NewRunState()
-		if len(in.Messages) > 0 {
-			chatHistory.AddMessages(ctx, in.Messages, nil)
-		}
-	} else if runState.IsPaused() {
-		if runState.CurrentStep == core.StepAwaitApproval {
-			// Expected an approval response message
-			if len(in.Messages) == 0 || in.Messages[0].OfFunctionCallApprovalResponse == nil {
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, errors.New("expected approval response message")
-			}
-			runState.CurrentStep = core.StepExecuteTools
+	// Collect tool rejections
+	var rejectedToolCallIds []string
+	if run.RunState.IsPaused() {
+		if run.RunState.CurrentStep == core.StepAwaitApproval {
 			rejectedToolCallIds = in.Messages[0].OfFunctionCallApprovalResponse.RejectedCallIds
 		}
 	}
 
+	// Emit run.created
+	// TODO: make this a durable step to avoid resending on replays
 	e.runCreated(ctx, runId, traceid, cb)
 
+	// Get the prompt
 	instruction := "You are a helpful assistant."
 	if e.instruction != nil {
 		instruction, err = e.instruction.GetPrompt(ctx, in.RunContext)
@@ -269,12 +262,12 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 	finalOutput := []responses.InputMessageUnion{}
 
 	// Main loop - driven by state machine
-	for runState.LoopIteration < e.maxLoops {
-		switch runState.NextStep() {
+	for run.RunState.LoopIteration < e.maxLoops {
+		switch run.RunState.NextStep() {
 
 		case core.StepCallLLM:
-			// TODO: make `GetMessages` as durable step
-			convMessages, err := chatHistory.GetMessages(ctx)
+			// TODO: make `GetMessages` as durable step, to avoid summarisation on replays
+			convMessages, err := run.GetMessages(ctx)
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
@@ -292,10 +285,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 			}
 
 			// Track the LLM's usage
-			runState.Usage.InputTokens += resp.Usage.InputTokens
-			runState.Usage.OutputTokens += resp.Usage.OutputTokens
-			runState.Usage.InputTokensDetails.CachedTokens += resp.Usage.InputTokensDetails.CachedTokens
-			runState.Usage.TotalTokens += resp.Usage.TotalTokens
+			run.TrackUsage(resp.Usage)
 
 			// Convert output to input messages and add to history
 			inputMsgs := []responses.InputMessageUnion{}
@@ -308,7 +298,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 				inputMsgs = append(inputMsgs, inputMsg)
 			}
 
-			chatHistory.AddMessages(ctx, inputMsgs, resp.Usage)
+			run.AddMessages(ctx, inputMsgs, resp.Usage)
 			finalOutput = append(finalOutput, inputMsgs...)
 
 			// Extract tool calls
@@ -321,27 +311,27 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 
 			if len(toolCalls) == 0 {
 				// No tools = done
-				runState.TransitionToComplete()
+				run.RunState.TransitionToComplete()
 			} else {
 				// Partition tools by approval requirement
 				needsApproval, immediate := partitionByApproval(ctx, tools, toolCalls)
 
 				// Execute immediate tools first (if any), then handle approval
 				if len(immediate) > 0 {
-					runState.TransitionToExecuteTools(immediate)
+					run.RunState.TransitionToExecuteTools(immediate)
 					// Store tools needing approval for after immediate execution
 					if len(needsApproval) > 0 {
-						runState.ToolsAwaitingApproval = needsApproval
+						run.RunState.ToolsAwaitingApproval = needsApproval
 					}
 				} else if len(needsApproval) > 0 {
 					// Only approval-required tools, no immediate ones
-					runState.TransitionToAwaitApproval(needsApproval)
+					run.RunState.TransitionToAwaitApproval(needsApproval)
 				}
 			}
 
 		case core.StepExecuteTools:
 			// Execute pending tool calls
-			for _, toolCall := range runState.PendingToolCalls {
+			for _, toolCall := range run.RunState.PendingToolCalls {
 				tool := findTool(ctx, tools, toolCall.Name)
 				if tool == nil {
 					slog.ErrorContext(ctx, "tool not found", slog.String("tool_name", toolCall.Name))
@@ -366,6 +356,7 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 					}
 				}
 
+				// TODO: Make this a durable step to avoid resending
 				cb(&responses.ResponseChunk{
 					OfFunctionCallOutput: toolResult,
 				})
@@ -375,40 +366,42 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 				}
 
 				// Add tool result to history
-				chatHistory.AddMessages(ctx, toolResultMsg, nil)
+				run.AddMessages(ctx, toolResultMsg, nil)
 				finalOutput = append(finalOutput, toolResultMsg...)
 			}
 
-			runState.ClearPendingTools()
+			run.RunState.ClearPendingTools()
 
 			// Check if there are tools waiting for approval (queued during immediate execution)
-			if runState.HasToolsAwaitingApproval() {
-				runState.PromoteAwaitingToApproval()
+			if run.RunState.HasToolsAwaitingApproval() {
+				run.RunState.PromoteAwaitingToApproval()
 			} else {
-				runState.TransitionToLLM()
+				run.RunState.TransitionToLLM()
 			}
 
 		case core.StepAwaitApproval:
-			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
+			err = run.SaveMessages(ctx, run.RunState.ToMeta(traceid))
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			e.runPaused(ctx, runId, traceid, runState, cb)
+			// TODO: make this a durable step to avoid resending on replays
+			e.runPaused(ctx, runId, traceid, run.RunState, cb)
 
 			return &AgentOutput{
 				RunID:            runId,
 				Status:           core.RunStatusPaused,
-				PendingApprovals: runState.PendingToolCalls,
+				PendingApprovals: run.RunState.PendingToolCalls,
 			}, nil
 
 		case core.StepComplete:
-			err = chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
+			err = run.SaveMessages(ctx, run.RunState.ToMeta(traceid))
 			if err != nil {
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			e.runCompleted(ctx, runId, traceid, runState, cb)
+			// TODO: make this a durable step to avoid resending on replays
+			e.runCompleted(ctx, runId, traceid, run.RunState, cb)
 
 			return &AgentOutput{
 				RunID:  runId,
