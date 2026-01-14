@@ -72,7 +72,7 @@ type ConversationRunManager struct {
 	summaries  *core.SummaryResult
 }
 
-func NewRun(ctx context.Context, cm *CommonConversationManager, namespace string, previousRunID string, messages []responses.InputMessageUnion) (*ConversationRunManager, error) {
+func NewRun(ctx context.Context, cm *CommonConversationManager, namespace string, previousRunID string, messages []responses.InputMessageUnion, options ...RunOption) (*ConversationRunManager, error) {
 	cr := &ConversationRunManager{
 		ConversationPersistenceAdapter: cm.ConversationPersistenceAdapter,
 		summarizer:                     cm.Summarizer,
@@ -110,7 +110,20 @@ func NewRun(ctx context.Context, cm *CommonConversationManager, namespace string
 	// Store the run id
 	cr.msgId = runID
 
+	// Run the options
+	for _, o := range options {
+		o(cr)
+	}
+
 	return cr, nil
+}
+
+type RunOption func(manager *ConversationRunManager)
+
+func WithConversationID(cid string) RunOption {
+	return func(cm *ConversationRunManager) {
+		cm.conversationId = cid
+	}
 }
 
 func (cm *ConversationRunManager) AddMessages(ctx context.Context, messages []responses.InputMessageUnion, usage *responses.Usage) {
