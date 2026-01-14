@@ -15,7 +15,6 @@ import (
 	internal_adapters "github.com/curaious/uno/pkg/sdk/adapters"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -151,13 +150,6 @@ func (e *Agent) GetRunID(ctx context.Context) string {
 	return uuid.NewString()
 }
 
-// StartSpan creates a real OTel span for local (non-durable) execution.
-func (e *Agent) StartSpan(ctx context.Context, name string, attrs ...attribute.KeyValue) (context.Context, func()) {
-	ctx, span := tracer.Start(ctx, name)
-	span.SetAttributes(attrs...)
-	return ctx, func() { span.End() }
-}
-
 type AgentInput struct {
 	Namespace         string                               `json:"namespace"`
 	PreviousMessageID string                               `json:"previous_message_id"`
@@ -176,6 +168,9 @@ type AgentOutput struct {
 }
 
 func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, error) {
+	ctx, span := tracer.Start(ctx, "Agent.Execute")
+	defer span.End()
+
 	if in.Callback == nil {
 		in.Callback = NilCallback
 	}

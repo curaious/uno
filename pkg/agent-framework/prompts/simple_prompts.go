@@ -9,7 +9,7 @@ import (
 	"go.opentelemetry.io/otel"
 )
 
-var promptTracer = otel.Tracer("PromptManager")
+var tracer = otel.Tracer("PromptManager")
 
 type PromptLoader interface {
 	// LoadPrompt loads the prompt from the source and returns it as string
@@ -63,8 +63,12 @@ func WithResolver(resolverFn PromptResolverFn) PromptOption {
 }
 
 func (sp *SimplePrompt) GetPrompt(ctx context.Context, data map[string]any) (string, error) {
+	ctx, span := tracer.Start(ctx, "GetPrompt")
+	defer span.End()
+
 	prompt, err := sp.loader.LoadPrompt(ctx)
 	if err != nil {
+		span.RecordError(err)
 		return "", err
 	}
 

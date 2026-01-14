@@ -10,12 +10,7 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
 )
-
-var convTracer = otel.Tracer("ConversationManager")
 
 type ConversationPersistenceAdapter interface {
 	NewRunID(ctx context.Context) string
@@ -157,16 +152,7 @@ func (cm *ConversationRunManager) GetMessages(ctx context.Context) ([]responses.
 }
 
 func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]responses.InputMessageUnion, error) {
-	ctx, span := convTracer.Start(ctx, "ConversationManager.DB.LoadMessages")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("namespace", namespace),
-		attribute.String("previous_msg_id", previousMessageID),
-	)
-
 	if cm.ConversationPersistenceAdapter == nil {
-		span.SetAttributes(attribute.Bool("persistence_nil", true))
 		return []responses.InputMessageUnion{}, nil
 	}
 
@@ -177,11 +163,8 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 
 	convMessages, err := cm.ConversationPersistenceAdapter.LoadMessages(ctx, namespace, previousMessageID)
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
-	span.SetAttributes(attribute.Int("conversation_messages_count", len(convMessages)))
 
 	messages := []responses.InputMessageUnion{}
 	var usage *responses.Usage
@@ -234,16 +217,6 @@ func (cm *ConversationRunManager) GetMessageID() string {
 }
 
 func (cm *ConversationRunManager) SaveMessages(ctx context.Context, meta map[string]any) error {
-	ctx, span := convTracer.Start(ctx, "ConversationManager.DB.SaveMessages")
-	defer span.End()
-
-	span.SetAttributes(
-		attribute.String("namespace", cm.namespace),
-		attribute.String("msg_id", cm.msgId),
-		attribute.Int("new_messages_count", len(cm.newMessages)),
-		attribute.Bool("has_summary", cm.summaries != nil),
-	)
-
 	if cm.summaries != nil {
 		sum := conversation.Summary{
 			ID:                      cm.summaries.SummaryID,
@@ -262,8 +235,6 @@ func (cm *ConversationRunManager) SaveMessages(ctx context.Context, meta map[str
 		if cm.ConversationPersistenceAdapter != nil {
 			err := cm.ConversationPersistenceAdapter.SaveSummary(ctx, cm.namespace, sum)
 			if err != nil {
-				span.RecordError(err)
-				span.SetStatus(codes.Error, err.Error())
 				return err
 			}
 		}
@@ -274,8 +245,6 @@ func (cm *ConversationRunManager) SaveMessages(ctx context.Context, meta map[str
 	if cm.ConversationPersistenceAdapter != nil {
 		err := cm.ConversationPersistenceAdapter.SaveMessages(ctx, cm.namespace, cm.msgId, cm.previousMsgId, cm.conversationId, cm.newMessages, meta)
 		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
 			return err
 		}
 	}

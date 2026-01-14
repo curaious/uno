@@ -11,6 +11,12 @@ import (
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+)
+
+var (
+	tracer = otel.Tracer("Adapters")
 )
 
 type Response[T any] struct {
@@ -40,6 +46,14 @@ func (p *ExternalConversationPersistence) NewRunID(ctx context.Context) string {
 
 // LoadMessages implements core.ChatHistory
 func (p *ExternalConversationPersistence) LoadMessages(ctx context.Context, namespace string, previousMessageId string) ([]conversation.ConversationMessage, error) {
+	ctx, span := tracer.Start(ctx, "ExternalConversationPersistence.LoadMessages")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("namespace", namespace),
+		attribute.String("previous_message_id", previousMessageId),
+	)
+
 	// If no previous message ID, return empty list
 	if previousMessageId == "" {
 		return []conversation.ConversationMessage{}, nil
@@ -58,11 +72,23 @@ func (p *ExternalConversationPersistence) LoadMessages(ctx context.Context, name
 		return nil, err
 	}
 
+	span.SetAttributes(attribute.Int("conversation_messages_count", len(data.Data)))
+
 	return data.Data, nil
 }
 
 // SaveMessages implements core.ChatHistory
 func (p *ExternalConversationPersistence) SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
+	ctx, span := tracer.Start(ctx, "ExternalConversationPersistence.SaveMessages")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("namespace", namespace),
+		attribute.String("previous_message_id", previousMsgId),
+		attribute.String("conversation_id", conversationId),
+		attribute.Int("messages_count", len(messages)),
+	)
+
 	// Save regular messages
 	url := fmt.Sprintf("%s/api/agent-server/messages?project_id=%s", p.Endpoint, p.projectID.String())
 
@@ -77,11 +103,13 @@ func (p *ExternalConversationPersistence) SaveMessages(ctx context.Context, name
 
 	payloadBytes, err := sonic.Marshal(payload)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payloadBytes))
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
@@ -89,12 +117,15 @@ func (p *ExternalConversationPersistence) SaveMessages(ctx context.Context, name
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("failed to save messages: status %d", resp.StatusCode)
+		err = fmt.Errorf("failed to save messages: status %d", resp.StatusCode)
+		span.RecordError(err)
+		return err
 	}
 
 	return nil
@@ -102,15 +133,20 @@ func (p *ExternalConversationPersistence) SaveMessages(ctx context.Context, name
 
 // SaveSummary
 func (p *ExternalConversationPersistence) SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error {
+	ctx, span := tracer.Start(ctx, "ExternalConversationPersistence.SaveSummary")
+	defer span.End()
+
 	url := fmt.Sprintf("%s/api/agent-server/summary?project_id=%s&namespace=%s", p.Endpoint, p.projectID.String(), namespace)
 
 	payloadBytes, err := sonic.Marshal(summary)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
 	req, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(payloadBytes))
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 
@@ -118,12 +154,15 @@ func (p *ExternalConversationPersistence) SaveSummary(ctx context.Context, names
 
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
+		span.RecordError(err)
 		return err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		return fmt.Errorf("failed to save messages: status %d", resp.StatusCode)
+		err = fmt.Errorf("failed to save messages: status %d", resp.StatusCode)
+		span.RecordError(err)
+		return err
 	}
 
 	return nil
