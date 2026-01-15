@@ -15,6 +15,11 @@ import (
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/responses"
 	restate "github.com/restatedev/sdk-go"
+	"go.opentelemetry.io/otel"
+)
+
+var (
+	tracer = otel.Tracer("RestateWorkflow")
 )
 
 type WorkflowInput struct {
@@ -37,6 +42,11 @@ func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, bro
 }
 
 func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *WorkflowInput) (*agents.AgentOutput, error) {
+	traceCtx, span := tracer.Start(ctx, "Restate.BuildAndExecuteAgent")
+	defer span.End()
+
+	ctx = restate.WrapContext(ctx, traceCtx)
+
 	workflowId := restate.Key(ctx)
 	cb := func(chunk *responses.ResponseChunk) {
 		b.broker.Publish(context.Background(), workflowId, chunk)
@@ -111,5 +121,5 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 		McpServers:  mcpProxies,
 		Tools:       nil,
 		Runtime:     nil,
-	}).WithLLM(llmClient).ExecuteWithExecutor(context.Background(), in.Input, cb)
+	}).WithLLM(llmClient).ExecuteWithExecutor(ctx, in.Input, cb)
 }

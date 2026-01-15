@@ -28,6 +28,8 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/contrib/opentelemetry"
+	"go.temporal.io/sdk/interceptor"
 )
 
 var (
@@ -42,13 +44,38 @@ type ConverseRequest struct {
 	SessionID         string                      `json:"session_id" required:"true" doc:"Session ID"`
 }
 
+func getTemporalClient(conf *config.Config) client.Client {
+	otelInterceptor, err := opentelemetry.NewTracingInterceptor(
+		opentelemetry.TracerOptions{},
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	cli, err := client.Dial(client.Options{
+		HostPort: conf.TEMPORAL_SERVER_HOST_PORT,
+		Interceptors: []interceptor.ClientInterceptor{
+			otelInterceptor,
+		},
+	})
+	if err != nil {
+		log.Fatalf("failed to connect to redis: %v", err)
+	}
+
+	return cli
+}
+
 func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
+	temporalClient := getTemporalClient(conf)
+
 	r.POST("/api/agent-server/converse", func(reqCtx *fasthttp.RequestCtx) {
-		baseCtx := requestContext(reqCtx)
+		ctx, span := tracer.Start(reqCtx, "Controller.Converse")
+		traceID := span.SpanContext().TraceID().String()
+		reqCtx.Response.Header.Set("X-Trace-Id", traceID)
 
 		projectIDStr := string(reqCtx.QueryArgs().Peek("project_id"))
 		if projectIDStr == "" {
-			writeError(reqCtx, baseCtx, "Project ID is required", perrors.NewErrInvalidRequest("project_id parameter is required", errors.New("project_id parameter is required")))
+			writeError(reqCtx, ctx, "Project ID is required", perrors.NewErrInvalidRequest("project_id parameter is required", errors.New("project_id parameter is required")))
 			return
 		}
 
@@ -57,26 +84,20 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 		//	writeError(reqCtx, baseCtx, "Agent ID is required", perrors.NewErrInvalidRequest("agent_id parameter is required", errors.New("agent_id parameter is required")))
 		//	return
 		//}
-		agentIDStr := "4ccc0398-84be-472e-9fed-80a5b9c6f00f"
+		agentIDStr := "506d8e89-2190-466d-9524-83096bf122c6"
 
 		agentName := string(reqCtx.QueryArgs().Peek("agent_name"))
 		if agentName == "" {
-			writeError(reqCtx, baseCtx, "Agent name is required", perrors.NewErrInvalidRequest("agent_name parameter is required", errors.New("agent_name parameter is required")))
+			writeError(reqCtx, ctx, "Agent name is required", perrors.NewErrInvalidRequest("agent_name parameter is required", errors.New("agent_name parameter is required")))
 			return
 		}
 
 		// Parse request body first to get message_id for trace ID
 		var reqPayload ConverseRequest
 		if err := json.Unmarshal(reqCtx.PostBody(), &reqPayload); err != nil {
-			writeError(reqCtx, baseCtx, "Invalid request body", perrors.NewErrInternalServerError(err.Error(), err))
+			writeError(reqCtx, ctx, "Invalid request body", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
-
-		var ctx context.Context
-		var span trace.Span
-		ctx, span = tracer.Start(baseCtx, "Controller.Converse")
-		traceID := span.SpanContext().TraceID().String()
-		reqCtx.Response.Header.Set("X-Trace-Id", traceID)
 
 		span.SetAttributes(
 			attribute.String("project_id", projectIDStr),
@@ -87,19 +108,19 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 
 		projectID, err := uuid.Parse(projectIDStr)
 		if err != nil {
-			writeError(reqCtx, baseCtx, "unable to parse project id", perrors.NewErrInternalServerError(err.Error(), err))
+			writeError(reqCtx, ctx, "unable to parse project id", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
 
 		agentID, err := uuid.Parse(agentIDStr)
 		if err != nil {
-			writeError(reqCtx, baseCtx, "unable to parse agent id", perrors.NewErrInternalServerError(err.Error(), err))
+			writeError(reqCtx, ctx, "unable to parse agent id", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
 
-		agentConfig, err := svc.AgentConfig.GetByID(baseCtx, projectID, agentID)
+		agentConfig, err := svc.AgentConfig.GetByID(ctx, projectID, agentID)
 		if err != nil {
-			writeError(reqCtx, baseCtx, "unable to get agent config", perrors.NewErrInternalServerError(err.Error(), err))
+			writeError(reqCtx, ctx, "unable to get agent config", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
 
@@ -132,29 +153,24 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
 				return
 			}
+			go streamChunks(ctx, reqCtx, stream)
 			restateClient := ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
 			_, err = ingress.Workflow[*restate_agent_builder.WorkflowInput, *agents.AgentOutput](
 				restateClient,
 				"AgentBuilder",
 				runID,
 				"BuildAndExecuteAgent",
-			).Send(ctx, &restate_agent_builder.WorkflowInput{
+			).Request(ctx, &restate_agent_builder.WorkflowInput{
 				AgentConfig: agentConfig,
 				Input:       in,
 			})
 			if err != nil {
-				writeError(reqCtx, baseCtx, "unable to create agent", perrors.NewErrInternalServerError(err.Error(), err))
+				writeError(reqCtx, ctx, "unable to create agent", perrors.NewErrInternalServerError(err.Error(), err))
 				return
 			}
 
 		case "Temporal":
-			cli, err := client.Dial(client.Options{
-				HostPort: conf.TEMPORAL_SERVER_HOST_PORT,
-			})
-			if err != nil {
-				log.Fatalf("failed to connect to redis: %v", err)
-			}
-			run, err := cli.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+			run, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 				TaskQueue: "AgentBuilder",
 			}, "AgentBuilder", agentConfig, in)
 			if err != nil {
@@ -166,6 +182,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
 				return
 			}
+			go streamChunks(ctx, reqCtx, stream)
 
 		default:
 			b := streaming.NewMemoryStreamBroker()
@@ -178,37 +195,43 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			in.Callback = func(chunk *responses.ResponseChunk) {
 				b.Publish(ctx, "default", chunk)
 			}
+			go streamChunks(ctx, reqCtx, stream)
 
-			_, err = builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(baseCtx, agentConfig, in)
+			_, err = builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in)
 			if err != nil {
 				return
 			}
 		}
 
-		reqCtx.SetBodyStreamWriter(func(w *bufio.Writer) {
-			defer w.Flush()
-			defer span.End()
+	})
+}
 
-			for {
-				select {
-				case <-ctx.Done():
+func streamChunks(ctx context.Context, reqCtx *fasthttp.RequestCtx, stream <-chan *responses.ResponseChunk) {
+	reqCtx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		defer w.Flush()
+
+		span := trace.SpanFromContext(ctx)
+		defer span.End()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case m, ok := <-stream:
+				if !ok {
 					return
-				case m, ok := <-stream:
-					if !ok {
-						return
-					}
+				}
 
-					buf, _ := json.Marshal(m)
+				buf, _ := json.Marshal(m)
 
-					_, _ = fmt.Fprintf(w, "event: %s\n", m.ChunkType())
-					_, _ = fmt.Fprintf(w, "data: %s\n\n", string(buf))
-					_ = w.Flush()
+				_, _ = fmt.Fprintf(w, "event: %s\n", m.ChunkType())
+				_, _ = fmt.Fprintf(w, "data: %s\n\n", string(buf))
+				_ = w.Flush()
 
-					if m.OfRunCompleted != nil {
-						return
-					}
+				if m.OfRunCompleted != nil {
+					return
 				}
 			}
-		})
+		}
 	})
 }

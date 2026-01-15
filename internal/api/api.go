@@ -28,6 +28,8 @@ import (
 	"github.com/valyala/fasthttp"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/contrib/opentelemetry"
+	"go.temporal.io/sdk/interceptor"
 	"go.temporal.io/sdk/worker"
 	"go.temporal.io/sdk/workflow"
 )
@@ -148,12 +150,19 @@ func (s *Server) Start() {
 
 // StartTemporalWorker the temporal worker
 func (s *Server) StartTemporalWorker() {
+	tracingInterceptor, err := opentelemetry.NewTracingInterceptor(opentelemetry.TracerOptions{})
+	if err != nil {
+		log.Fatalln("Unable to create interceptor", err)
+	}
+
 	cli, err := client.Dial(client.Options{
-		HostPort: s.conf.TEMPORAL_SERVER_HOST_PORT,
+		HostPort:     s.conf.TEMPORAL_SERVER_HOST_PORT,
+		Interceptors: []interceptor.ClientInterceptor{tracingInterceptor},
 	})
 	if err != nil {
 		log.Fatalf("failed to connect to redis: %v", err)
 	}
+	defer cli.Close()
 
 	agentBuilder := temporal_agent_builder.NewAgentBuilder(s.services, s.llmGateway, s.broker)
 

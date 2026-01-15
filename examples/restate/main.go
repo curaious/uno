@@ -3,9 +3,12 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/ingress"
 	"github.com/restatedev/sdk-go/server"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -13,11 +16,10 @@ import (
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
-	trace2 "go.opentelemetry.io/otel/trace"
 )
 
 var (
-	tracer = otel.Tracer("Workflow")
+	tracer = otel.Tracer("Example")
 )
 
 type Input struct{}
@@ -26,30 +28,25 @@ type Output struct{}
 
 type Workflow struct{}
 
-func (w Workflow) Run(restateCtx restate.Context, input Input) (Output, error) {
+func (w Workflow) Run(restateCtx restate.WorkflowContext, input Input) (Output, error) {
 	ctx, span := tracer.Start(restateCtx, "Workflow.Run")
 	defer span.End()
-	//restate.WrapRestateContext(restateCtx, ctx)
-	restateCtx = restate.WrapContext(restateCtx, ctx)
-	restate.Run(restateCtx, func(runCtx restate.RunContext) (any, error) {
-		_, span := tracer.Start(restateCtx, "SomeWork")
+
+	restate.Run(restate.WrapContext(restateCtx, ctx), func(runCtx restate.RunContext) (any, error) {
+		_, span := tracer.Start(runCtx, "SomeWork")
 		defer span.End()
 
-		return w.SomeWork(trace2.ContextWithSpanContext(runCtx, span.SpanContext())), nil
+		return w.SomeWork(runCtx), nil
 	})
 
 	return Output{}, nil
 }
 
 func (w Workflow) SomeWork(ctx context.Context) any {
-	//ctx, span := tracer.Start(ctx, "SomeWork")
-	//defer span.End()
-
 	return nil
 }
 
 func main() {
-	//cmd.Execute()
 	exporter, err := otlptracehttp.New(
 		context.Background(),
 		otlptracehttp.WithInsecure(),
@@ -78,10 +75,28 @@ func main() {
 
 	otel.SetTextMapPropagator(propagation.TraceContext{})
 
-	if err := server.NewRestate().
-		Bind(restate.Reflect(Workflow{})).
-		Start(context.Background(), "0.0.0.0:8065"); err != nil {
-		log.Fatal(err)
-	}
+	go func() {
+		if err := server.NewRestate().
+			Bind(restate.Reflect(Workflow{})).
+			Start(context.Background(), "0.0.0.0:8065"); err != nil {
+			log.Fatal(err)
+		}
+	}()
 
+	http.ListenAndServe(":8066", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx, span := tracer.Start(r.Context(), "RestAPI")
+		defer span.End()
+
+		restateClient := ingress.NewClient("http://localhost:8081")
+		_, err = ingress.Workflow[*Input, *Output](
+			restateClient,
+			"Workflow",
+			uuid.NewString(),
+			"Run",
+		).Request(ctx, &Input{})
+		if err != nil {
+			log.Fatal(err)
+			return
+		}
+	}))
 }

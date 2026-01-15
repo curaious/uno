@@ -81,5 +81,5 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 		McpServers:  mcpProxies,
 		Tools:       nil,
 		Runtime:     nil,
-	}).ExecuteWithExecutor(ctx, in, in.Callback)
+	}).Execute(ctx, in)
 }
