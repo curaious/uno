@@ -16,7 +16,7 @@ func BuildPrompt(svc *prompt.PromptService, projectID uuid.UUID, config *agent_c
 	if config.RawPrompt != nil {
 		instruction = prompts.New(*config.RawPrompt)
 	} else if *config.PromptID != uuid.Nil {
-		instruction = prompts.NewWithLoader(adapters.NewInternalPromptPersistenceV2(svc, projectID, *config.PromptID))
+		instruction = prompts.NewWithLoader(adapters.NewInternalPromptPersistence(svc, projectID, *config.PromptID))
 	} else {
 		slog.Warn("no system prompt provided")
 	}
