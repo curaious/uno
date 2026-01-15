@@ -24,10 +24,23 @@ import (
 	"github.com/google/uuid"
 	"github.com/restatedev/sdk-go/ingress"
 	"github.com/valyala/fasthttp"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"go.temporal.io/sdk/client"
 )
+
+var (
+	tracer = otel.Tracer("Controller")
+)
+
+type ConverseRequest struct {
+	Message           responses.InputMessageUnion `json:"message" doc:"User message"`
+	Namespace         string                      `json:"namespace" doc:"Namespace ID"`
+	PreviousMessageID string                      `json:"previous_message_id" doc:"Previous run ID for threading"`
+	Context           map[string]any              `json:"context" doc:"Context to pass to prompt template"`
+	SessionID         string                      `json:"session_id" required:"true" doc:"Session ID"`
+}
 
 func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
 	r.POST("/api/agent-server/converse", func(reqCtx *fasthttp.RequestCtx) {
