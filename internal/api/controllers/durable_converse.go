@@ -9,17 +9,19 @@ import (
 	"strings"
 
 	json "github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/agent_builder/builder"
 	"github.com/curaious/uno/internal/agent_builder/restate_agent_builder"
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/perrors"
 	"github.com/curaious/uno/internal/services"
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/streaming"
+	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
-	"github.com/redis/go-redis/v9"
 	"github.com/restatedev/sdk-go/ingress"
 	"github.com/valyala/fasthttp"
 	"go.opentelemetry.io/otel/attribute"
@@ -27,7 +29,7 @@ import (
 	"go.temporal.io/sdk/client"
 )
 
-func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, conf *config.Config) {
+func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
 	r.POST("/api/agent-server/converse", func(reqCtx *fasthttp.RequestCtx) {
 		baseCtx := requestContext(reqCtx)
 
@@ -42,7 +44,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, conf
 		//	writeError(reqCtx, baseCtx, "Agent ID is required", perrors.NewErrInvalidRequest("agent_id parameter is required", errors.New("agent_id parameter is required")))
 		//	return
 		//}
-		agentIDStr := "73b58e1f-7821-4d18-bddd-859dc7b65478"
+		agentIDStr := "4ccc0398-84be-472e-9fed-80a5b9c6f00f"
 
 		agentName := string(reqCtx.QueryArgs().Peek("agent_name"))
 		if agentName == "" {
@@ -107,10 +109,16 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, conf
 		}
 
 		var runID string
+		var stream <-chan *responses.ResponseChunk
 
 		switch *agentConfig.Config.Runtime {
 		case "Restate":
 			runID = uuid.New().String()
+			stream, err = broker.Subscribe(ctx, runID)
+			if err != nil {
+				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
+				return
+			}
 			restateClient := ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
 			_, err = ingress.Workflow[*restate_agent_builder.WorkflowInput, *agents.AgentOutput](
 				restateClient,
@@ -140,40 +148,33 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, conf
 				return
 			}
 			runID = run.GetID()
-
-		default:
-			// TODO: local run time
-		}
-
-		reqCtx.SetBodyStreamWriter(func(w *bufio.Writer) {
-			// End the controller span when streaming completes
-			defer w.Flush()
-			defer span.End()
-			defer func() {
-				fmt.Println("### COMPLETED ###")
-			}()
-
-			redisClient := redis.NewClient(&redis.Options{
-				Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
-				DB:       10,
-				Username: conf.REDIS_USERNAME,
-				Password: conf.REDIS_PASSWORD,
-			})
-
-			broker, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
-				Client: redisClient,
-			})
-			if err != nil {
-				log.Fatalf("Failed to create redis stream broker: %v", err)
-			}
-
-			// Handle streaming via callback
-			fmt.Println("Subscribing to stream for run ID:", runID)
-			stream, err := broker.Subscribe(ctx, runID)
+			stream, err = broker.Subscribe(ctx, runID)
 			if err != nil {
 				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
 				return
 			}
+
+		default:
+			b := streaming.NewMemoryStreamBroker()
+			stream, err = b.Subscribe(ctx, "default")
+			if err != nil {
+				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
+				return
+			}
+
+			in.Callback = func(chunk *responses.ResponseChunk) {
+				b.Publish(ctx, "default", chunk)
+			}
+
+			_, err = builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(baseCtx, agentConfig, in)
+			if err != nil {
+				return
+			}
+		}
+
+		reqCtx.SetBodyStreamWriter(func(w *bufio.Writer) {
+			defer w.Flush()
+			defer span.End()
 
 			for {
 				select {

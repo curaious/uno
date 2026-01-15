@@ -17,6 +17,7 @@ import (
 	"github.com/curaious/uno/internal/migrations"
 	"github.com/curaious/uno/internal/pubsub"
 	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/gateway/middlewares/logger"
@@ -40,6 +41,7 @@ type Server struct {
 	llmGateway  *gateway.LLMGateway
 	pubsub      *pubsub.PubSub
 	redisClient *redis.Client
+	broker      core.StreamBroker
 }
 
 // New creates a new server by wrapping *planner.App with *http.Server
@@ -95,6 +97,14 @@ func New() *Server {
 	)
 	slog.Info("LLM gateway initialized with pubsub")
 
+	// Broker
+	broker, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+		Client: redisClient,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create redis stream broker: %v", err)
+	}
+
 	s := &Server{
 		conf:        conf,
 		srv:         &fasthttp.Server{},
@@ -103,6 +113,7 @@ func New() *Server {
 		llmGateway:  llmGateway,
 		pubsub:      ps,
 		redisClient: redisClient,
+		broker:      broker,
 	}
 
 	s.srv.Handler = s.initNewRoutes()
@@ -137,13 +148,6 @@ func (s *Server) Start() {
 
 // StartTemporalWorker the temporal worker
 func (s *Server) StartTemporalWorker() {
-	broker, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
-		Client: s.redisClient,
-	})
-	if err != nil {
-		log.Fatalf("Failed to create redis stream broker: %v", err)
-	}
-
 	cli, err := client.Dial(client.Options{
 		HostPort: s.conf.TEMPORAL_SERVER_HOST_PORT,
 	})
@@ -151,7 +155,7 @@ func (s *Server) StartTemporalWorker() {
 		log.Fatalf("failed to connect to redis: %v", err)
 	}
 
-	agentBuilder := temporal_agent_builder.NewAgentBuilder(s.services, s.llmGateway, broker)
+	agentBuilder := temporal_agent_builder.NewAgentBuilder(s.services, s.llmGateway, s.broker)
 
 	w := worker.New(cli, "AgentBuilder", worker.Options{})
 
@@ -176,14 +180,7 @@ func (s *Server) StartTemporalWorker() {
 
 // StartRestateWorker the restate worker
 func (s *Server) StartRestateWorker() {
-	broker, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
-		Client: s.redisClient,
-	})
-	if err != nil {
-		log.Fatalf("Failed to create redis stream broker: %v", err)
-	}
-
-	agentBuilder := restate_agent_builder.NewAgentBuilder(s.services, s.llmGateway, broker)
+	agentBuilder := restate_agent_builder.NewAgentBuilder(s.services, s.llmGateway, s.broker)
 
 	if err := server.NewRestate().
 		Bind(restate.Reflect(agentBuilder)).
