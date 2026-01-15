@@ -36,3 +36,28 @@ func (p *InternalPromptPersistence) LoadPrompt(ctx context.Context) (string, err
 
 	return version.Template, nil
 }
+
+// InternalPromptPersistenceV2 implements core.SystemPromptProvider using internal services
+type InternalPromptPersistenceV2 struct {
+	svc       *prompt.PromptService
+	projectID uuid.UUID
+	promptID  uuid.UUID
+}
+
+func NewInternalPromptPersistenceV2(svc *prompt.PromptService, projectID uuid.UUID, promptID uuid.UUID) *InternalPromptPersistenceV2 {
+	return &InternalPromptPersistenceV2{
+		svc:       svc,
+		projectID: projectID,
+		promptID:  promptID,
+	}
+}
+
+func (p *InternalPromptPersistenceV2) LoadPrompt(ctx context.Context) (string, error) {
+	// Get prompt version by label
+	version, err := p.svc.GetPromptVersionByID(ctx, p.projectID, p.promptID)
+	if err != nil {
+		return "", err
+	}
+
+	return version.Template, nil
+}

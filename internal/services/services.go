@@ -6,6 +6,7 @@ import (
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/db"
 	agent2 "github.com/curaious/uno/internal/services/agent"
+	agent_config2 "github.com/curaious/uno/internal/services/agent_config"
 	conversation2 "github.com/curaious/uno/internal/services/conversation"
 	mcp_server2 "github.com/curaious/uno/internal/services/mcp_server"
 	model2 "github.com/curaious/uno/internal/services/model"
@@ -22,6 +23,7 @@ type Services struct {
 	Provider     *provider2.ProviderService
 	Model        *model2.ModelService
 	Agent        *agent2.AgentService
+	AgentConfig  *agent_config2.AgentConfigService
 	MCPServer    *mcp_server2.MCPServerService
 	Project      *project2.ProjectService
 	Prompt       *prompt2.PromptService
@@ -61,6 +63,7 @@ func NewServices(conf *config.Config) *Services {
 		Schema:       schema2.NewSchemaService(schema2.NewSchemaRepo(dbconn)),
 		Model:        model2.NewModelService(model2.NewModelRepo(dbconn)),
 		Agent:        agent2.NewAgentService(agent2.NewAgentRepo(dbconn)),
+		AgentConfig:  agent_config2.NewAgentConfigService(agent_config2.NewAgentConfigRepo(dbconn)),
 		MCPServer:    mcp_server2.NewMCPServerService(mcp_server2.NewMCPServerRepo(dbconn)),
 		Conversation: conversation2.NewConversationService(conversation2.NewConversationRepo(dbconn)),
 		Traces:       tracesSvc,

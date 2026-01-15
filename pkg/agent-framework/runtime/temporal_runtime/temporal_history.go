@@ -44,7 +44,7 @@ func NewTemporalConversationPersistenceProxy(workflowCtx workflow.Context, prefi
 	}
 }
 
-func (t TemporalConversationPersistenceProxy) NewRunID(ctx context.Context) string {
+func (t *TemporalConversationPersistenceProxy) NewRunID(ctx context.Context) string {
 	idAny := workflow.SideEffect(t.workflowCtx, func(ctx workflow.Context) interface{} {
 		return uuid.NewString()
 	})
@@ -57,7 +57,7 @@ func (t TemporalConversationPersistenceProxy) NewRunID(ctx context.Context) stri
 	return id
 }
 
-func (t TemporalConversationPersistenceProxy) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {
+func (t *TemporalConversationPersistenceProxy) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {
 	var messages []conversation.ConversationMessage
 	err := workflow.ExecuteActivity(t.workflowCtx, t.prefix+"_LoadMessagesActivity", namespace, previousMessageID).Get(t.workflowCtx, &messages)
 	if err != nil {
@@ -67,10 +67,10 @@ func (t TemporalConversationPersistenceProxy) LoadMessages(ctx context.Context, 
 	return messages, nil
 }
 
-func (t TemporalConversationPersistenceProxy) SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
+func (t *TemporalConversationPersistenceProxy) SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
 	return workflow.ExecuteActivity(t.workflowCtx, t.prefix+"_SaveMessagesActivity", namespace, msgId, previousMsgId, conversationId, messages, meta).Get(t.workflowCtx, nil)
 }
 
-func (t TemporalConversationPersistenceProxy) SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error {
+func (t *TemporalConversationPersistenceProxy) SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error {
 	return workflow.ExecuteActivity(t.workflowCtx, t.prefix+"_SaveSummaryActivity", namespace, summary).Get(t.workflowCtx, nil)
 }

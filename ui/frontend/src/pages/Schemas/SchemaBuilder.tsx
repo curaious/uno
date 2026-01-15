@@ -567,6 +567,10 @@ interface SchemaBuilderProps {
   onSubmit: (data: CreateSchemaRequest) => Promise<void>;
   onCancel: () => void;
   isEditing: boolean;
+  /** When true, hides the name/description fields and action bar - used when embedded in another form */
+  embedded?: boolean;
+  /** Called whenever the schema changes (for embedded mode) */
+  onSchemaChange?: (schema: JSONSchemaDefinition) => void;
 }
 
 export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
@@ -574,6 +578,8 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
   onSubmit,
   onCancel,
   isEditing,
+  embedded = false,
+  onSchemaChange,
 }) => {
   const [name, setName] = useState(initialData.name);
   const [description, setDescription] = useState(initialData.description || '');
@@ -581,6 +587,13 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Notify parent when schema changes (for embedded mode)
+  React.useEffect(() => {
+    if (embedded && onSchemaChange) {
+      onSchemaChange(schema);
+    }
+  }, [schema, embedded, onSchemaChange]);
 
   const addProperty = useCallback(() => {
     const props = schema.properties || {};
@@ -664,31 +677,35 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
 
   return (
     <BuilderContainer>
-      <Box display="flex" gap={2}>
-        <InputGroup sx={{ flex: 1 }}>
-          <InputLabel>Schema Name *</InputLabel>
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="e.g., UserProfile, OrderResponse"
-            error={!!error && !name.trim()}
-            helperText={error && !name.trim() ? error : undefined}
-            fullWidth
-          />
-        </InputGroup>
-      </Box>
+      {!embedded && (
+        <>
+          <Box display="flex" gap={2}>
+            <InputGroup sx={{ flex: 1 }}>
+              <InputLabel>Schema Name *</InputLabel>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., UserProfile, OrderResponse"
+                error={!!error && !name.trim()}
+                helperText={error && !name.trim() ? error : undefined}
+                fullWidth
+              />
+            </InputGroup>
+          </Box>
 
-      <InputGroup>
-        <InputLabel>Description</InputLabel>
-        <Input
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          placeholder="Describe what this schema is used for"
-          multiline
-          rows={2}
-          fullWidth
-        />
-      </InputGroup>
+          <InputGroup>
+            <InputLabel>Description</InputLabel>
+            <Input
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Describe what this schema is used for"
+              multiline
+              rows={2}
+              fullWidth
+            />
+          </InputGroup>
+        </>
+      )}
 
       <Box>
         <Box display="flex" alignItems="center" justifyContent="space-between" mb={2}>
@@ -767,25 +784,27 @@ export const SchemaBuilder: React.FC<SchemaBuilderProps> = ({
         </Box>
       </Box>
 
-      {error && (
+      {error && !embedded && (
         <Typography color="error" variant="body2">
           {error}
         </Typography>
       )}
 
-      <ActionBar>
-        <Button onClick={onCancel} color="inherit" disabled={submitting}>
-          Cancel
-        </Button>
-        <Button
-          onClick={handleSubmit}
-          variant="contained"
-          color="primary"
-          disabled={submitting}
-        >
-          {submitting ? 'Saving...' : isEditing ? 'Update Schema' : 'Create Schema'}
-        </Button>
-      </ActionBar>
+      {!embedded && (
+        <ActionBar>
+          <Button onClick={onCancel} color="inherit" disabled={submitting}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            variant="contained"
+            color="primary"
+            disabled={submitting}
+          >
+            {submitting ? 'Saving...' : isEditing ? 'Update Schema' : 'Create Schema'}
+          </Button>
+        </ActionBar>
+      )}
     </BuilderContainer>
   );
 };

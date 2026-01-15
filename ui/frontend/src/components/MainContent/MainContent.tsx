@@ -16,6 +16,7 @@ import {Schemas} from "../../pages/Schemas/Schemas";
 import {ProjectsPage} from "../../pages/Projects/Projects";
 import {Traces} from "../../pages/Traces/Traces";
 import {ConversationTraces} from "../../pages/ConversationTraces/ConversationTraces";
+import {AgentBuilder, AgentBuilderDetail} from "../../pages/AgentBuilder";
 
 // Redirect components for dynamic routes
 const RedirectMCPInspect: React.FC = () => {
@@ -49,6 +50,8 @@ export const MainContent: React.FC = props => {
           <Route path="/agent-framework/mcp-servers" element={<MCPServers/>}/>
           <Route path="/agent-framework/mcp-servers/:id/inspect" element={<MCPInspect/>}/>
           <Route path="/agent-framework/agents" element={<Agents/>}/>
+          <Route path="/agent-framework/agent-builder" element={<AgentBuilder/>}/>
+          <Route path="/agent-framework/agent-builder/:name" element={<AgentBuilderDetail/>}/>
           <Route path="/agent-framework/builder" element={<Builder/>}/>
           <Route path="/agent-framework/chat" element={<ChatPage/>}/>
           <Route path="/agent-framework/traces" element={<Traces/>}/>

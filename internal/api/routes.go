@@ -38,14 +38,15 @@ func (s *Server) initNewRoutes() fasthttp.RequestHandler {
 	controllers.RegisterProviderRoutes(r, s.services)
 	controllers.RegisterModelRoutes(r, s.services)
 	controllers.RegisterAgentRoutes(r, s.services)
+	controllers.RegisterAgentConfigRoutes(r, s.services)
 	controllers.RegisterMCPServerRoutes(r, s.services)
 	controllers.RegisterPromptRoutes(r, s.services)
 	controllers.RegisterSchemaRoutes(r, s.services)
 	controllers.RegisterVirtualKeyRoutes(r, s.services)
 	controllers.RegisterGatewayRoutes(r.Group("/api/gateway"), s.services, s.llmGateway)
-	controllers.RegisterConverseRoute(r, s.services, s.llmGateway)
+	//controllers.RegisterConverseRoute(r, s.services, s.llmGateway)
 	controllers.RegisterTracesRoutes(r.Group("/api/agent-server"), s.services)
-	controllers.RegisterDurableConverseRoute(r, s.services)
+	controllers.RegisterDurableConverseRoute(r, s.services, s.conf)
 
 	return s.withMiddlewares(r.Handler, auth)
 }

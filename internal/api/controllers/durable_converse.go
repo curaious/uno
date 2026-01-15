@@ -5,29 +5,30 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
+	"log"
+	"strings"
 
 	json "github.com/bytedance/sonic"
+	"github.com/curaious/uno/internal/agent_builder/restate_agent_builder"
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/perrors"
 	"github.com/curaious/uno/internal/services"
-	"github.com/curaious/uno/service"
+	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/streaming"
+	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
 	"github.com/redis/go-redis/v9"
-	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/ingress"
 	"github.com/valyala/fasthttp"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
+	"go.temporal.io/sdk/client"
 )
 
-func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
-	conf := config.ReadConfig()
-	r.POST("/api/agent-server/converse2", func(reqCtx *fasthttp.RequestCtx) {
+func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, conf *config.Config) {
+	r.POST("/api/agent-server/converse", func(reqCtx *fasthttp.RequestCtx) {
 		baseCtx := requestContext(reqCtx)
 
 		projectIDStr := string(reqCtx.QueryArgs().Peek("project_id"))
@@ -35,6 +36,13 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 			writeError(reqCtx, baseCtx, "Project ID is required", perrors.NewErrInvalidRequest("project_id parameter is required", errors.New("project_id parameter is required")))
 			return
 		}
+
+		//agentIDStr := string(reqCtx.QueryArgs().Peek("agent_id"))
+		//if agentIDStr == "" {
+		//	writeError(reqCtx, baseCtx, "Agent ID is required", perrors.NewErrInvalidRequest("agent_id parameter is required", errors.New("agent_id parameter is required")))
+		//	return
+		//}
+		agentIDStr := "73b58e1f-7821-4d18-bddd-859dc7b65478"
 
 		agentName := string(reqCtx.QueryArgs().Peek("agent_name"))
 		if agentName == "" {
@@ -62,76 +70,129 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services) {
 			attribute.String("session_id", reqPayload.SessionID),
 		)
 
-		in := service.AgentRunInput{
-			Message:           reqPayload.Message,
-			Namespace:         reqPayload.Namespace,
-			PreviousMessageID: reqPayload.PreviousMessageID,
-			Context:           reqPayload.Context,
-			SessionID:         reqPayload.SessionID,
-			ProjectID:         projectIDStr,
-			AgentName:         agentName,
-		}
-
-		redisClient := redis.NewClient(&redis.Options{
-			Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
-			DB:       10,
-			Username: conf.REDIS_USERNAME,
-			Password: conf.REDIS_PASSWORD,
-		})
-
-		if err := redisClient.Ping(context.Background()).Err(); err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, err.Error())
-			span.End()
-			slog.Error("failed to connect to redis", "error", err)
+		projectID, err := uuid.Parse(projectIDStr)
+		if err != nil {
+			writeError(reqCtx, baseCtx, "unable to parse project id", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
 
-		s := trace.SpanFromContext(ctx)
-		fmt.Println(s.SpanContext().IsValid())
+		agentID, err := uuid.Parse(agentIDStr)
+		if err != nil {
+			writeError(reqCtx, baseCtx, "unable to parse agent id", perrors.NewErrInternalServerError(err.Error(), err))
+			return
+		}
 
-		otel.SetTextMapPropagator(
-			propagation.NewCompositeTextMapPropagator(
-				propagation.TraceContext{}, // W3C traceparent
-				propagation.Baggage{},
-			),
-		)
+		agentConfig, err := svc.AgentConfig.GetByID(baseCtx, projectID, agentID)
+		if err != nil {
+			writeError(reqCtx, baseCtx, "unable to get agent config", perrors.NewErrInternalServerError(err.Error(), err))
+			return
+		}
 
-		carrier := propagation.MapCarrier{}
-		otel.GetTextMapPropagator().Inject(ctx, carrier)
+		reqHeaders := map[string]string{}
+		reqCtx.Request.Header.VisitAll(func(key, value []byte) {
+			reqHeaders[strings.ReplaceAll(string(key), "-", "_")] = string(value)
+		})
 
-		ctx, cancel := context.WithCancel(ctx)
-		channel := "stream:" + uuid.New().String()
-		ps := redisClient.Subscribe(reqCtx, channel)
+		contextData := map[string]any{
+			"Env":     utils.EnvironmentVariables(),
+			"Context": reqPayload.Context,
+			"Header":  reqHeaders,
+		}
 
-		restateClient := ingress.NewClient("http://localhost:8081")
+		in := &agents.AgentInput{
+			Namespace:         reqPayload.Namespace,
+			PreviousMessageID: reqPayload.PreviousMessageID,
+			Messages:          []responses.InputMessageUnion{reqPayload.Message},
+			RunContext:        contextData,
+		}
 
-		reqCtx.Response.Header.Set("Content-Type", "text/event-stream")
-		reqCtx.Response.Header.Set("Cache-Control", "no-cache")
+		var runID string
 
-		go func() {
-			defer cancel()
-			// To call a service
-			_, err := ingress.Workflow[*service.AgentRunInput, *service.AgentRunOutput](
-				restateClient, "AgentBuilderWorkflow", channel, "Run").
-				Request(ctx, &in, restate.WithHeaders(carrier))
+		switch *agentConfig.Config.Runtime {
+		case "Restate":
+			runID = uuid.New().String()
+			restateClient := ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
+			_, err = ingress.Workflow[*restate_agent_builder.WorkflowInput, *agents.AgentOutput](
+				restateClient,
+				"AgentBuilder",
+				runID,
+				"BuildAndExecuteAgent",
+			).Send(ctx, &restate_agent_builder.WorkflowInput{
+				AgentConfig: agentConfig,
+				Input:       in,
+			})
+			if err != nil {
+				writeError(reqCtx, baseCtx, "unable to create agent", perrors.NewErrInternalServerError(err.Error(), err))
+				return
+			}
+
+		case "Temporal":
+			cli, err := client.Dial(client.Options{
+				HostPort: conf.TEMPORAL_SERVER_HOST_PORT,
+			})
+			if err != nil {
+				log.Fatalf("failed to connect to redis: %v", err)
+			}
+			run, err := cli.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+				TaskQueue: "AgentBuilder",
+			}, "AgentBuilder", agentConfig, in)
 			if err != nil {
 				return
 			}
-		}()
+			runID = run.GetID()
+
+		default:
+			// TODO: local run time
+		}
 
 		reqCtx.SetBodyStreamWriter(func(w *bufio.Writer) {
 			// End the controller span when streaming completes
 			defer w.Flush()
 			defer span.End()
+			defer func() {
+				fmt.Println("### COMPLETED ###")
+			}()
+
+			redisClient := redis.NewClient(&redis.Options{
+				Addr:     fmt.Sprintf("%s:%s", conf.REDIS_HOST, conf.REDIS_PORT),
+				DB:       10,
+				Username: conf.REDIS_USERNAME,
+				Password: conf.REDIS_PASSWORD,
+			})
+
+			broker, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+				Client: redisClient,
+			})
+			if err != nil {
+				log.Fatalf("Failed to create redis stream broker: %v", err)
+			}
+
+			// Handle streaming via callback
+			fmt.Println("Subscribing to stream for run ID:", runID)
+			stream, err := broker.Subscribe(ctx, runID)
+			if err != nil {
+				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
+				return
+			}
 
 			for {
 				select {
 				case <-ctx.Done():
 					return
-				case m := <-ps.Channel():
-					_, _ = fmt.Fprintf(w, "data: %s\n\n", m.Payload)
+				case m, ok := <-stream:
+					if !ok {
+						return
+					}
+
+					buf, _ := json.Marshal(m)
+
+					_, _ = fmt.Fprintf(w, "event: %s\n", m.ChunkType())
+					_, _ = fmt.Fprintf(w, "data: %s\n\n", string(buf))
 					_ = w.Flush()
+
+					if m.OfRunCompleted != nil {
+						return
+					}
 				}
 			}
 		})

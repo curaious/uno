@@ -151,6 +151,16 @@ func (s *PromptService) GetPromptVersion(ctx context.Context, projectID uuid.UUI
 	return versionWithPrompt, nil
 }
 
+// GetPromptVersionByID retrieves a prompt version by its id
+func (s *PromptService) GetPromptVersionByID(ctx context.Context, projectID uuid.UUID, promptVersionID uuid.UUID) (*PromptVersionWithPrompt, error) {
+	versionWithPrompt, err := s.repo.GetPromptVersionByID(ctx, projectID, promptVersionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get prompt version by label: %w", err)
+	}
+
+	return versionWithPrompt, nil
+}
+
 // GetPromptVersionByLabel retrieves a prompt version by label
 func (s *PromptService) GetPromptVersionByLabel(ctx context.Context, projectID uuid.UUID, promptName, label string) (*PromptVersionWithPrompt, error) {
 	versionWithPrompt, err := s.repo.GetPromptVersionByLabel(ctx, projectID, promptName, label)

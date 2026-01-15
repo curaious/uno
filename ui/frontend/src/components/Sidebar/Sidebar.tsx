@@ -21,6 +21,7 @@ import {SlideDialog} from "../shared/Dialog";
 import {Input, InputGroup, InputLabel} from "../shared/Input";
 import {Button} from "../shared/Buttons";
 import TuneIcon from '@mui/icons-material/Tune';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 
 const SidebarDiv = styled('div')(() => ({
@@ -284,6 +285,11 @@ export const Sidebar: React.FC = props => {
         <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/agents" end >
           <Icon size={IconSize.Small}><PsychologyIcon fontSize="small" /></Icon>
           <ListItemText primary="Agents" />
+        </NavLink>
+
+        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/agent-builder" end >
+          <Icon size={IconSize.Small}><SmartToyIcon fontSize="small" /></Icon>
+          <ListItemText primary="Agent Builder" />
         </NavLink>
 
         <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/builder" end >

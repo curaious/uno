@@ -11,26 +11,35 @@ import (
 	"time"
 
 	"github.com/curaious/uno/internal/adapters"
+	"github.com/curaious/uno/internal/agent_builder/restate_agent_builder"
+	"github.com/curaious/uno/internal/agent_builder/temporal_agent_builder"
+	"github.com/curaious/uno/internal/config"
+	"github.com/curaious/uno/internal/migrations"
 	"github.com/curaious/uno/internal/pubsub"
 	"github.com/curaious/uno/internal/services"
+	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/gateway/middlewares/logger"
 	"github.com/curaious/uno/pkg/gateway/middlewares/virtual_key_middleware"
 	"github.com/redis/go-redis/v9"
+	restate "github.com/restatedev/sdk-go"
+	"github.com/restatedev/sdk-go/server"
 	"github.com/valyala/fasthttp"
-
-	"github.com/curaious/uno/internal/config"
-	"github.com/curaious/uno/internal/migrations"
+	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
 )
 
 // Server is an HTTP Server with access to *pm.App
 type Server struct {
+	conf        *config.Config
 	srv         *fasthttp.Server
 	addr        string
 	services    *services.Services
-	configStore *adapters.ServiceConfigStore
 	llmGateway  *gateway.LLMGateway
 	pubsub      *pubsub.PubSub
+	redisClient *redis.Client
 }
 
 // New creates a new server by wrapping *planner.App with *http.Server
@@ -87,12 +96,13 @@ func New() *Server {
 	slog.Info("LLM gateway initialized with pubsub")
 
 	s := &Server{
+		conf:        conf,
 		srv:         &fasthttp.Server{},
 		addr:        fmt.Sprintf("0.0.0.0:6060"),
 		services:    svc,
-		configStore: configStore,
 		llmGateway:  llmGateway,
 		pubsub:      ps,
+		redisClient: redisClient,
 	}
 
 	s.srv.Handler = s.initNewRoutes()
@@ -123,6 +133,63 @@ func (s *Server) Start() {
 	defer cancel()
 
 	s.shutdown(ctx)
+}
+
+// StartTemporalWorker the temporal worker
+func (s *Server) StartTemporalWorker() {
+	broker, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+		Client: s.redisClient,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create redis stream broker: %v", err)
+	}
+
+	cli, err := client.Dial(client.Options{
+		HostPort: s.conf.TEMPORAL_SERVER_HOST_PORT,
+	})
+	if err != nil {
+		log.Fatalf("failed to connect to redis: %v", err)
+	}
+
+	agentBuilder := temporal_agent_builder.NewAgentBuilder(s.services, s.llmGateway, broker)
+
+	w := worker.New(cli, "AgentBuilder", worker.Options{})
+
+	w.RegisterActivityWithOptions(agentBuilder.GetPrompt, activity.RegisterOptions{Name: "GetPrompt"})
+	w.RegisterActivityWithOptions(agentBuilder.LLMCall, activity.RegisterOptions{Name: "LLMCall"})
+	w.RegisterActivityWithOptions(agentBuilder.LoadMessages, activity.RegisterOptions{Name: "LoadMessages"})
+	w.RegisterActivityWithOptions(agentBuilder.SaveMessages, activity.RegisterOptions{Name: "SaveMessages"})
+	w.RegisterActivityWithOptions(agentBuilder.SaveSummary, activity.RegisterOptions{Name: "SaveSummary"})
+	w.RegisterActivityWithOptions(agentBuilder.Summarize, activity.RegisterOptions{Name: "Summarize"})
+	w.RegisterActivityWithOptions(agentBuilder.MCPListTools, activity.RegisterOptions{Name: "MCPListTools"})
+	w.RegisterActivityWithOptions(agentBuilder.MCPCallTool, activity.RegisterOptions{Name: "MCPCallTool"})
+
+	w.RegisterWorkflowWithOptions(agentBuilder.BuildAndExecuteAgent, workflow.RegisterOptions{
+		Name: "AgentBuilder",
+	})
+
+	err = w.Run(worker.InterruptCh())
+	if err != nil {
+		log.Fatalf("failed to run agent builder: %v", err)
+	}
+}
+
+// StartRestateWorker the restate worker
+func (s *Server) StartRestateWorker() {
+	broker, err := streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+		Client: s.redisClient,
+	})
+	if err != nil {
+		log.Fatalf("Failed to create redis stream broker: %v", err)
+	}
+
+	agentBuilder := restate_agent_builder.NewAgentBuilder(s.services, s.llmGateway, broker)
+
+	if err := server.NewRestate().
+		Bind(restate.Reflect(agentBuilder)).
+		Start(context.Background(), s.conf.RESTATE_WORKER_HOST_PORT); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // Shutdown shuts down the rest server

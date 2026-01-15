@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var agentServerCmd = &cobra.Command{
-	Use:   "agent-server",
-	Short: "Start Agent Server",
+var restateWorkerCmd = &cobra.Command{
+	Use:   "restate-worker",
+	Short: "Start Restate Worker",
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := config.ReadConfig()
 
@@ -17,11 +17,11 @@ var agentServerCmd = &cobra.Command{
 		defer shutdownTelemetry()
 
 		s := api.New()
-		s.Start()
+		s.StartRestateWorker()
 	},
 }
 
 // Register the "server" command
 func init() {
-	rootCmd.AddCommand(agentServerCmd)
+	rootCmd.AddCommand(restateWorkerCmd)
 }
