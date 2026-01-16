@@ -1,3 +1,315 @@
 ---
 title: Temporal
 ---
+
+Durable agent execution ensures that your agents can survive process crashes, restarts, or failures without losing progress. Using [Temporal](https://temporal.io), each step of the agent's execution (LLM calls, tool executions) is checkpointed, allowing the agent to resume from exactly where it left off after a failure.
+
+## Why Durable Execution?
+
+Traditional agents run in-memory. If your process crashes during:
+- A long-running LLM call
+- An external API request in a tool
+- A multi-step conversation with many tool calls
+
+...all progress is lost, and the entire execution must restart from scratch.
+
+With durable execution:
+- **Checkpoint Every Step**: Each LLM call and tool execution is automatically saved
+- **Automatic Recovery**: After a crash, the agent resumes from the last checkpoint
+- **Exactly-Once Guarantees**: Tool executions are never duplicated, even after retries
+- **Long-Running Workflows**: Agents can run for hours or days without risk
+
+## Prerequisites
+
+1. **Temporal Server**: You need a running Temporal server. Follow the [Temporal installation guide](https://docs.temporal.io/self-hosted-guide/quick-start) to set one up.
+
+2. **Redis Server**: Temporal agents require Redis for streaming support. Install and run Redis locally or use a hosted Redis service.
+
+## Creating a Durable Agent
+
+To create a durable agent with Temporal, use `NewTemporalAgent()` instead of `NewAgent()`:
+
+```go
+package main
+
+import (
+    "log"
+    "net/http"
+    "os"
+
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/sdk"
+)
+
+func main() {
+    // Initialize SDK with Temporal and Redis configuration
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {
+                        Name:   "Key 1",
+                        APIKey: os.Getenv("OPENAI_API_KEY"),
+                    },
+                },
+            },
+        }),
+        TemporalConfig: sdk.TemporalConfig{
+            Endpoint: "0.0.0.0:7233", // Temporal server endpoint
+        },
+        RedisConfig: sdk.RedisConfig{
+            Endpoint: "localhost:6379", // Redis for streaming support
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Create a durable agent with NewTemporalAgent
+    agentName := "SampleAgent"
+    agent := client.NewTemporalAgent(&sdk.AgentOptions{
+        Name:        agentName,
+        Instruction: client.Prompt("You are helpful assistant."),
+        LLM:         model,
+        History:     client.NewConversationManager(),
+    })
+}
+```
+
+## Deployment Options
+
+There are two ways to deploy durable agents:
+
+### Option 1: Single Process (Development/Testing)
+
+Run both the Temporal worker and the application code in the same process. This is simpler but less resilient since both components share the same process lifecycle.
+
+```go
+func main() {
+    // ... client and agent setup from above ...
+
+    // Start Temporal worker in a goroutine
+    client.StartTemporalService()
+    
+    // Start HTTP server for invoking the workflow
+    http.ListenAndServe(":8070", client)
+}
+```
+
+With this setup:
+- The Temporal worker connects to the Temporal server at `0.0.0.0:7233`
+- Your application server runs on `http://localhost:8070`
+- Both are in the same process
+
+**Note**: If this process crashes, both components restart together. True durability requires separation (Option 2).
+
+### Option 2: Separate Processes (Production)
+
+For production deployments, run the Temporal worker and application in separate processes. This provides true fault isolation—if your application crashes, the Temporal worker continues running and can recover the workflow.
+
+#### Application Process
+
+```go
+// application/main.go
+package main
+
+import (
+    "log"
+    "net/http"
+    "os"
+
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {
+                        Name:   "Key 1",
+                        APIKey: os.Getenv("OPENAI_API_KEY"),
+                    },
+                },
+            },
+        }),
+        TemporalConfig: sdk.TemporalConfig{
+            Endpoint: "0.0.0.0:7233",
+        },
+        RedisConfig: sdk.RedisConfig{
+            Endpoint: "localhost:6379",
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Register the agent
+    agentName := "my-agent"
+    _ = client.NewTemporalAgent(&sdk.AgentOptions{
+        Name:        agentName,
+        Instruction: client.Prompt("You are a helpful assistant."),
+        LLM:         model,
+        History:     client.NewConversationManager(),
+    })
+
+    // Start application server (no Temporal worker here)
+    log.Println("Application server starting on :8070")
+    http.ListenAndServe(":8070", client)
+}
+```
+
+#### Temporal Worker Process
+
+```go
+// temporal-worker/main.go
+package main
+
+import (
+    "log"
+    "os"
+
+    "github.com/curaious/uno/pkg/gateway"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/sdk"
+)
+
+func main() {
+    client, err := sdk.New(&sdk.ClientOptions{
+        LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+            {
+                ProviderName: llm.ProviderNameOpenAI,
+                ApiKeys: []*gateway.APIKeyConfig{
+                    {
+                        Name:   "Key 1",
+                        APIKey: os.Getenv("OPENAI_API_KEY"),
+                    },
+                },
+            },
+        }),
+        TemporalConfig: sdk.TemporalConfig{
+            Endpoint: "0.0.0.0:7233",
+        },
+        RedisConfig: sdk.RedisConfig{
+            Endpoint: "localhost:6379",
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4o-mini",
+    })
+
+    // Register the SAME agent with the SAME configuration
+    agentName := "my-agent"
+    _ = client.NewTemporalAgent(&sdk.AgentOptions{
+        Name:        agentName,
+        Instruction: client.Prompt("You are a helpful assistant."),
+        LLM:         model,
+        History:     client.NewConversationManager(),
+    })
+
+    // Start only the Temporal worker
+    log.Println("Temporal worker starting...")
+    client.StartTemporalService()
+    
+    // Block forever (worker runs in background goroutine)
+    select {}
+}
+```
+
+**Important**: Both processes must register the agent with the **exact same name and configuration**. This ensures the Temporal worker can execute the agent with the correct setup.
+
+#### Running the Services
+
+```bash
+# Terminal 1: Start the Temporal worker
+cd temporal-worker
+go run main.go
+
+# Terminal 2: Start the application
+cd application
+go run main.go
+```
+
+## Starting the Temporal Server
+
+If you don't have a Temporal server running, you can start one locally using Docker:
+
+```bash
+# Using Temporal CLI (recommended for development)
+temporal server start-dev
+
+# Or using Docker Compose
+git clone https://github.com/temporalio/docker-compose.git
+cd docker-compose
+docker compose up
+```
+
+The Temporal server will be available at:
+- **gRPC endpoint**: `localhost:7233` (for workers and clients)
+- **Web UI**: `http://localhost:8233` (for monitoring workflows)
+
+## Starting Redis
+
+Redis is required for streaming support in Temporal agents:
+
+```bash
+# Using Docker
+docker run -d --name redis -p 6379:6379 redis
+
+# Or using Homebrew on macOS
+brew install redis
+brew services start redis
+```
+
+## Example: Complete Durable Agent
+
+See the complete working example in the repository: [`examples/15_temporal_agent/main.go`](https://github.com/curaious/uno/tree/main/examples/15_temporal_agent)
+
+## Temporal vs Restate
+
+Both Temporal and Restate provide durable execution, but they have different characteristics:
+
+| Feature | Temporal | Restate |
+|---------|----------|---------|
+| Architecture | Requires separate Temporal server | Embedded or separate server |
+| Streaming | Requires Redis for streaming | Built-in streaming support |
+| Ecosystem | Mature, widely adopted | Newer, growing |
+| Complexity | More infrastructure to manage | Simpler setup |
+| Scalability | Highly scalable, production-proven | Designed for scale |
+
+Choose Temporal if you:
+- Already use Temporal in your infrastructure
+- Need battle-tested durability at scale
+- Want access to Temporal's rich ecosystem and tooling
+
+Choose Restate if you:
+- Prefer simpler infrastructure
+- Want built-in streaming without Redis
+- Are starting fresh without existing infrastructure
+
+## Learn More
+
+- [Temporal Documentation](https://docs.temporal.io)
+- [Temporal Go SDK](https://docs.temporal.io/dev-guide/go)
+- [Temporal Self-Hosted Guide](https://docs.temporal.io/self-hosted-guide)
+- [Temporal Web UI](https://docs.temporal.io/web-ui)
