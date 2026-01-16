@@ -64,6 +64,7 @@ func (b *MemoryStreamBroker) Subscribe(ctx context.Context, channel string) (<-c
 	}
 
 	// Create a buffered channel for the subscriber
+	// Buffer size of 100 allows publishing to proceed without blocking immediately
 	ch := make(chan *responses.ResponseChunk, 100)
 	b.subscribers[channel] = append(b.subscribers[channel], ch)
 

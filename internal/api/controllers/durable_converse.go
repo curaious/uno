@@ -174,71 +174,102 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 		switch *agentConfig.Config.Runtime {
 		case "Restate":
 			runID = uuid.New().String()
-			go streamChunks(ctx, reqCtx, runID, broker)
-			restateClient := ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
-			_, err = ingress.Workflow[*restate_agent_builder.WorkflowInput, *agents.AgentOutput](
-				restateClient,
-				"AgentBuilder",
-				runID,
-				"BuildAndExecuteAgent",
-			).Request(ctx, &restate_agent_builder.WorkflowInput{
-				AgentConfig: agentConfig,
-				Input:       in,
-			})
-			if err != nil {
-				RecordSpanError(span, err)
-				writeError(reqCtx, ctx, "error occurred during agent execution", perrors.NewErrInternalServerError(err.Error(), err))
+			// Subscribe first to ensure we don't miss any chunks
+			stream, subErr := broker.Subscribe(ctx, runID)
+			if subErr != nil {
+				RecordSpanError(span, subErr)
+				writeError(reqCtx, ctx, "failed to subscribe to stream", perrors.NewErrInternalServerError(subErr.Error(), subErr))
 				return
 			}
+
+			// Start workflow in goroutine so the handler can return and streaming can begin
+			restateClient := ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
+			go func() {
+				_, err := ingress.Workflow[*restate_agent_builder.WorkflowInput, *agents.AgentOutput](
+					restateClient,
+					"AgentBuilder",
+					runID,
+					"BuildAndExecuteAgent",
+				).Request(ctx, &restate_agent_builder.WorkflowInput{
+					AgentConfig: agentConfig,
+					Input:       in,
+				})
+				if err != nil {
+					RecordSpanError(span, err)
+				}
+			}()
+
+			// Stream chunks - this allows the handler to return so streaming can start
+			streamChunksFromChannel(ctx, reqCtx, stream, span)
 
 		case "Temporal":
-			run, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
-				TaskQueue: "AgentBuilder",
-			}, "AgentBuilder", agentConfig, in)
-			if err != nil {
-				writeError(reqCtx, ctx, "error occurred while executing temporal agent workflow", perrors.NewErrInternalServerError(err.Error(), err))
-				RecordSpanError(span, err)
+			runID = uuid.New().String()
+			// Subscribe first to ensure we don't miss any chunks
+			stream, subErr := broker.Subscribe(ctx, runID)
+			if subErr != nil {
+				RecordSpanError(span, subErr)
+				writeError(reqCtx, ctx, "failed to subscribe to stream", perrors.NewErrInternalServerError(subErr.Error(), subErr))
 				return
 			}
-			go streamChunks(ctx, reqCtx, run.GetID(), broker)
 
-			var output agents.AgentOutput
-			err = run.Get(ctx, &output)
-			if err != nil {
-				writeError(reqCtx, ctx, "error occurred during agent execution", perrors.NewErrInternalServerError(err.Error(), err))
-				RecordSpanError(span, err)
-				return
-			}
+			// Start workflow in goroutine so the handler can return and streaming can begin
+			go func() {
+				run, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+					ID:        runID,
+					TaskQueue: "AgentBuilder",
+				}, "AgentBuilder", agentConfig, in)
+				if err != nil {
+					RecordSpanError(span, err)
+					return
+				}
+
+				var output agents.AgentOutput
+				err = run.Get(ctx, &output)
+				if err != nil {
+					RecordSpanError(span, err)
+				}
+			}()
+
+			// Stream chunks - this allows the handler to return so streaming can start
+			streamChunksFromChannel(ctx, reqCtx, stream, span)
 
 		default:
 			b := streaming.NewMemoryStreamBroker()
-			defer b.Close(ctx, "default")
+			// Subscribe first to ensure we don't miss any chunks
+			stream, subErr := b.Subscribe(ctx, "default")
+			if subErr != nil {
+				RecordSpanError(span, subErr)
+				writeError(reqCtx, ctx, "failed to subscribe to stream", perrors.NewErrInternalServerError(subErr.Error(), subErr))
+				return
+			}
+
 			in.Callback = func(chunk *responses.ResponseChunk) {
 				b.Publish(ctx, "default", chunk)
 			}
-			go streamChunks(ctx, reqCtx, "default", b)
 
-			_, err = builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in)
-			if err != nil {
-				writeError(reqCtx, ctx, "error occurred during agent execution", perrors.NewErrInternalServerError(err.Error(), err))
-				RecordSpanError(span, err)
-				return
-			}
+			// Start execution in goroutine so the handler can return and streaming can begin
+			go func() {
+				defer b.Close(ctx, "default")
+				_, err := builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in)
+				if err != nil {
+					RecordSpanError(span, err)
+				}
+			}()
+
+			// Stream chunks - this allows the handler to return so streaming can start
+			streamChunksFromChannel(ctx, reqCtx, stream, span)
 		}
 
 	})
 }
 
-func streamChunks(ctx context.Context, reqCtx *fasthttp.RequestCtx, runID string, broker core.StreamBroker) {
+// streamChunksFromChannel sets up SSE streaming from a pre-subscribed channel.
+// The channel must be subscribed BEFORE the workflow starts to avoid missing chunks.
+// This function sets up SetBodyStreamWriter and returns immediately, allowing
+// the HTTP handler to return so fasthttp can begin streaming the response.
+func streamChunksFromChannel(ctx context.Context, reqCtx *fasthttp.RequestCtx, stream <-chan *responses.ResponseChunk, span trace.Span) {
 	reqCtx.SetBodyStreamWriter(func(w *bufio.Writer) {
-		stream, err := broker.Subscribe(ctx, runID)
-		if err != nil {
-			return
-		}
-
 		defer w.Flush()
-
-		span := trace.SpanFromContext(ctx)
 		defer span.End()
 
 		for {
