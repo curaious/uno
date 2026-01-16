@@ -166,18 +166,15 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 		}
 
 		var runID string
-		var stream <-chan *responses.ResponseChunk
+
+		reqCtx.Response.Header.Set("Content-Type", "text/event-stream")
+		reqCtx.Response.Header.Set("Cache-Control", "no-cache")
+		reqCtx.SetStatusCode(fasthttp.StatusOK)
 
 		switch *agentConfig.Config.Runtime {
 		case "Restate":
 			runID = uuid.New().String()
-			stream, err = broker.Subscribe(ctx, runID)
-			if err != nil {
-				RecordSpanError(span, err)
-				writeError(reqCtx, ctx, "unable to subscribe to stream", perrors.NewErrInternalServerError(err.Error(), err))
-				return
-			}
-			go streamChunks(ctx, reqCtx, stream)
+			go streamChunks(ctx, reqCtx, runID, broker)
 			restateClient := ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
 			_, err = ingress.Workflow[*restate_agent_builder.WorkflowInput, *agents.AgentOutput](
 				restateClient,
@@ -203,14 +200,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 				RecordSpanError(span, err)
 				return
 			}
-			runID = run.GetID()
-			stream, err = broker.Subscribe(ctx, runID)
-			if err != nil {
-				RecordSpanError(span, err)
-				writeError(reqCtx, ctx, "unable to subscribe to stream", perrors.NewErrInternalServerError(err.Error(), err))
-				return
-			}
-			go streamChunks(ctx, reqCtx, stream)
+			go streamChunks(ctx, reqCtx, run.GetID(), broker)
 
 			var output agents.AgentOutput
 			err = run.Get(ctx, &output)
@@ -222,19 +212,11 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 
 		default:
 			b := streaming.NewMemoryStreamBroker()
-			stream, err = b.Subscribe(ctx, "default")
-			if err != nil {
-				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
-				RecordSpanError(span, err)
-				writeError(reqCtx, ctx, "unable to subscribe to stream", perrors.NewErrInternalServerError(err.Error(), err))
-				return
-			}
 			defer b.Close(ctx, "default")
-
 			in.Callback = func(chunk *responses.ResponseChunk) {
 				b.Publish(ctx, "default", chunk)
 			}
-			go streamChunks(ctx, reqCtx, stream)
+			go streamChunks(ctx, reqCtx, "default", b)
 
 			_, err = builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in)
 			if err != nil {
@@ -247,8 +229,13 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 	})
 }
 
-func streamChunks(ctx context.Context, reqCtx *fasthttp.RequestCtx, stream <-chan *responses.ResponseChunk) {
+func streamChunks(ctx context.Context, reqCtx *fasthttp.RequestCtx, runID string, broker core.StreamBroker) {
 	reqCtx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		stream, err := broker.Subscribe(ctx, runID)
+		if err != nil {
+			return
+		}
+
 		defer w.Flush()
 
 		span := trace.SpanFromContext(ctx)
@@ -269,7 +256,7 @@ func streamChunks(ctx context.Context, reqCtx *fasthttp.RequestCtx, stream <-cha
 				_, _ = fmt.Fprintf(w, "data: %s\n\n", string(buf))
 				_ = w.Flush()
 
-				if m.OfRunCompleted != nil {
+				if m.OfRunCompleted != nil || m.OfRunPaused != nil {
 					return
 				}
 			}

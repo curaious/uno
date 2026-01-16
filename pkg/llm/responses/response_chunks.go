@@ -85,6 +85,12 @@ func (u *ResponseChunk) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var functionCallOutput *FunctionCallOutputMessage
+	if err := sonic.Unmarshal(data, &functionCallOutput); err == nil {
+		u.OfFunctionCallOutput = functionCallOutput
+		return nil
+	}
+
 	var responseInProgress *ChunkResponse[constants.ChunkTypeResponseInProgress]
 	if err := sonic.Unmarshal(data, &responseInProgress); err == nil {
 		u.OfResponseInProgress = responseInProgress

@@ -1,7 +1,6 @@
 package responses
 
 import (
-	"context"
 	"errors"
 
 	"github.com/bytedance/sonic"
@@ -517,10 +516,6 @@ func (u *ToolUnion) MarshalJSON() ([]byte, error) {
 	}
 
 	return nil, nil
-}
-
-func (u *ToolUnion) Tool(ctx context.Context) *ToolUnion {
-	return u
 }
 
 type FunctionTool struct {

@@ -24,8 +24,9 @@ func (b *AgentBuilder) MCPListTools(ctx context.Context, config *agent_config.MC
 
 	var tools []core.BaseTool
 	for _, tool := range mcpTools {
+		tu := tool.Tool(ctx)
 		tools = append(tools, core.BaseTool{
-			ToolUnion:        tool.Tool(ctx),
+			ToolUnion:        *tu,
 			RequiresApproval: tool.NeedApproval(),
 		})
 	}
@@ -70,7 +71,7 @@ func NewTemporalMCPProxy(workflowCtx workflow.Context, config *agent_config.MCPS
 }
 
 func (t *TemporalMCPProxy) ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
-	var toolDefs []core.BaseTool
+	toolDefs := []core.BaseTool{}
 	err := workflow.ExecuteActivity(t.workflowCtx, "MCPListTools", t.config, runContext).Get(t.workflowCtx, &toolDefs)
 	if err != nil {
 		return nil, err

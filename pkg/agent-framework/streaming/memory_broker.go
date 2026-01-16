@@ -44,9 +44,6 @@ func (b *MemoryStreamBroker) Publish(ctx context.Context, channel string, chunk 
 		case sub <- chunk:
 		case <-ctx.Done():
 			return ctx.Err()
-		default:
-			// Subscriber is slow, skip this chunk to avoid blocking
-			// In production, you might want to buffer or handle backpressure differently
 		}
 	}
 

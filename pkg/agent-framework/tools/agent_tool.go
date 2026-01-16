@@ -17,7 +17,7 @@ type AgentTool struct {
 func NewAgentTool(t *responses.ToolUnion, agent *agents.Agent) *AgentTool {
 	return &AgentTool{
 		BaseTool: &core.BaseTool{
-			ToolUnion: t,
+			ToolUnion: *t,
 		},
 		agent: agent,
 	}

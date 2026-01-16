@@ -1,7 +1,7 @@
 package restate_agent_builder
 
 import (
-	"context"
+	"log/slog"
 
 	"github.com/bytedance/sonic"
 	"github.com/curaious/uno/internal/agent_builder/builder"
@@ -49,9 +49,11 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 
 	workflowId := restate.Key(ctx)
 	cb := func(chunk *responses.ResponseChunk) {
-		b.broker.Publish(context.Background(), workflowId, chunk)
+		if err := b.broker.Publish(ctx, workflowId, chunk); err != nil {
+			slog.WarnContext(ctx, "unable to publish chunk to broker", slog.Any("error", err))
+		}
 	}
-	defer b.broker.Close(context.Background(), workflowId)
+	defer b.broker.Close(ctx, workflowId)
 
 	// Project
 	projectID := in.AgentConfig.ProjectID
