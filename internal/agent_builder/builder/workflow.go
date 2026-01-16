@@ -40,7 +40,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 
 	// Structured Output
 	var outputFormat map[string]any
-	if agentConfig.Config.Schema != nil {
+	if agentConfig.Config.Schema != nil && agentConfig.Config.Schema.Name != "" {
 		if err = sonic.Unmarshal(*agentConfig.Config.Schema.Schema, &outputFormat); err != nil {
 			return nil, err
 		}

@@ -162,6 +162,16 @@ func (s *PromptService) GetPromptVersionByID(ctx context.Context, projectID uuid
 }
 
 // GetPromptVersionByLabel retrieves a prompt version by label
+func (s *PromptService) GetPromptVersionByVersion(ctx context.Context, projectID uuid.UUID, promptID uuid.UUID, version int) (*PromptVersionWithPrompt, error) {
+	versionWithPrompt, err := s.repo.GetPromptVersionByVersion(ctx, projectID, promptID, version)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get prompt version by label: %w", err)
+	}
+
+	return versionWithPrompt, nil
+}
+
+// GetPromptVersionByLabel retrieves a prompt version by label
 func (s *PromptService) GetPromptVersionByLabel(ctx context.Context, projectID uuid.UUID, promptName, label string) (*PromptVersionWithPrompt, error) {
 	versionWithPrompt, err := s.repo.GetPromptVersionByLabel(ctx, projectID, promptName, label)
 	if err != nil {
@@ -200,6 +210,16 @@ func (s *PromptService) ListPromptVersions(ctx context.Context, projectID uuid.U
 	}
 
 	versions, err := s.repo.ListPromptVersions(ctx, projectID, prompt.ID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list prompt versions: %w", err)
+	}
+
+	return versions, nil
+}
+
+// ListPromptVersionsByID retrieves all versions for a specific prompt
+func (s *PromptService) ListPromptVersionsByID(ctx context.Context, projectID uuid.UUID, promptID uuid.UUID) ([]*PromptVersion, error) {
+	versions, err := s.repo.ListPromptVersions(ctx, projectID, promptID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list prompt versions: %w", err)
 	}

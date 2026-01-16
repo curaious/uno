@@ -38,7 +38,7 @@ func BuildConversationManager(svc *services.Services, projectID uuid.UUID, llmGa
 			options = append(options, history.WithSummarizer(summarizer))
 		case "sliding_window":
 			summarizer := summariser.NewSlidingWindowHistorySummarizer(&summariser.SlidingWindowHistorySummarizerOptions{
-				KeepCount: *config.Summarizer.LLMKeepRecentCount,
+				KeepCount: *config.Summarizer.SlidingWindowKeepCount,
 			})
 			options = append(options, history.WithSummarizer(summarizer))
 		}
@@ -46,5 +46,6 @@ func BuildConversationManager(svc *services.Services, projectID uuid.UUID, llmGa
 
 	return history.NewConversationManager(
 		adapters.NewInternalConversationPersistence(svc.Conversation, projectID),
+		options...,
 	), nil
 }

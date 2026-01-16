@@ -54,9 +54,11 @@ export interface AgentConfigData {
 
 export interface AgentConfig {
   id: string;
+  agent_id: string;
   project_id: string;
   name: string;
   version: number;
+  immutable: boolean;
   config: AgentConfigData;
   created_at: string;
   updated_at: string;
@@ -64,8 +66,10 @@ export interface AgentConfig {
 
 export interface AgentConfigSummary {
   id: string;
+  agent_id: string;
   project_id: string;
   name: string;
+  runtime: string;
   latest_version: number;
   created_at: string;
   updated_at: string;
@@ -78,5 +82,31 @@ export interface CreateAgentConfigRequest {
 
 export interface UpdateAgentConfigRequest {
   config: AgentConfigData;
+}
+
+export interface AgentConfigAlias {
+  id: string;
+  project_id: string;
+  agent_id: string;
+  name: string;
+  version1: number;
+  version2?: number;
+  weight?: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateAliasRequest {
+  name: string;
+  version1: number;
+  version2?: number;
+  weight?: number;
+}
+
+export interface UpdateAliasRequest {
+  name?: string;
+  version1?: number;
+  version2?: number;
+  weight?: number;
 }
 

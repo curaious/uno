@@ -22,7 +22,7 @@ type PromptConfig struct {
 	// Use either RawPrompt OR (PromptID + Label), not both
 	RawPrompt *string    `json:"raw_prompt,omitempty"` // Raw prompt text
 	PromptID  *uuid.UUID `json:"prompt_id,omitempty"`  // Reference to a prompt
-	Label     *string    `json:"label,omitempty"`      // "production" or "latest"
+	Version   *int       `json:"version,omitempty"`
 }
 
 // SchemaConfig represents output schema configuration
@@ -96,10 +96,12 @@ func (c AgentConfigData) Value() (driver.Value, error) {
 
 // AgentConfig represents a versioned agent configuration stored in the database
 type AgentConfig struct {
-	ID        uuid.UUID       `json:"id" db:"id"`
+	ID        uuid.UUID       `json:"id" db:"id"`             // Row ID (unique per row)
+	AgentID   uuid.UUID       `json:"agent_id" db:"agent_id"` // Stable UUID per agent (shared across versions)
 	ProjectID uuid.UUID       `json:"project_id" db:"project_id"`
 	Name      string          `json:"name" db:"name"`
-	Version   int             `json:"version" db:"version"`
+	Version   int             `json:"version" db:"version"`     // Version number (0 is mutable, 1+ are immutable)
+	Immutable bool            `json:"immutable" db:"immutable"` // true for versions > 0, false for version 0
 	Config    AgentConfigData `json:"config" db:"config"`
 	CreatedAt time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at" db:"updated_at"`
@@ -111,17 +113,52 @@ type CreateAgentConfigRequest struct {
 	Config AgentConfigData `json:"config" validate:"required"`
 }
 
-// UpdateAgentConfigRequest represents the request to create a new version of an agent config
+// UpdateAgentConfigRequest represents the request to update version 0 (mutable) or create a new version
 type UpdateAgentConfigRequest struct {
 	Config AgentConfigData `json:"config" validate:"required"`
 }
 
+// CreateVersionRequest represents the request to create a new immutable version from version 0
+type CreateVersionRequest struct {
+	// No fields needed - creates a new version from current version 0
+}
+
 // AgentConfigSummary represents a summary of an agent config for listing
 type AgentConfigSummary struct {
-	ID            uuid.UUID `json:"id" db:"id"`
+	ID            uuid.UUID `json:"id" db:"id"`             // Row ID of version 0
+	AgentID       uuid.UUID `json:"agent_id" db:"agent_id"` // Stable UUID per agent
 	ProjectID     uuid.UUID `json:"project_id" db:"project_id"`
 	Name          string    `json:"name" db:"name"`
 	LatestVersion int       `json:"latest_version" db:"latest_version"`
 	CreatedAt     time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt     time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// AgentConfigAlias represents a named mapping to one or two agent versions
+type AgentConfigAlias struct {
+	ID        uuid.UUID `json:"id" db:"id"`
+	ProjectID uuid.UUID `json:"project_id" db:"project_id"`
+	AgentID   uuid.UUID `json:"agent_id" db:"agent_id"`
+	Name      string    `json:"name" db:"name"`
+	Version1  int       `json:"version1" db:"version1"`           // Required: at least one version
+	Version2  *int      `json:"version2,omitempty" db:"version2"` // Optional: second version
+	Weight    *float64  `json:"weight,omitempty" db:"weight"`     // Weight for version2 (0-100), required if version2 is set
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// CreateAliasRequest represents the request to create a new alias
+type CreateAliasRequest struct {
+	Name     string   `json:"name" validate:"required,min=1,max=255"`
+	Version1 int      `json:"version1" validate:"required"`
+	Version2 *int     `json:"version2,omitempty"`
+	Weight   *float64 `json:"weight,omitempty" validate:"omitempty,min=0,max=100"`
+}
+
+// UpdateAliasRequest represents the request to update an existing alias
+type UpdateAliasRequest struct {
+	Name     string   `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Version1 *int     `json:"version1,omitempty"`
+	Version2 *int     `json:"version2,omitempty"`
+	Weight   *float64 `json:"weight,omitempty" validate:"omitempty,min=0,max=100"`
 }

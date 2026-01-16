@@ -285,6 +285,13 @@ export interface ModelParameters {
   reasoning?: ReasoningConfig;
 }
 
+export interface AgentConfig {
+  id: string;
+  agent_id: string;
+  name: string;
+  version: number;
+}
+
 export interface Agent {
   id: string;
   project_id: string;

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strconv"
 	"strings"
 
 	json "github.com/bytedance/sonic"
@@ -26,6 +27,7 @@ import (
 	"github.com/valyala/fasthttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/contrib/opentelemetry"
@@ -65,6 +67,14 @@ func getTemporalClient(conf *config.Config) client.Client {
 	return cli
 }
 
+func RecordSpanError(span trace.Span, err error) {
+	if err == nil {
+		return
+	}
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
+}
+
 func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
 	temporalClient := getTemporalClient(conf)
 
@@ -75,54 +85,67 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 
 		projectIDStr := string(reqCtx.QueryArgs().Peek("project_id"))
 		if projectIDStr == "" {
+			RecordSpanError(span, errors.New("project_id is required"))
 			writeError(reqCtx, ctx, "Project ID is required", perrors.NewErrInvalidRequest("project_id parameter is required", errors.New("project_id parameter is required")))
 			return
 		}
 
-		//agentIDStr := string(reqCtx.QueryArgs().Peek("agent_id"))
-		//if agentIDStr == "" {
-		//	writeError(reqCtx, baseCtx, "Agent ID is required", perrors.NewErrInvalidRequest("agent_id parameter is required", errors.New("agent_id parameter is required")))
-		//	return
-		//}
-		agentIDStr := "506d8e89-2190-466d-9524-83096bf122c6"
-
-		agentName := string(reqCtx.QueryArgs().Peek("agent_name"))
-		if agentName == "" {
-			writeError(reqCtx, ctx, "Agent name is required", perrors.NewErrInvalidRequest("agent_name parameter is required", errors.New("agent_name parameter is required")))
+		agentIDStr := string(reqCtx.QueryArgs().Peek("agent_id"))
+		if agentIDStr == "" {
+			RecordSpanError(span, errors.New("agent_id is required"))
+			writeError(reqCtx, ctx, "Agent ID is required", perrors.NewErrInvalidRequest("agent_id parameter is required", errors.New("agent_id parameter is required")))
 			return
+		}
+
+		version := 0
+		frag := strings.Split(agentIDStr, ":")
+		if len(frag) > 1 {
+			agentIDStr = frag[0]
+			v, err := strconv.Atoi(frag[1])
+			if err != nil {
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, "Invalid version number", perrors.NewErrInvalidRequest("version number is invalid", err))
+				return
+			}
+			version = v
 		}
 
 		// Parse request body first to get message_id for trace ID
 		var reqPayload ConverseRequest
 		if err := json.Unmarshal(reqCtx.PostBody(), &reqPayload); err != nil {
+			RecordSpanError(span, err)
 			writeError(reqCtx, ctx, "Invalid request body", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
 
 		span.SetAttributes(
 			attribute.String("project_id", projectIDStr),
-			attribute.String("agent_name", agentName),
+			attribute.String("agent_id", agentIDStr),
 			attribute.String("namespace", reqPayload.Namespace),
 			attribute.String("session_id", reqPayload.SessionID),
 		)
 
 		projectID, err := uuid.Parse(projectIDStr)
 		if err != nil {
+			RecordSpanError(span, err)
 			writeError(reqCtx, ctx, "unable to parse project id", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
 
 		agentID, err := uuid.Parse(agentIDStr)
 		if err != nil {
+			RecordSpanError(span, err)
 			writeError(reqCtx, ctx, "unable to parse agent id", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
 
-		agentConfig, err := svc.AgentConfig.GetByID(ctx, projectID, agentID)
+		agentConfig, err := svc.AgentConfig.GetByAgentIDAndVersion(ctx, projectID, agentID, version)
 		if err != nil {
+			RecordSpanError(span, err)
 			writeError(reqCtx, ctx, "unable to get agent config", perrors.NewErrInternalServerError(err.Error(), err))
 			return
 		}
+		span.SetAttributes(attribute.String("agent_name", agentConfig.Name))
 
 		reqHeaders := map[string]string{}
 		reqCtx.Request.Header.VisitAll(func(key, value []byte) {
@@ -150,7 +173,8 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			runID = uuid.New().String()
 			stream, err = broker.Subscribe(ctx, runID)
 			if err != nil {
-				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, "unable to subscribe to stream", perrors.NewErrInternalServerError(err.Error(), err))
 				return
 			}
 			go streamChunks(ctx, reqCtx, stream)
@@ -165,7 +189,8 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 				Input:       in,
 			})
 			if err != nil {
-				writeError(reqCtx, ctx, "unable to create agent", perrors.NewErrInternalServerError(err.Error(), err))
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, "error occurred during agent execution", perrors.NewErrInternalServerError(err.Error(), err))
 				return
 			}
 
@@ -174,23 +199,37 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 				TaskQueue: "AgentBuilder",
 			}, "AgentBuilder", agentConfig, in)
 			if err != nil {
+				writeError(reqCtx, ctx, "error occurred while executing temporal agent workflow", perrors.NewErrInternalServerError(err.Error(), err))
+				RecordSpanError(span, err)
 				return
 			}
 			runID = run.GetID()
 			stream, err = broker.Subscribe(ctx, runID)
 			if err != nil {
-				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, "unable to subscribe to stream", perrors.NewErrInternalServerError(err.Error(), err))
 				return
 			}
 			go streamChunks(ctx, reqCtx, stream)
+
+			var output agents.AgentOutput
+			err = run.Get(ctx, &output)
+			if err != nil {
+				writeError(reqCtx, ctx, "error occurred during agent execution", perrors.NewErrInternalServerError(err.Error(), err))
+				RecordSpanError(span, err)
+				return
+			}
 
 		default:
 			b := streaming.NewMemoryStreamBroker()
 			stream, err = b.Subscribe(ctx, "default")
 			if err != nil {
 				fmt.Println("Error subscribing to stream for run ID:", runID, "error:", err)
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, "unable to subscribe to stream", perrors.NewErrInternalServerError(err.Error(), err))
 				return
 			}
+			defer b.Close(ctx, "default")
 
 			in.Callback = func(chunk *responses.ResponseChunk) {
 				b.Publish(ctx, "default", chunk)
@@ -199,6 +238,8 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 
 			_, err = builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in)
 			if err != nil {
+				writeError(reqCtx, ctx, "error occurred during agent execution", perrors.NewErrInternalServerError(err.Error(), err))
+				RecordSpanError(span, err)
 				return
 			}
 		}

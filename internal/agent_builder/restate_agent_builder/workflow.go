@@ -67,7 +67,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 
 	// Structured Output
 	var outputFormat map[string]any
-	if in.AgentConfig.Config.Schema != nil {
+	if in.AgentConfig.Config.Schema != nil && in.AgentConfig.Config.Schema.Name != "" {
 		if err = sonic.Unmarshal(*in.AgentConfig.Config.Schema.Schema, &outputFormat); err != nil {
 			return nil, err
 		}

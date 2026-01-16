@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"encoding/json"
 	"strconv"
 
 	"github.com/curaious/uno/internal/perrors"
@@ -133,7 +134,38 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		writeOK(ctx, stdCtx, "Agent config retrieved successfully", config)
 	})
 
-	// List all versions of an agent config
+	// List all versions of an agent config by agent_id
+	r.GET("/api/agent-server/agent-configs/{id}/versions", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		idRaw, err := pathParam(ctx, "id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		id, err := uuid.Parse(idRaw)
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		// Get config to get agent_id
+		configs, err := svc.AgentConfig.ListVersions(stdCtx, projectID, id)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to list agent config versions", perrors.NewErrInternalServerError("Failed to list agent config versions", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Agent config versions retrieved successfully", configs)
+	})
+
+	// List all versions of an agent config by name (for backward compatibility)
 	r.GET("/api/agent-server/agent-configs/by-name/versions", func(ctx *fasthttp.RequestCtx) {
 		stdCtx := requestContext(ctx)
 		projectID, err := requireUUIDQuery(ctx, "project_id")
@@ -148,7 +180,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		configs, err := svc.AgentConfig.ListVersions(stdCtx, projectID, name)
+		configs, err := svc.AgentConfig.ListVersionsByName(stdCtx, projectID, name)
 		if err != nil {
 			writeError(ctx, stdCtx, "Failed to list agent config versions", perrors.NewErrInternalServerError("Failed to list agent config versions", err))
 			return
@@ -157,7 +189,50 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		writeOK(ctx, stdCtx, "Agent config versions retrieved successfully", configs)
 	})
 
-	// Create new version of agent config
+	// Update version 0 (mutable) of agent config by ID
+	r.POST("/api/agent-server/agent-configs/{id}/versions", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		idRaw, err := pathParam(ctx, "id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		id, err := uuid.Parse(idRaw)
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		// Get config to get agent_id
+		config, err := svc.AgentConfig.GetByID(stdCtx, projectID, id)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to get agent config", perrors.NewErrInternalServerError("Failed to get agent config", err))
+			return
+		}
+
+		var body agent_config.UpdateAgentConfigRequest
+		if err := json.Unmarshal(ctx.PostBody(), &body); err != nil {
+			writeError(ctx, stdCtx, "Invalid request body", perrors.NewErrInvalidRequest("Invalid request body", err))
+			return
+		}
+
+		updated, err := svc.AgentConfig.UpdateVersion0(stdCtx, config.AgentID, &body)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to update agent config", perrors.NewErrInternalServerError("Failed to update agent config", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Agent config updated successfully", updated)
+	})
+
+	// Update version 0 (mutable) of agent config by name (for backward compatibility)
 	r.POST("/api/agent-server/agent-configs/by-name/versions", func(ctx *fasthttp.RequestCtx) {
 		stdCtx := requestContext(ctx)
 		projectID, err := requireUUIDQuery(ctx, "project_id")
@@ -178,7 +253,68 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		created, err := svc.AgentConfig.CreateVersion(stdCtx, projectID, name, &body)
+		updated, err := svc.AgentConfig.UpdateVersion0ByName(stdCtx, projectID, name, &body)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to update agent config", perrors.NewErrInternalServerError("Failed to update agent config", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Agent config updated successfully", updated)
+	})
+
+	// Create new immutable version from version 0 by ID
+	r.POST("/api/agent-server/agent-configs/{id}/versions/create", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		idRaw, err := pathParam(ctx, "id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		id, err := uuid.Parse(idRaw)
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		// Get config to get agent_id
+		config, err := svc.AgentConfig.GetByID(stdCtx, projectID, id)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to get agent config", perrors.NewErrInternalServerError("Failed to get agent config", err))
+			return
+		}
+
+		created, err := svc.AgentConfig.CreateVersion(stdCtx, config.AgentID)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to create agent config version", perrors.NewErrInternalServerError("Failed to create agent config version", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Agent config version created successfully", created)
+	})
+
+	// Create new immutable version from version 0 by name (for backward compatibility)
+	r.POST("/api/agent-server/agent-configs/by-name/versions/create", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		name, err := requireStringQuery(ctx, "name")
+		if err != nil {
+			writeError(ctx, stdCtx, "Agent config name is required", perrors.NewErrInvalidRequest("Agent config name is required", err))
+			return
+		}
+
+		created, err := svc.AgentConfig.CreateVersionByName(stdCtx, projectID, name)
 		if err != nil {
 			writeError(ctx, stdCtx, "Failed to create agent config version", perrors.NewErrInternalServerError("Failed to create agent config version", err))
 			return
@@ -202,7 +338,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		if err := svc.AgentConfig.Delete(stdCtx, projectID, name); err != nil {
+		if err := svc.AgentConfig.DeleteByName(stdCtx, projectID, name); err != nil {
 			writeError(ctx, stdCtx, "Failed to delete agent config", perrors.NewErrInternalServerError("Failed to delete agent config", err))
 			return
 		}
@@ -237,11 +373,222 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		if err := svc.AgentConfig.DeleteVersion(stdCtx, projectID, name, version); err != nil {
+		// Get agent_id first
+		config, err := svc.AgentConfig.GetLatestByName(stdCtx, projectID, name)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to get agent config", perrors.NewErrInternalServerError("Failed to get agent config", err))
+			return
+		}
+
+		if err := svc.AgentConfig.DeleteVersion(stdCtx, config.AgentID, version); err != nil {
 			writeError(ctx, stdCtx, "Failed to delete agent config version", perrors.NewErrInternalServerError("Failed to delete agent config version", err))
 			return
 		}
 
 		writeOK(ctx, stdCtx, "Agent config version deleted successfully", nil)
+	})
+
+	// Create alias by agent config ID
+	r.POST("/api/agent-server/agent-configs/{id}/aliases", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		idRaw, err := pathParam(ctx, "id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		id, err := uuid.Parse(idRaw)
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		// Get config to get agent_id
+		config, err := svc.AgentConfig.GetByID(stdCtx, projectID, id)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to get agent config", perrors.NewErrInternalServerError("Failed to get agent config", err))
+			return
+		}
+
+		var req agent_config.CreateAliasRequest
+		if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+			writeError(ctx, stdCtx, "Invalid request body", perrors.NewErrInvalidRequest("Invalid request body", err))
+			return
+		}
+
+		alias, err := svc.AgentConfig.CreateAliasByAgentID(stdCtx, projectID, config.AgentID, &req)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to create alias", perrors.NewErrInternalServerError("Failed to create alias", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Alias created successfully", alias)
+	})
+
+	// Create alias by name (for backward compatibility)
+	r.POST("/api/agent-server/agent-configs/by-name/aliases", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		name, err := requireStringQuery(ctx, "name")
+		if err != nil {
+			writeError(ctx, stdCtx, "Agent config name is required", perrors.NewErrInvalidRequest("Agent config name is required", err))
+			return
+		}
+
+		var req agent_config.CreateAliasRequest
+		if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+			writeError(ctx, stdCtx, "Invalid request body", perrors.NewErrInvalidRequest("Invalid request body", err))
+			return
+		}
+
+		alias, err := svc.AgentConfig.CreateAlias(stdCtx, projectID, name, &req)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to create alias", perrors.NewErrInternalServerError("Failed to create alias", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Alias created successfully", alias)
+	})
+
+	// List aliases by agent config ID
+	r.GET("/api/agent-server/agent-configs/{id}/aliases", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		idRaw, err := pathParam(ctx, "id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		id, err := uuid.Parse(idRaw)
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid ID format", perrors.NewErrInvalidRequest("Invalid ID format", err))
+			return
+		}
+
+		aliases, err := svc.AgentConfig.ListAliasesByAgentID(stdCtx, projectID, id)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to list aliases", perrors.NewErrInternalServerError("Failed to list aliases", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Aliases retrieved successfully", aliases)
+	})
+
+	// List aliases by name (for backward compatibility)
+	r.GET("/api/agent-server/agent-configs/by-name/aliases", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		name, err := requireStringQuery(ctx, "name")
+		if err != nil {
+			writeError(ctx, stdCtx, "Agent config name is required", perrors.NewErrInvalidRequest("Agent config name is required", err))
+			return
+		}
+
+		aliases, err := svc.AgentConfig.ListAliases(stdCtx, projectID, name)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to list aliases", perrors.NewErrInternalServerError("Failed to list aliases", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Aliases retrieved successfully", aliases)
+	})
+
+	// Get alias by ID
+	r.GET("/api/agent-server/agent-configs/aliases/{id}", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		id, err := uuid.Parse(string(ctx.UserValue("id").(string)))
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid alias ID", perrors.NewErrInvalidRequest("Invalid alias ID", err))
+			return
+		}
+
+		alias, err := svc.AgentConfig.GetAlias(stdCtx, projectID, id)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to get alias", perrors.NewErrInternalServerError("Failed to get alias", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Alias retrieved successfully", alias)
+	})
+
+	// Update alias
+	r.PUT("/api/agent-server/agent-configs/aliases/{id}", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		id, err := uuid.Parse(string(ctx.UserValue("id").(string)))
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid alias ID", perrors.NewErrInvalidRequest("Invalid alias ID", err))
+			return
+		}
+
+		var req agent_config.UpdateAliasRequest
+		if err := json.Unmarshal(ctx.PostBody(), &req); err != nil {
+			writeError(ctx, stdCtx, "Invalid request body", perrors.NewErrInvalidRequest("Invalid request body", err))
+			return
+		}
+
+		alias, err := svc.AgentConfig.UpdateAlias(stdCtx, projectID, id, &req)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to update alias", perrors.NewErrInternalServerError("Failed to update alias", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Alias updated successfully", alias)
+	})
+
+	// Delete alias
+	r.DELETE("/api/agent-server/agent-configs/aliases/:id", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		id, err := uuid.Parse(string(ctx.UserValue("id").(string)))
+		if err != nil {
+			writeError(ctx, stdCtx, "Invalid alias ID", perrors.NewErrInvalidRequest("Invalid alias ID", err))
+			return
+		}
+
+		if err := svc.AgentConfig.DeleteAlias(stdCtx, projectID, id); err != nil {
+			writeError(ctx, stdCtx, "Failed to delete alias", perrors.NewErrInternalServerError("Failed to delete alias", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Alias deleted successfully", nil)
 	})
 }

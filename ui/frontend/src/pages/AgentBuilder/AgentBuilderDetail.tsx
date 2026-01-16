@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { api } from '../../api';
-import { AgentConfig, AgentConfigData, MCPServerConfig, ModelConfig, PromptConfig, SchemaConfig, HistoryConfig, SummarizerConfig, CreateAgentConfigRequest, UpdateAgentConfigRequest } from './types';
+import { AgentConfig, AgentConfigData, MCPServerConfig, ModelConfig, PromptConfig, SchemaConfig, HistoryConfig, SummarizerConfig, CreateAgentConfigRequest, UpdateAgentConfigRequest, AgentConfigAlias, CreateAliasRequest, UpdateAliasRequest } from './types';
 import { ProviderType, ProviderModelsResponse, ModelParameters, ReasoningConfig, PromptWithLatestVersion, PromptVersion, JSONSchemaDefinition } from '../../components/Chat/types';
 import { PageContainer, PageHeader, PageTitle } from '../../components/shared/Page';
 import { Button } from '../../components/shared/Buttons';
 import { Input, InputGroup, InputLabel, Select } from '../../components/shared/Input';
+import { DataTable, Column, Action } from '../../components/DataTable/DataTable';
+import { SlideDialog } from '../../components/shared/Dialog';
 import {
   Box,
   Tabs,
@@ -24,7 +26,9 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import SaveIcon from '@mui/icons-material/Save';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
+import EditIcon from '@mui/icons-material/Edit';
 import CodeIcon from '@mui/icons-material/Code';
+import VisibilityIcon from '@mui/icons-material/Visibility';
 import Editor from '@monaco-editor/react';
 import { SchemaBuilder } from '../Schemas/SchemaBuilder';
 
@@ -49,21 +53,6 @@ const BackButton = styled(Box)(() => ({
   '&:hover': {
     color: 'var(--text-primary)',
   },
-}));
-
-const SaveBanner = styled(Box)(() => ({
-  position: 'fixed',
-  top: 0,
-  left: 0,
-  right: 0,
-  padding: '12px 24px',
-  backgroundColor: '#10a37f',
-  color: '#fff',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-  zIndex: 1300,
-  boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
 }));
 
 const MCPServerCard = styled(Box)(() => ({
@@ -128,12 +117,14 @@ const defaultSchema: JSONSchemaDefinition = {
 };
 
 export const AgentBuilderDetail: React.FC = () => {
-  const { name } = useParams<{ name: string }>();
+  const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const isNew = name === 'new';
+  const isNew = id === 'new';
   
   const [config, setConfig] = useState<AgentConfig | null>(null);
   const [agentName, setAgentName] = useState<string>('');
+  const [configId, setConfigId] = useState<string | null>(null);
+  const [agentId, setAgentId] = useState<string | null>(null);
   const [formData, setFormData] = useState<AgentConfigData>({});
   const [originalData, setOriginalData] = useState<AgentConfigData>({});
   const [loading, setLoading] = useState(!isNew);
@@ -169,16 +160,35 @@ export const AgentBuilderDetail: React.FC = () => {
   const [summarizerModelParameters, setSummarizerModelParameters] = useState<ModelParameters>({});
   const [summarizerReasoningConfig, setSummarizerReasoningConfig] = useState<ReasoningConfig>({});
 
+  // Versions state
+  const [versions, setVersions] = useState<AgentConfig[]>([]);
+  const [loadingVersions, setLoadingVersions] = useState(false);
+
+  // Aliases state
+  const [aliases, setAliases] = useState<AgentConfigAlias[]>([]);
+  const [loadingAliases, setLoadingAliases] = useState(false);
+  const [editingAlias, setEditingAlias] = useState<AgentConfigAlias | null>(null);
+  const [showAliasForm, setShowAliasForm] = useState(false);
+  const [showVersion2, setShowVersion2] = useState(false);
+  const [aliasFormData, setAliasFormData] = useState<CreateAliasRequest>({
+    name: '',
+    version1: 0,
+    version2: undefined,
+    weight: undefined
+  });
+
   const loadConfig = useCallback(async () => {
-    if (!name || isNew) return;
+    if (!id || isNew) return;
 
     try {
       setLoading(true);
       setError(null);
-      const response = await api.get(`/agent-configs/by-name?name=${encodeURIComponent(name)}`);
+      const response = await api.get(`/agent-configs/${id}`);
       const configData = response.data.data;
       setConfig(configData);
+      setConfigId(configData.id);
       setAgentName(configData.name);
+      setAgentId(configData.agent_id);
       setFormData(configData.config || {});
       setOriginalData(JSON.parse(JSON.stringify(configData.config || {})));
       
@@ -237,7 +247,7 @@ export const AgentBuilderDetail: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [name, isNew]);
+  }, [id, isNew]);
 
   const loadProviderModels = async () => {
     try {
@@ -262,15 +272,15 @@ export const AgentBuilderDetail: React.FC = () => {
     }
   };
 
-  const loadPromptVersions = async (promptName: string) => {
-    if (!promptName) {
+  const loadPromptVersions = async (promptId: string) => {
+    if (!promptId) {
       setPromptVersions([]);
       return;
     }
     
     try {
       setLoadingPromptVersions(true);
-      const response = await api.get(`/prompts/${encodeURIComponent(promptName)}/versions`);
+      const response = await api.get(`/prompts/versions?prompt_id=${promptId}`);
       const versions = response.data.data || [];
       setPromptVersions(versions);
     } catch (err: any) {
@@ -281,15 +291,15 @@ export const AgentBuilderDetail: React.FC = () => {
     }
   };
 
-  const loadSummarizerPromptVersions = async (promptName: string) => {
-    if (!promptName) {
+  const loadSummarizerPromptVersions = async (promptId: string) => {
+    if (!promptId) {
       setSummarizerPromptVersions([]);
       return;
     }
     
     try {
       setLoadingSummarizerPromptVersions(true);
-      const response = await api.get(`/prompts/${encodeURIComponent(promptName)}/versions`);
+      const response = await api.get(`/prompts/versions?prompt_id=${promptId}`);
       const versions = response.data.data || [];
       setSummarizerPromptVersions(versions);
     } catch (err: any) {
@@ -300,11 +310,51 @@ export const AgentBuilderDetail: React.FC = () => {
     }
   };
 
+  const loadVersions = async () => {
+    if (!agentId || isNew) return;
+
+    try {
+      setLoadingVersions(true);
+      const response = await api.get(`/agent-configs/${agentId}/versions`);
+      const versionsData = response.data.data || [];
+      setVersions(versionsData);
+    } catch (err: any) {
+      console.error('Failed to load versions:', err);
+      setVersions([]);
+    } finally {
+      setLoadingVersions(false);
+    }
+  };
+
+  const loadAliases = async () => {
+    if (!agentId || isNew) return;
+
+    try {
+      setLoadingAliases(true);
+      const response = await api.get(`/agent-configs/${agentId}/aliases`);
+      const aliasesData = response.data.data || [];
+      setAliases(aliasesData);
+    } catch (err: any) {
+      console.error('Failed to load aliases:', err);
+      setAliases([]);
+    } finally {
+      setLoadingAliases(false);
+    }
+  };
+
   useEffect(() => {
     loadConfig();
     loadProviderModels();
     loadPrompts();
-  }, [loadConfig]);
+  }, [loadConfig, isNew, id]);
+
+  // Load versions and aliases when configId is available
+  useEffect(() => {
+    if (!isNew && configId) {
+      loadVersions();
+      loadAliases();
+    }
+  }, [configId, isNew]);
 
   // Check for changes
   useEffect(() => {
@@ -401,9 +451,10 @@ export const AgentBuilderDetail: React.FC = () => {
           name: agentName.trim(),
           config: formData
         };
-        await api.post('/agent-configs', request);
-        // Navigate to the created agent
-        navigate(`/agent-framework/agent-builder/${encodeURIComponent(agentName.trim())}`, { replace: true });
+        const response = await api.post('/agent-configs', request);
+        // Navigate to the created agent using its ID
+        const createdConfig = response.data.data;
+        navigate(`/agent-framework/agent-builder/${createdConfig.id}`, { replace: true });
       } catch (err: any) {
         const errorMessage = err.response?.data?.message ||
           err.response?.data?.errorDetails?.message ||
@@ -413,8 +464,8 @@ export const AgentBuilderDetail: React.FC = () => {
         setSaving(false);
       }
     } else {
-      // Update existing agent (create new version)
-      if (!name) return;
+      // Update version 0 in place (mutable)
+      if (!configId && !agentName) return;
 
       try {
         setSaving(true);
@@ -422,9 +473,15 @@ export const AgentBuilderDetail: React.FC = () => {
         const request: UpdateAgentConfigRequest = {
           config: formData
         };
-        await api.post(`/agent-configs/by-name/versions?name=${encodeURIComponent(name)}`, request);
-        // Reload to get the new version
+        if (configId) {
+          await api.post(`/agent-configs/${configId}/versions`, request);
+        } else {
+          // Fallback to name-based API if configId is not available
+          await api.post(`/agent-configs/by-name/versions?name=${encodeURIComponent(agentName)}`, request);
+        }
+        // Reload to get the updated version
         await loadConfig();
+        await loadVersions();
       } catch (err: any) {
         const errorMessage = err.response?.data?.message ||
           err.response?.data?.errorDetails?.message ||
@@ -433,6 +490,31 @@ export const AgentBuilderDetail: React.FC = () => {
       } finally {
         setSaving(false);
       }
+    }
+  };
+
+  const handleCreateVersion = async () => {
+    if (!configId || isNew) return;
+
+    try {
+      setSaving(true);
+      setError(null);
+      if (configId) {
+        await api.post(`/agent-configs/${configId}/versions/create`);
+      } else {
+        // Fallback to name-based API if configId is not available
+        await api.post(`/agent-configs/by-name/versions/create?name=${encodeURIComponent(agentName)}`);
+      }
+      // Reload to get the new version
+      await loadConfig();
+      await loadVersions();
+    } catch (err: any) {
+      const errorMessage = err.response?.data?.message ||
+        err.response?.data?.errorDetails?.message ||
+        'Failed to create version';
+      setError(errorMessage);
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -517,12 +599,12 @@ export const AgentBuilderDetail: React.FC = () => {
   };
 
   // Handle prompt selection
-  const handlePromptSelect = (promptName: string) => {
-    updatePromptConfig('prompt_id', promptName);
+  const handlePromptSelect = (promptId: string) => {
+    updatePromptConfig('prompt_id', promptId);
     updatePromptConfig('label', undefined); // Reset label when changing prompt
     updatePromptConfig('version', undefined); // Reset version when changing prompt
-    if (promptName) {
-      loadPromptVersions(promptName);
+    if (promptId) {
+      loadPromptVersions(promptId);
     } else {
       setPromptVersions([]);
     }
@@ -640,12 +722,12 @@ export const AgentBuilderDetail: React.FC = () => {
     }
   };
 
-  const handleSummarizerPromptSelect = (promptName: string) => {
-    updateSummarizerPromptConfig('prompt_id', promptName);
+  const handleSummarizerPromptSelect = (promptId: string) => {
+    updateSummarizerPromptConfig('prompt_id', promptId);
     updateSummarizerPromptConfig('label', undefined);
     updateSummarizerPromptConfig('version', undefined);
-    if (promptName) {
-      loadSummarizerPromptVersions(promptName);
+    if (promptId) {
+      loadSummarizerPromptVersions(promptId);
     } else {
       setSummarizerPromptVersions([]);
     }
@@ -668,6 +750,8 @@ export const AgentBuilderDetail: React.FC = () => {
       }
     }));
   };
+
+  console.log(formData);
 
   if (loading) {
     return (
@@ -695,42 +779,64 @@ export const AgentBuilderDetail: React.FC = () => {
 
   return (
     <>
-      {hasChanges && (
-        <SaveBanner>
-          <span>{isNew ? 'Create your new agent' : 'You have unsaved changes'}</span>
-          <Button
-            variant="contained"
-            onClick={handleSave}
-            disabled={saving || (isNew && !agentName.trim())}
-            sx={{ 
-              backgroundColor: '#fff', 
-              color: '#10a37f',
-              '&:hover': { backgroundColor: '#f0f0f0' }
-            }}
-          >
-            {saving ? <CircularProgress size={20} /> : <SaveIcon sx={{ mr: 1 }} />}
-            {saving ? 'Saving...' : isNew ? 'Create Agent' : 'Save Changes'}
-          </Button>
-        </SaveBanner>
-      )}
-      
-      <PageContainer style={{ paddingTop: hasChanges ? '64px' : '16px' }}>
+      <PageContainer>
         <BackButton onClick={() => navigate('/agent-framework/agent-builder')}>
           <ArrowBackIcon sx={{ fontSize: 18 }} />
           Back to Agent Builder
         </BackButton>
 
         <PageHeader>
-          <Box display="flex" alignItems="center" gap={2}>
-            <PageTitle>{isNew ? 'New Agent' : name}</PageTitle>
-            {config && !isNew && (
-              <Chip 
-                label={`v${config.version}`} 
-                size="small" 
-                variant="outlined"
-                sx={{ borderColor: 'var(--border-color)' }}
-              />
-            )}
+          <Box display="flex" alignItems="center" justifyContent="space-between" width="100%">
+            <Box display="flex" alignItems="center" gap={2}>
+              <PageTitle>{isNew ? 'New Agent' : (agentName || 'Agent')}</PageTitle>
+              {config && !isNew && (
+                <Chip 
+                  label={`v${config.version}`} 
+                  size="small" 
+                  variant="outlined"
+                  sx={{ borderColor: 'var(--border-color)' }}
+                />
+              )}
+            </Box>
+            <Box display="flex" alignItems="center" gap={2}>
+              {hasChanges && (
+                <Box display="flex" alignItems="center" gap={1} sx={{ 
+                  px: 2, 
+                  py: 1, 
+                  borderRadius: 1, 
+                  backgroundColor: alpha('#10a37f', 0.1),
+                  color: '#10a37f'
+                }}>
+                  <Typography variant="body2" sx={{ fontSize: '14px' }}>
+                    {isNew ? 'Create your new agent' : 'You have unsaved changes'}
+                  </Typography>
+                </Box>
+              )}
+              {hasChanges && (
+                <Button
+                  variant="contained"
+                  onClick={handleSave}
+                  disabled={saving || (isNew && !agentName.trim())}
+                  startIcon={saving ? <CircularProgress size={16} sx={{ color: '#fff' }} /> : <SaveIcon />}
+                  sx={{ 
+                    backgroundColor: '#10a37f',
+                    '&:hover': { backgroundColor: '#0d8a6d' }
+                  }}
+                >
+                  {saving ? 'Saving...' : isNew ? 'Create Agent' : 'Save Changes'}
+                </Button>
+              )}
+              {!isNew && config && !hasChanges && (
+                <Button
+                  variant="outlined"
+                  onClick={handleCreateVersion}
+                  disabled={saving || config.version !== 0}
+                  startIcon={<AddIcon />}
+                >
+                  Create Version
+                </Button>
+              )}
+            </Box>
           </Box>
         </PageHeader>
 
@@ -758,6 +864,8 @@ export const AgentBuilderDetail: React.FC = () => {
             <Tab label="Output Schema" />
             <Tab label="MCP Servers" />
             <Tab label="History" />
+            <Tab label="Versions" />
+            <Tab label="Alias" />
           </Tabs>
         </TabsContainer>
 
@@ -776,7 +884,7 @@ export const AgentBuilderDetail: React.FC = () => {
                 />
               ) : (
                 <Input
-                  value={name}
+                  value={agentName}
                   disabled
                   fullWidth
                   helperText="Agent name cannot be changed after creation"
@@ -1069,7 +1177,7 @@ export const AgentBuilderDetail: React.FC = () => {
                   >
                     <MenuItem value="">Select a prompt</MenuItem>
                     {prompts.map((prompt) => (
-                      <MenuItem key={prompt.id} value={prompt.name}>
+                      <MenuItem key={prompt.id} value={prompt.id}>
                         <Box display="flex" alignItems="center" gap={1}>
                           <span>{prompt.name}</span>
                           {prompt.latest_label && (
@@ -1542,7 +1650,7 @@ export const AgentBuilderDetail: React.FC = () => {
                             >
                               <MenuItem value="">Select a prompt</MenuItem>
                               {prompts.map((prompt) => (
-                                <MenuItem key={prompt.id} value={prompt.name}>
+                                <MenuItem key={prompt.id} value={prompt.id}>
                                   <Box display="flex" alignItems="center" gap={1}>
                                     <span>{prompt.name}</span>
                                     {prompt.latest_label && (
@@ -1757,6 +1865,549 @@ export const AgentBuilderDetail: React.FC = () => {
                     </Box>
                   </ConfigSection>
                 )}
+              </>
+            )}
+          </Box>
+        </CustomTabPanel>
+
+        {/* Tab 6: Versions */}
+        <CustomTabPanel value={tabValue} index={6}>
+          <Box>
+            {isNew ? (
+              <Box sx={{ textAlign: 'center', py: 6, color: 'var(--text-secondary)' }}>
+                <Typography variant="body1" sx={{ mb: 1 }}>
+                  Versions will be available after creating the agent
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                {(() => {
+                  const formatDate = (dateString: string) => {
+                    if (!dateString) return '';
+                    return new Date(dateString).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                  };
+
+                  const columns: Column<AgentConfig>[] = [
+                    {
+                      key: 'version',
+                      label: 'Version',
+                      render: (value, item) => (
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip 
+                            label={item.version === 0 ? '$LATEST' : `v${item.version}`}
+                            size="small"
+                            color={item.version === 0 ? 'primary' : 'default'}
+                            variant={item.version === 0 ? 'filled' : 'outlined'}
+                          />
+                          {item.immutable && (
+                            <Chip 
+                              label="Immutable"
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: '10px', height: '20px' }}
+                            />
+                          )}
+                        </Box>
+                      )
+                    },
+                    {
+                      key: 'created_at',
+                      label: 'Created',
+                      render: (value, item) => formatDate(item.created_at)
+                    },
+                    {
+                      key: 'updated_at',
+                      label: 'Updated',
+                      render: (value, item) => formatDate(item.updated_at)
+                    }
+                  ];
+
+                  const handleViewVersion = async (versionItem: AgentConfig) => {
+                    if (!configId && !agentName) return;
+                    
+                    if (versionItem.version === 0) {
+                      // If clicking on version 0, reload the current config
+                      await loadConfig();
+                      setTabValue(0); // Switch to Agent Info tab
+                    } else {
+                      // For immutable versions, load that specific version
+                      try {
+                        setLoading(true);
+                        setError(null);
+                        // Get config by agent_id and version
+                        let configData;
+                        if (config?.agent_id && agentName) {
+                          // Use name-based API with version parameter
+                          const response = await api.get(`/agent-configs/by-name?name=${encodeURIComponent(agentName)}&version=${versionItem.version}`);
+                          configData = response.data.data;
+                        } else if (agentName) {
+                          // Fallback to name-based API
+                          const response = await api.get(`/agent-configs/by-name?name=${encodeURIComponent(agentName)}&version=${versionItem.version}`);
+                          configData = response.data.data;
+                        } else {
+                          throw new Error('Cannot load version: agent name is required');
+                        }
+                        
+                        setConfig(configData);
+                        setConfigId(configData.id);
+                        setFormData(configData.config || {});
+                        setOriginalData(JSON.parse(JSON.stringify(configData.config || {})));
+                        
+                        // Parse model parameters
+                        const params = configData.config?.model?.parameters || {};
+                        setModelParameters({
+                          temperature: params.temperature,
+                          top_p: params.top_p,
+                          max_output_tokens: params.max_output_tokens,
+                          max_tool_calls: params.max_tool_calls,
+                          parallel_tool_calls: params.parallel_tool_calls,
+                          top_logprobs: params.top_logprobs,
+                        });
+                        setReasoningConfig(params.reasoning || {});
+                        
+                        // Set prompt mode
+                        const hasRawPrompt = configData.config?.prompt?.raw_prompt !== undefined;
+                        setUseRawPrompt(hasRawPrompt);
+                        
+                        // Set schema builder data
+                        if (configData.config?.schema?.schema) {
+                          setSchemaBuilderData(configData.config.schema.schema);
+                        }
+                        
+                        // Load prompt versions if a prompt is selected
+                        if (configData.config?.prompt?.prompt_id) {
+                          loadPromptVersions(configData.config.prompt.prompt_id);
+                        }
+
+                        // Load summarizer prompt versions
+                        const summarizerPrompt = configData.config?.history?.summarizer?.llm_summarizer_prompt;
+                        if (summarizerPrompt) {
+                          const hasSummarizerRawPrompt = summarizerPrompt.raw_prompt !== undefined;
+                          setUseSummarizerRawPrompt(hasSummarizerRawPrompt);
+                          if (summarizerPrompt.prompt_id) {
+                            loadSummarizerPromptVersions(summarizerPrompt.prompt_id);
+                          }
+                        }
+
+                        // Parse summarizer model parameters
+                        const summarizerParams = configData.config?.history?.summarizer?.llm_summarizer_model?.parameters || {};
+                        setSummarizerModelParameters({
+                          temperature: summarizerParams.temperature,
+                          top_p: summarizerParams.top_p,
+                          max_output_tokens: summarizerParams.max_output_tokens,
+                          max_tool_calls: summarizerParams.max_tool_calls,
+                          parallel_tool_calls: summarizerParams.parallel_tool_calls,
+                          top_logprobs: summarizerParams.top_logprobs,
+                        });
+                        setSummarizerReasoningConfig(summarizerParams.reasoning || {});
+                        
+                        setTabValue(0); // Switch to Agent Info tab
+                      } catch (err: any) {
+                        const errorMessage = err.response?.data?.message ||
+                          err.response?.data?.errorDetails?.message ||
+                          'Failed to load version';
+                        setError(errorMessage);
+                      } finally {
+                        setLoading(false);
+                      }
+                    }
+                  };
+
+                  const actions: Action<AgentConfig>[] = [
+                    {
+                      label: 'View',
+                      onClick: handleViewVersion,
+                      icon: <VisibilityIcon />
+                    }
+                  ];
+
+                  return (
+                    <DataTable
+                      data={versions}
+                      columns={columns}
+                      actions={actions}
+                      loading={loadingVersions}
+                      emptyState={{
+                        icon: '📋',
+                        title: 'No versions yet',
+                        description: 'Versions will appear here after you create immutable versions from version 0.',
+                        actionLabel: 'Refresh',
+                        onAction: loadVersions
+                      }}
+                    />
+                  );
+                })()}
+              </>
+            )}
+          </Box>
+        </CustomTabPanel>
+
+        {/* Tab 7: Alias */}
+        <CustomTabPanel value={tabValue} index={7}>
+          <Box>
+            {isNew ? (
+              <Box sx={{ textAlign: 'center', py: 6, color: 'var(--text-secondary)' }}>
+                <Typography variant="body1" sx={{ mb: 1 }}>
+                  Aliases will be available after creating the agent
+                </Typography>
+              </Box>
+            ) : (
+              <>
+                <Box sx={{ mb: 3, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <Typography variant="h6">Aliases</Typography>
+                  <Button
+                    variant="contained"
+                    onClick={() => {
+                      setEditingAlias(null);
+                      setShowAliasForm(true);
+                      setShowVersion2(false);
+                      setAliasFormData({
+                        name: '',
+                        version1: versions.length > 0 ? versions[0].version : 0,
+                        version2: undefined,
+                        weight: undefined
+                      });
+                    }}
+                    startIcon={<AddIcon />}
+                  >
+                    Create Alias
+                  </Button>
+                </Box>
+
+                {(() => {
+                  const formatDate = (dateString: string) => {
+                    if (!dateString) return '';
+                    return new Date(dateString).toLocaleDateString('en-US', {
+                      year: 'numeric',
+                      month: 'short',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+                  };
+
+                  const handleEditAlias = (alias: AgentConfigAlias) => {
+                    setEditingAlias(alias);
+                    setShowAliasForm(true);
+                    setShowVersion2(alias.version2 !== undefined);
+                    setAliasFormData({
+                      name: alias.name,
+                      version1: alias.version1,
+                      version2: alias.version2,
+                      weight: alias.weight
+                    });
+                  };
+
+                  const handleDeleteAlias = async (aliasId: string) => {
+                    if (!window.confirm('Are you sure you want to delete this alias?')) {
+                      return;
+                    }
+
+                    try {
+                      await api.delete(`/agent-configs/aliases/${aliasId}`);
+                      await loadAliases();
+                    } catch (err: any) {
+                      const errorMessage = err.response?.data?.message ||
+                        err.response?.data?.errorDetails?.message ||
+                        'Failed to delete alias';
+                      setError(errorMessage);
+                    }
+                  };
+
+                  const handleSaveAlias = async () => {
+                    if (!aliasFormData.name.trim()) {
+                      setError('Alias name is required');
+                      return;
+                    }
+
+                    if (aliasFormData.version1 === 0) {
+                      setError('Version 1 is required');
+                      return;
+                    }
+
+                    if (showVersion2) {
+                      if (aliasFormData.version2 === undefined) {
+                        setError('Version 2 is required when enabled');
+                        return;
+                      }
+                      if (aliasFormData.weight === undefined) {
+                        setError('Weight is required when version 2 is set');
+                        return;
+                      }
+                    }
+
+                    try {
+                      if (editingAlias) {
+                        const updateReq: UpdateAliasRequest = {
+                          name: aliasFormData.name,
+                          version1: aliasFormData.version1,
+                          version2: aliasFormData.version2,
+                          weight: aliasFormData.weight
+                        };
+                        await api.put(`/agent-configs/aliases/${editingAlias.id}`, updateReq);
+                      } else {
+                        // Use config ID if available, otherwise fall back to name
+                        if (configId) {
+                          await api.post(`/agent-configs/${configId}/aliases`, aliasFormData);
+                        } else if (agentName) {
+                          await api.post(`/agent-configs/by-name/aliases?name=${encodeURIComponent(agentName)}`, aliasFormData);
+                        } else {
+                          throw new Error('Cannot create alias: config ID or name is required');
+                        }
+                      }
+                      await loadAliases();
+                      setEditingAlias(null);
+                      setShowAliasForm(false);
+                      setShowVersion2(false);
+                      setAliasFormData({
+                        name: '',
+                        version1: 0,
+                        version2: undefined,
+                        weight: undefined
+                      });
+                    } catch (err: any) {
+                      const errorMessage = err.response?.data?.message ||
+                        err.response?.data?.errorDetails?.message ||
+                        'Failed to save alias';
+                      setError(errorMessage);
+                    }
+                  };
+
+                  const columns: Column<AgentConfigAlias>[] = [
+                    {
+                      key: 'name',
+                      label: 'Name',
+                      render: (value, item) => item.name
+                    },
+                    {
+                      key: 'version1',
+                      label: 'Version 1',
+                      render: (value, item) => (
+                        <Chip 
+                          label={item.version1 === 0 ? '$LATEST' : `v${item.version1}`}
+                          size="small"
+                          color={item.version1 === 0 ? 'primary' : 'default'}
+                          variant={item.version1 === 0 ? 'filled' : 'outlined'}
+                        />
+                      )
+                    },
+                    {
+                      key: 'version2',
+                      label: 'Version 2',
+                      render: (value, item) => item.version2 ? (
+                        <Box display="flex" alignItems="center" gap={1}>
+                          <Chip 
+                            label={`v${item.version2}`}
+                            size="small"
+                            variant="outlined"
+                          />
+                          {item.weight !== undefined && (
+                            <Chip 
+                              label={`${item.weight}%`}
+                              size="small"
+                              variant="outlined"
+                              sx={{ fontSize: '10px', height: '20px' }}
+                            />
+                          )}
+                        </Box>
+                      ) : (
+                        <span style={{ color: 'var(--text-secondary)' }}>None</span>
+                      )
+                    },
+                    {
+                      key: 'created_at',
+                      label: 'Created',
+                      render: (value, item) => formatDate(item.created_at)
+                    }
+                  ];
+
+                  const actions: Action<AgentConfigAlias>[] = [
+                    {
+                      label: 'Edit',
+                      onClick: handleEditAlias,
+                      icon: <EditIcon />
+                    },
+                    {
+                      label: 'Delete',
+                      onClick: (item) => handleDeleteAlias(item.id),
+                      icon: <DeleteIcon />
+                    }
+                  ];
+
+                  const handleCloseAliasDialog = () => {
+                    setEditingAlias(null);
+                    setShowAliasForm(false);
+                    setShowVersion2(false);
+                    setAliasFormData({
+                      name: '',
+                      version1: 0,
+                      version2: undefined,
+                      weight: undefined
+                    });
+                  };
+
+                  return (
+                    <>
+                      <DataTable
+                        data={aliases}
+                        columns={columns}
+                        actions={actions}
+                        loading={loadingAliases}
+                        emptyState={{
+                          icon: '',
+                          title: 'No aliases yet',
+                          description: 'Create an alias to map to one or two versions of this agent.',
+                          actionLabel: 'Create Alias',
+                          onAction: () => {
+                            setEditingAlias(null);
+                            setShowAliasForm(true);
+                            setShowVersion2(false);
+                            setAliasFormData({
+                              name: '',
+                              version1: versions.length > 0 ? versions[0].version : 0,
+                              version2: undefined,
+                              weight: undefined
+                            });
+                          }
+                        }}
+                      />
+
+                      <SlideDialog
+                        open={showAliasForm}
+                        onClose={handleCloseAliasDialog}
+                        title={editingAlias ? 'Edit Alias' : 'Create Alias'}
+                        maxWidth="600px"
+                        actions={
+                          <>
+                            <Button
+                              type="button"
+                              onClick={handleCloseAliasDialog}
+                            >
+                              Cancel
+                            </Button>
+                            <Button
+                              type="submit"
+                              variant="contained"
+                              form="alias-form"
+                            >
+                              {editingAlias ? 'Update' : 'Create'}
+                            </Button>
+                          </>
+                        }
+                      >
+                        <form 
+                          id="alias-form" 
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            handleSaveAlias();
+                          }}
+                        >
+                          <InputGroup>
+                            <InputLabel>Alias Name *</InputLabel>
+                            <Input
+                              value={aliasFormData.name}
+                              onChange={(e) => setAliasFormData({ ...aliasFormData, name: e.target.value })}
+                              fullWidth
+                              required
+                            />
+                          </InputGroup>
+
+                          <InputGroup>
+                            <InputLabel>Version 1 *</InputLabel>
+                            <Select
+                              value={aliasFormData.version1}
+                              onChange={(e) => setAliasFormData({ ...aliasFormData, version1: parseInt(e.target.value as string) })}
+                              fullWidth
+                              required
+                              MenuProps={{
+                                style: { zIndex: 1500 },
+                                PaperProps: {
+                                  style: { zIndex: 1500 }
+                                }
+                              }}
+                            >
+                              {versions.map((v) => (
+                                <MenuItem key={v.version} value={v.version}>
+                                  {v.version === 0 ? '$LATEST' : `v${v.version}`}
+                                </MenuItem>
+                              ))}
+                            </Select>
+                          </InputGroup>
+
+                          <InputGroup>
+                            <FormControlLabel
+                              control={
+                                <Switch
+                                  checked={showVersion2}
+                                  onChange={(e) => {
+                                    setShowVersion2(e.target.checked);
+                                    if (!e.target.checked) {
+                                      setAliasFormData({ ...aliasFormData, version2: undefined, weight: undefined });
+                                    }
+                                  }}
+                                />
+                              }
+                              label="Add Version 2 (Optional)"
+                            />
+                          </InputGroup>
+
+                          {showVersion2 && (
+                            <>
+                              <InputGroup>
+                                <InputLabel>Version 2</InputLabel>
+                                <Select
+                                  value={aliasFormData.version2 !== undefined ? aliasFormData.version2 : ''}
+                                  onChange={(e) => setAliasFormData({ 
+                                    ...aliasFormData, 
+                                    version2: e.target.value ? parseInt(e.target.value as string) : undefined 
+                                  })}
+                                  fullWidth
+                                  MenuProps={{
+                                    style: { zIndex: 1500 },
+                                    PaperProps: {
+                                      style: { zIndex: 1500 }
+                                    }
+                                  }}
+                                >
+                                  <MenuItem value="">Select version</MenuItem>
+                                  {versions
+                                    .filter(v => v.version !== aliasFormData.version1)
+                                    .map((v) => (
+                                      <MenuItem key={v.version} value={v.version}>
+                                        v{v.version}
+                                      </MenuItem>
+                                    ))}
+                                </Select>
+                              </InputGroup>
+
+                              <InputGroup>
+                                <InputLabel>Weight (0-100) *</InputLabel>
+                                <Input
+                                  type="number"
+                                  value={aliasFormData.weight || ''}
+                                  onChange={(e) => setAliasFormData({ 
+                                    ...aliasFormData, 
+                                    weight: e.target.value ? parseFloat(e.target.value) : undefined 
+                                  })}
+                                  fullWidth
+                                  inputProps={{ min: 0, max: 100, step: 0.1 }}
+                                  helperText="Weight percentage for version 2 (0-100)"
+                                  required
+                                />
+                              </InputGroup>
+                            </>
+                          )}
+                        </form>
+                      </SlideDialog>
+                    </>
+                  );
+                })()}
               </>
             )}
           </Box>

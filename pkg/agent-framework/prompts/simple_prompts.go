@@ -7,6 +7,7 @@ import (
 
 	"github.com/curaious/uno/internal/utils"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 )
 
 var tracer = otel.Tracer("PromptManager")
@@ -69,6 +70,7 @@ func (sp *SimplePrompt) GetPrompt(ctx context.Context, data map[string]any) (str
 	prompt, err := sp.loader.LoadPrompt(ctx)
 	if err != nil {
 		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return "", err
 	}
 

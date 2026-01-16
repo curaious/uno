@@ -42,7 +42,7 @@ export const AgentBuilder: React.FC = () => {
   };
 
   const handleEdit = (config: AgentConfigSummary) => {
-    navigate(`/agent-framework/agent-builder/${encodeURIComponent(config.name)}`);
+    navigate(`/agent-framework/agent-builder/${config.id}`);
   };
 
   const handleDelete = async (name: string) => {
@@ -77,7 +77,6 @@ export const AgentBuilder: React.FC = () => {
       label: 'Name',
       render: (value, item) => (
         <Box display="flex" alignItems="center" gap={1}>
-          <SmartToyIcon sx={{ fontSize: 18, color: 'var(--text-secondary)' }} />
           <span style={{ fontWeight: 500 }}>{item.name}</span>
         </Box>
       )
@@ -153,7 +152,7 @@ export const AgentBuilder: React.FC = () => {
           error={error}
           onRetry={loadConfigs}
           emptyState={{
-            icon: <SmartToyIcon sx={{ fontSize: 48, color: 'var(--text-secondary)' }} />,
+            icon: null,
             title: 'No Agents yet',
             description: 'Create your first agent configuration to get started',
             actionLabel: 'Create Agent',
