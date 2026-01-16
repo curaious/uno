@@ -82,7 +82,8 @@
                     "group": "Durable Execution",
                     "expanded": true,
                     "pages": [
-                      "uno-sdk/agents/durable/restate"
+                      "uno-sdk/agents/durable/restate",
+                      "uno-sdk/agents/durable/temporal"
                     ]
                   }
                 ]

@@ -29,7 +29,7 @@ func (t *TemporalMCPServer) ListTools(ctx context.Context, runContext map[string
 	var tools []core.BaseTool
 	for _, tool := range mcpTools {
 		tools = append(tools, core.BaseTool{
-			ToolUnion:        tool.Tool(ctx),
+			ToolUnion:        *tool.Tool(ctx),
 			RequiresApproval: tool.NeedApproval(),
 		})
 	}

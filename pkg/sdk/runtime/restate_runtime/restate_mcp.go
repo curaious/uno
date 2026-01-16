@@ -36,9 +36,8 @@ func (t *RestateMCPServer) ListTools(ctx context.Context, runContext map[string]
 
 		var tools []core.BaseTool
 		for _, tool := range mcpTools {
-			tu := tool.Tool(ctx)
 			tools = append(tools, core.BaseTool{
-				ToolUnion:        *tu,
+				ToolUnion:        *tool.Tool(ctx),
 				RequiresApproval: tool.NeedApproval(),
 			})
 		}

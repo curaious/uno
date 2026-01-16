@@ -191,7 +191,9 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 	cm.convMessages = convMessages
 	cm.oldMessages = messages
 	cm.RunState = core.LoadRunStateFromMeta(cm.lastMessageMeta)
-	cm.usage = &cm.RunState.Usage
+	if cm.RunState != nil {
+		cm.usage = &cm.RunState.Usage
+	}
 
 	return messages, nil
 }
