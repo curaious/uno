@@ -285,28 +285,6 @@ brew services start redis
 
 See the complete working example in the repository: [`examples/15_temporal_agent/main.go`](https://github.com/curaious/uno/tree/main/examples/15_temporal_agent)
 
-## Temporal vs Restate
-
-Both Temporal and Restate provide durable execution, but they have different characteristics:
-
-| Feature | Temporal | Restate |
-|---------|----------|---------|
-| Architecture | Requires separate Temporal server | Embedded or separate server |
-| Streaming | Requires Redis for streaming | Built-in streaming support |
-| Ecosystem | Mature, widely adopted | Newer, growing |
-| Complexity | More infrastructure to manage | Simpler setup |
-| Scalability | Highly scalable, production-proven | Designed for scale |
-
-Choose Temporal if you:
-- Already use Temporal in your infrastructure
-- Need battle-tested durability at scale
-- Want access to Temporal's rich ecosystem and tooling
-
-Choose Restate if you:
-- Prefer simpler infrastructure
-- Want built-in streaming without Redis
-- Are starting fresh without existing infrastructure
-
 ## Learn More
 
 - [Temporal Documentation](https://docs.temporal.io)
