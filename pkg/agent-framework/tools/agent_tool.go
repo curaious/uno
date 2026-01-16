@@ -17,7 +17,7 @@ type AgentTool struct {
 func NewAgentTool(t *responses.ToolUnion, agent *agents.Agent) *AgentTool {
 	return &AgentTool{
 		BaseTool: &core.BaseTool{
-			ToolUnion: t,
+			ToolUnion: *t,
 		},
 		agent: agent,
 	}
@@ -32,7 +32,6 @@ func (t *AgentTool) Execute(ctx context.Context, params *responses.FunctionCallM
 				},
 			},
 		},
-		Callback: core.NilCallback,
 	})
 	if err != nil {
 		return nil, err

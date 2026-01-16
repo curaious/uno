@@ -9,7 +9,6 @@ import (
 	"github.com/a2aproject/a2a-go/a2asrv"
 	"github.com/a2aproject/a2a-go/a2asrv/eventqueue"
 	"github.com/curaious/uno/internal/utils"
-	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/llm/responses"
 )
 
@@ -103,7 +102,7 @@ func (agent *A2A) Execute(ctx context.Context, reqCtx *a2asrv.RequestContext, q 
 		Namespace:         "",
 		PreviousMessageID: "",
 		Messages:          []responses.InputMessageUnion{},
-		Callback:          core.NilCallback,
+		Callback:          NilCallback,
 	})
 	if err != nil {
 

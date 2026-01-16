@@ -198,7 +198,7 @@ export interface InputImageContent {
  */
 export interface ConverseConfig {
   namespace: string;
-  agentName: string;
+  agentId: string;
   baseUrl?: string;
   context?: Record<string, unknown>;
   headers?: Record<string, string>;

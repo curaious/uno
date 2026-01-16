@@ -148,6 +148,48 @@ func (r *PromptRepo) GetPromptVersion(ctx context.Context, projectID uuid.UUID, 
 	return &versionWithPrompt, nil
 }
 
+// GetPromptVersionByID retrives a prompt version by prompt version id
+func (r *PromptRepo) GetPromptVersionByID(ctx context.Context, projectID uuid.UUID, promptVersionID uuid.UUID) (*PromptVersionWithPrompt, error) {
+	query := `
+		SELECT pv.id, pv.prompt_id, pv.version, pv.template, pv.commit_message, pv.label, pv.created_at, pv.updated_at, p.name as prompt_name
+		FROM prompt_versions pv
+		JOIN prompts p ON pv.prompt_id = p.id
+		WHERE pv.id = $1 AND p.project_id = $3
+	`
+
+	var versionWithPrompt PromptVersionWithPrompt
+	err := r.db.GetContext(ctx, &versionWithPrompt, query, promptVersionID, projectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("prompt version with label not found")
+		}
+		return nil, fmt.Errorf("failed to get prompt version by label: %w", err)
+	}
+
+	return &versionWithPrompt, nil
+}
+
+// GetPromptVersionByVersion retrieves a prompt version by prompt id and version
+func (r *PromptRepo) GetPromptVersionByVersion(ctx context.Context, projectID uuid.UUID, promptID uuid.UUID, version int) (*PromptVersionWithPrompt, error) {
+	query := `
+		SELECT pv.id, pv.prompt_id, pv.version, pv.template, pv.commit_message, pv.label, pv.created_at, pv.updated_at, p.name as prompt_name
+		FROM prompt_versions pv
+		JOIN prompts p ON pv.prompt_id = p.id
+		WHERE pv.prompt_id = $1 AND pv.version = $2 AND p.project_id = $3
+	`
+
+	var versionWithPrompt PromptVersionWithPrompt
+	err := r.db.GetContext(ctx, &versionWithPrompt, query, promptID, version, projectID)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, fmt.Errorf("prompt version with label not found")
+		}
+		return nil, fmt.Errorf("failed to get prompt version by label: %w", err)
+	}
+
+	return &versionWithPrompt, nil
+}
+
 // GetPromptVersionByLabel retrieves a prompt version by prompt name and label
 func (r *PromptRepo) GetPromptVersionByLabel(ctx context.Context, projectID uuid.UUID, promptName, label string) (*PromptVersionWithPrompt, error) {
 	query := `

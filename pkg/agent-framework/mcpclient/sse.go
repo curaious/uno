@@ -83,6 +83,10 @@ func WithApprovalRequiredTools(tools ...string) McpServerOption {
 	}
 }
 
+func (srv *MCPClient) GetName() string {
+	return "MCPClient"
+}
+
 func (srv *MCPClient) GetClient(ctx context.Context, runContext map[string]any) (*MCPClient, error) {
 	// resolve the headers with run context
 	headers := map[string]string{}
@@ -149,4 +153,13 @@ func (srv *MCPClient) GetTools(opts ...McpServerOption) []core.Tool {
 	}
 
 	return mcpTools
+}
+
+func (srv *MCPClient) ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
+	cli, err := srv.GetClient(ctx, runContext)
+	if err != nil {
+		return nil, err
+	}
+
+	return cli.GetTools(), nil
 }

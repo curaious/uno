@@ -27,7 +27,7 @@ func NewGetUserTool() *GetUserTool {
 	return &GetUserTool{
 		BaseTool: &core.BaseTool{
 			RequiresApproval: false,
-			ToolUnion: &responses.ToolUnion{
+			ToolUnion: responses.ToolUnion{
 				OfFunction: &responses.FunctionTool{
 					Name:        "get_user",
 					Description: utils.Ptr("Gets user information"),
@@ -63,7 +63,7 @@ func NewDeleteUserTool() *DeleteUserTool {
 	return &DeleteUserTool{
 		BaseTool: &core.BaseTool{
 			RequiresApproval: true, // Human approval required
-			ToolUnion: &responses.ToolUnion{
+			ToolUnion: responses.ToolUnion{
 				OfFunction: &responses.FunctionTool{
 					Name:        "delete_user",
 					Description: utils.Ptr("Permanently deletes a user account"),

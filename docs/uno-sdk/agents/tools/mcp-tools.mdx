@@ -113,7 +113,7 @@ func main() {
         Instruction: client.Prompt("You are helpful assistant."),
         LLM:         model,
         History:     history,
-        McpServers:  []*mcpclient.MCPClient{mcpClient},
+        McpServers:  []agents.MCPToolset{mcpClient},
     })
 
     // Execute agent

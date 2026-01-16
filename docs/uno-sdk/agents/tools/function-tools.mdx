@@ -16,7 +16,7 @@ type CustomTool struct {
 func NewCustomTool() *CustomTool {
 	return &CustomTool{
 		BaseTool: &core.BaseTool{
-			ToolUnion: &responses.ToolUnion{
+			ToolUnion: responses.ToolUnion{
 				OfFunction: &responses.FunctionTool{
 					Name:        "get_user_name",
 					Description: utils.Ptr("Returns the user's name"),

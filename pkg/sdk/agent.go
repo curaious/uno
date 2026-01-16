@@ -11,11 +11,16 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/agents"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/history"
-	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sdk/runtime/restate_runtime"
+	"github.com/curaious/uno/pkg/sdk/runtime/temporal_runtime"
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/server"
+	"go.temporal.io/sdk/activity"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
+	"go.temporal.io/sdk/workflow"
 )
 
 type AgentOptions struct {
@@ -26,7 +31,7 @@ type AgentOptions struct {
 	History     *history.CommonConversationManager
 	Parameters  responses.Parameters
 	Instruction core.SystemPromptProvider
-	McpServers  []*mcpclient.MCPClient
+	McpServers  []agents.MCPToolset
 }
 
 func (c *SDK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -102,20 +107,88 @@ func (c *SDK) NewRestateAgent(options *AgentOptions) *agents.Agent {
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
-		Runtime:     agents.NewRestateRuntime(c.restateConfig.Endpoint),
+		Runtime:     restate_runtime.NewRestateRuntime(c.restateConfig.Endpoint, c.redisBroker),
 	})
 
 	c.agents[options.Name] = agent
-	agents.RegisterAgent(options.Name, agent)
+	c.restateAgentConfigs[options.Name] = &agents.AgentOptions{
+		Name:        options.Name,
+		LLM:         options.LLM,
+		History:     options.History,
+		Parameters:  options.Parameters,
+		Output:      options.Output,
+		Tools:       options.Tools,
+		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
+	}
 
 	return agent
 }
 
 func (c *SDK) StartRestateService(host, port string) {
+	wf := restate_runtime.NewRestateWorkflow(c.restateAgentConfigs, c.redisBroker)
+
 	go func() {
 		if err := server.NewRestate().
-			Bind(restate.Reflect(agents.AgentWorkflow{})).
+			Bind(restate.Reflect(wf)).
 			Start(context.Background(), fmt.Sprintf("%s:%s", host, port)); err != nil {
+			log.Fatal(err)
+		}
+	}()
+}
+
+func (c *SDK) NewTemporalAgent(options *AgentOptions) *agents.Agent {
+	agent := agents.NewAgent(&agents.AgentOptions{
+		Name:        options.Name,
+		LLM:         options.LLM,
+		History:     options.History,
+		Parameters:  options.Parameters,
+		Output:      options.Output,
+		Tools:       options.Tools,
+		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
+		Runtime:     temporal_runtime.NewTemporalRuntime(c.temporalConfig.Endpoint, c.redisBroker),
+	})
+
+	c.agents[options.Name] = agent
+	c.temporalAgentConfigs[options.Name] = &agents.AgentOptions{
+		Name:        options.Name,
+		LLM:         options.LLM,
+		History:     options.History,
+		Parameters:  options.Parameters,
+		Output:      options.Output,
+		Tools:       options.Tools,
+		Instruction: options.Instruction,
+		McpServers:  options.McpServers,
+	}
+
+	return agent
+}
+
+func (c *SDK) StartTemporalService() {
+	cli, err := client.Dial(client.Options{
+		HostPort: c.temporalConfig.Endpoint,
+	})
+	if err != nil {
+		panic("unable to create temporal client")
+	}
+
+	go func() {
+		w := worker.New(cli, "AgentWorkflowTaskQueue", worker.Options{})
+
+		// Register workflows and activities based on the agents available in the SDK
+		for agentName, agentOptions := range c.temporalAgentConfigs {
+			temporalAgentProxy := temporal_runtime.NewTemporalAgent(agentOptions, c.redisBroker)
+			for name, fn := range temporalAgentProxy.GetActivities() {
+				w.RegisterActivityWithOptions(fn, activity.RegisterOptions{Name: name})
+			}
+			w.RegisterWorkflowWithOptions(temporalAgentProxy.Execute, workflow.RegisterOptions{
+				Name: agentName + "_AgentWorkflow",
+			})
+		}
+
+		err = w.Run(worker.InterruptCh())
+		if err != nil {
 			log.Fatal(err)
 		}
 	}()

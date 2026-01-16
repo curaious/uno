@@ -55,9 +55,39 @@ type ResponseChunk struct {
 }
 
 func (u *ResponseChunk) UnmarshalJSON(data []byte) error {
+	var runCreated *ChunkRun[constants.ChunkTypeRunCreated]
+	if err := sonic.Unmarshal(data, &runCreated); err == nil {
+		u.OfRunCreated = runCreated
+		return nil
+	}
+
+	var runInProgress *ChunkRun[constants.ChunkTypeRunInProgress]
+	if err := sonic.Unmarshal(data, &runInProgress); err == nil {
+		u.OfRunInProgress = runInProgress
+		return nil
+	}
+
+	var runPaused *ChunkRun[constants.ChunkTypeRunPaused]
+	if err := sonic.Unmarshal(data, &runPaused); err == nil {
+		u.OfRunPaused = runPaused
+		return nil
+	}
+
+	var runCompleted *ChunkRun[constants.ChunkTypeRunCompleted]
+	if err := sonic.Unmarshal(data, &runCompleted); err == nil {
+		u.OfRunCompleted = runCompleted
+		return nil
+	}
+
 	var responseCreated *ChunkResponse[constants.ChunkTypeResponseCreated]
 	if err := sonic.Unmarshal(data, &responseCreated); err == nil {
 		u.OfResponseCreated = responseCreated
+		return nil
+	}
+
+	var functionCallOutput *FunctionCallOutputMessage
+	if err := sonic.Unmarshal(data, &functionCallOutput); err == nil {
+		u.OfFunctionCallOutput = functionCallOutput
 		return nil
 	}
 

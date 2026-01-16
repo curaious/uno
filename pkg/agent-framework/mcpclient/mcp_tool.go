@@ -43,7 +43,7 @@ func NewMcpTool(t mcp.Tool, cli *client.Client, Meta *mcp.Meta, requiresApproval
 	return &McpTool{
 		BaseTool: &core.BaseTool{
 			RequiresApproval: requiresApproval,
-			ToolUnion: &responses.ToolUnion{
+			ToolUnion: responses.ToolUnion{
 				OfFunction: &responses.FunctionTool{
 					Name:        t.Name,
 					Description: utils.Ptr(t.Description),

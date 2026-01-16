@@ -190,6 +190,30 @@ func RegisterPromptRoutes(r *router.Router, svc *services.Services) {
 		writeOK(ctx, stdCtx, "Prompt versions retrieved successfully", versions)
 	})
 
+	// List prompt versions
+	r.GET("/api/agent-server/prompts/versions", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		promptID, err := requireUUIDQuery(ctx, "prompt_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		versions, err := svc.Prompt.ListPromptVersionsByID(stdCtx, projectID, promptID)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to list prompt versions", perrors.NewErrInternalServerError("Failed to list prompt versions", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Prompt versions retrieved successfully", versions)
+	})
+
 	// Get prompt version
 	r.GET("/api/agent-server/prompts/{name}/versions/{version}", func(ctx *fasthttp.RequestCtx) {
 		stdCtx := requestContext(ctx)

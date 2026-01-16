@@ -418,7 +418,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     if (projectId) {
       params.append('project_id', projectId);
     }
-    params.append('agent_name', config.agentName);
+    params.append('agent_id', config.agentId);
 
     let url = `${baseUrl}/converse?${params.toString()}`;
     if (!!config.baseUrl) {

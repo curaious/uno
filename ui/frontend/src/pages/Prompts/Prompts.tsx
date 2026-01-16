@@ -54,7 +54,7 @@ export const Prompts: React.FC = props => {
   };
 
   const handleViewVersions = (prompt: PromptWithLatestVersion) => {
-    navigate(`/prompts/${prompt.name}/versions`);
+    navigate(`/agent-framework/prompts/${prompt.name}/versions`);
   };
 
   const handleDelete = async (prompt: PromptWithLatestVersion) => {

@@ -55,7 +55,7 @@ func main() {
 		Name:        "Hello world agent",
 		Instruction: client.Prompt("You are helpful assistant."),
 		LLM:         model,
-		McpServers:  []*mcpclient.MCPClient{mcpClient},
+		McpServers:  []agents.MCPToolset{mcpClient},
 	})
 
 	out, err := agent.Execute(context.Background(), &agents.AgentInput{

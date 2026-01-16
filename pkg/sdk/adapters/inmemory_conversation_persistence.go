@@ -8,6 +8,7 @@ import (
 	"github.com/curaious/uno/internal/services/conversation"
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // inMemoryMessage represents a message with its ordering metadata
@@ -67,9 +68,22 @@ func NewInMemoryConversationPersistence() *InMemoryConversationPersistence {
 	}
 }
 
+// NewRunID generates a unique ID for a run
+func (p *InMemoryConversationPersistence) NewRunID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 // LoadMessages retrieves all messages up to and including the previousMessageID
-func (p *InMemoryConversationPersistence) LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error) {
-	if previousMessageID == "" {
+func (p *InMemoryConversationPersistence) LoadMessages(ctx context.Context, namespace string, previousMessageId string) ([]conversation.ConversationMessage, error) {
+	ctx, span := tracer.Start(ctx, "InMemoryConversationPersistence.LoadMessages")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("namespace", namespace),
+		attribute.String("previous_message_id", previousMessageId),
+	)
+
+	if previousMessageId == "" {
 		return []conversation.ConversationMessage{}, nil
 	}
 
@@ -77,7 +91,7 @@ func (p *InMemoryConversationPersistence) LoadMessages(ctx context.Context, name
 	defer p.mu.RUnlock()
 
 	// Find the message to get its thread
-	msg, exists := p.messages[previousMessageID]
+	msg, exists := p.messages[previousMessageId]
 	if !exists {
 		return []conversation.ConversationMessage{}, nil
 	}
@@ -104,7 +118,7 @@ func (p *InMemoryConversationPersistence) LoadMessages(ctx context.Context, name
 			if msgID == summary.LastSummarizedMessageID {
 				summarizedIdx = i
 			}
-			if msgID == previousMessageID {
+			if msgID == previousMessageId {
 				targetIdx = i
 			}
 		}
@@ -148,16 +162,28 @@ func (p *InMemoryConversationPersistence) LoadMessages(ctx context.Context, name
 			Meta:           m.Meta,
 		})
 
-		if msgID == previousMessageID {
+		if msgID == previousMessageId {
 			break
 		}
 	}
+
+	span.SetAttributes(attribute.Int("conversation_messages_count", len(result)))
 
 	return result, nil
 }
 
 // SaveMessages saves messages with support for conversations and threads
 func (p *InMemoryConversationPersistence) SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
+	ctx, span := tracer.Start(ctx, "InMemoryConversationPersistence.SaveMessages")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("namespace", namespace),
+		attribute.String("previous_message_id", previousMsgId),
+		attribute.String("conversation_id", conversationId),
+		attribute.Int("messages_count", len(messages)),
+	)
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -275,6 +301,9 @@ func (p *InMemoryConversationPersistence) SaveMessages(ctx context.Context, name
 
 // SaveSummary saves a conversation summary for a thread
 func (p *InMemoryConversationPersistence) SaveSummary(ctx context.Context, namespace string, summary conversation.Summary) error {
+	ctx, span := tracer.Start(ctx, "InMemoryConversationPersistence.SaveSummary")
+	defer span.End()
+
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
