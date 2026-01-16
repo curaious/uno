@@ -20,15 +20,18 @@ func NewTemporalMCPServer(wrappedMcpServer agents.MCPToolset) *TemporalMCPServer
 	}
 }
 
-func (t *TemporalMCPServer) ListTools(ctx context.Context, runContext map[string]any) ([]*responses.ToolUnion, error) {
+func (t *TemporalMCPServer) ListTools(ctx context.Context, runContext map[string]any) ([]core.BaseTool, error) {
 	mcpTools, err := t.wrappedMcpServer.ListTools(ctx, runContext)
 	if err != nil {
 		return nil, err
 	}
 
-	var tools []*responses.ToolUnion
+	var tools []core.BaseTool
 	for _, tool := range mcpTools {
-		tools = append(tools, tool.Tool(ctx))
+		tools = append(tools, core.BaseTool{
+			ToolUnion:        tool.Tool(ctx),
+			RequiresApproval: tool.NeedApproval(),
+		})
 	}
 
 	return tools, nil
@@ -67,7 +70,7 @@ func (t *TemporalMCPProxy) GetName() string {
 }
 
 func (t *TemporalMCPProxy) ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
-	var toolDefs []*responses.ToolUnion
+	var toolDefs []core.BaseTool
 	err := workflow.ExecuteActivity(t.workflowCtx, t.prefix+"_ListMCPToolsActivity", runContext).Get(t.workflowCtx, &toolDefs)
 	if err != nil {
 		return nil, err
@@ -88,14 +91,12 @@ type TemporalMCPToolProxy struct {
 	*core.BaseTool
 }
 
-func NewTemporalMCPToolProxy(workflowCtx workflow.Context, prefix string, runContext map[string]any, toolDef *responses.ToolUnion) *TemporalMCPToolProxy {
+func NewTemporalMCPToolProxy(workflowCtx workflow.Context, prefix string, runContext map[string]any, baseTool core.BaseTool) *TemporalMCPToolProxy {
 	return &TemporalMCPToolProxy{
 		workflowCtx: workflowCtx,
 		prefix:      prefix,
 		runContext:  runContext,
-		BaseTool: &core.BaseTool{
-			ToolUnion: toolDef,
-		},
+		BaseTool:    &baseTool,
 	}
 }
 

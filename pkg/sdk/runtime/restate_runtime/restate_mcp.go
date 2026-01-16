@@ -28,15 +28,18 @@ func (t *RestateMCPServer) GetName() string {
 
 func (t *RestateMCPServer) ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
 	// TODO: `RestateMCPServer` is created per workflow, so we can connect to MCP and keep the connection
-	toolDefs, err := restate.Run(t.restateCtx, func(ctx restate.RunContext) ([]*responses.ToolUnion, error) {
+	toolDefs, err := restate.Run(t.restateCtx, func(ctx restate.RunContext) ([]core.BaseTool, error) {
 		mcpTools, err := t.wrappedMcpServer.ListTools(ctx, runContext)
 		if err != nil {
 			return nil, err
 		}
 
-		var tools []*responses.ToolUnion
+		var tools []core.BaseTool
 		for _, tool := range mcpTools {
-			tools = append(tools, tool.Tool(ctx))
+			tools = append(tools, core.BaseTool{
+				ToolUnion:        tool.Tool(ctx),
+				RequiresApproval: tool.NeedApproval(),
+			})
 		}
 
 		return tools, nil
@@ -60,14 +63,12 @@ type RestateMCPTool struct {
 	*core.BaseTool
 }
 
-func NewRestateMCPTool(restateCtx restate.WorkflowContext, wrappedMcpServer agents.MCPToolset, runContext map[string]any, toolDef *responses.ToolUnion) *RestateMCPTool {
+func NewRestateMCPTool(restateCtx restate.WorkflowContext, wrappedMcpServer agents.MCPToolset, runContext map[string]any, baseTool core.BaseTool) *RestateMCPTool {
 	return &RestateMCPTool{
 		restateCtx:       restateCtx,
 		runContext:       runContext,
 		wrappedMcpServer: wrappedMcpServer,
-		BaseTool: &core.BaseTool{
-			ToolUnion: toolDef,
-		},
+		BaseTool:         &baseTool,
 	}
 }
 

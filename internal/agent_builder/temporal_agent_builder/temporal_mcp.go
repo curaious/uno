@@ -11,7 +11,7 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func (b *AgentBuilder) MCPListTools(ctx context.Context, config *agent_config.MCPServerConfig, runContext map[string]any) ([]*responses.ToolUnion, error) {
+func (b *AgentBuilder) MCPListTools(ctx context.Context, config *agent_config.MCPServerConfig, runContext map[string]any) ([]core.BaseTool, error) {
 	client, err := builder.BuildMCPClient(config)
 	if err != nil {
 		return nil, err
@@ -22,9 +22,12 @@ func (b *AgentBuilder) MCPListTools(ctx context.Context, config *agent_config.MC
 		return nil, err
 	}
 
-	var tools []*responses.ToolUnion
+	var tools []core.BaseTool
 	for _, tool := range mcpTools {
-		tools = append(tools, tool.Tool(ctx))
+		tools = append(tools, core.BaseTool{
+			ToolUnion:        tool.Tool(ctx),
+			RequiresApproval: tool.NeedApproval(),
+		})
 	}
 
 	return tools, nil
@@ -67,7 +70,7 @@ func NewTemporalMCPProxy(workflowCtx workflow.Context, config *agent_config.MCPS
 }
 
 func (t *TemporalMCPProxy) ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
-	var toolDefs []*responses.ToolUnion
+	var toolDefs []core.BaseTool
 	err := workflow.ExecuteActivity(t.workflowCtx, "MCPListTools", t.config, runContext).Get(t.workflowCtx, &toolDefs)
 	if err != nil {
 		return nil, err
@@ -88,14 +91,12 @@ type TemporalMCPToolProxy struct {
 	*core.BaseTool
 }
 
-func NewTemporalMCPToolProxy(workflowCtx workflow.Context, config *agent_config.MCPServerConfig, runContext map[string]any, toolDef *responses.ToolUnion) *TemporalMCPToolProxy {
+func NewTemporalMCPToolProxy(workflowCtx workflow.Context, config *agent_config.MCPServerConfig, runContext map[string]any, baseTool core.BaseTool) *TemporalMCPToolProxy {
 	return &TemporalMCPToolProxy{
 		workflowCtx: workflowCtx,
 		config:      config,
 		runContext:  runContext,
-		BaseTool: &core.BaseTool{
-			ToolUnion: toolDef,
-		},
+		BaseTool:    &baseTool,
 	}
 }
 

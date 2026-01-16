@@ -10,10 +10,10 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/agents"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/history"
-	"github.com/curaious/uno/pkg/agent-framework/runtime/restate_runtime"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sdk/runtime/restate_runtime"
 	restate "github.com/restatedev/sdk-go"
 	"go.opentelemetry.io/otel"
 )
