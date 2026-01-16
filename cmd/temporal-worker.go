@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"os"
+
 	"github.com/curaious/uno/internal/api"
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/telemetry"
@@ -12,6 +14,8 @@ var temporalWorkerCmd = &cobra.Command{
 	Short: "Start Temporal Worker",
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := config.ReadConfig()
+
+		os.Setenv("OTEL_SERVICE_NAME", "temporal-worker")
 
 		shutdownTelemetry := telemetry.NewProvider(conf.OTEL_EXPORTER_OTLP_ENDPOINT)
 		defer shutdownTelemetry()
