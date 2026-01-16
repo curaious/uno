@@ -5,7 +5,6 @@ import (
 	"errors"
 	"time"
 
-	"github.com/bytedance/sonic"
 	"github.com/curaious/uno/internal/services/conversation"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/llm/responses"
@@ -167,7 +166,6 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 	}
 
 	messages := []responses.InputMessageUnion{}
-	var usage *responses.Usage
 	for _, msg := range convMessages {
 		for _, m := range msg.Messages {
 			cm.msgIdToRunId[m.ID()] = msg.MessageID
@@ -175,14 +173,6 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 		cm.threadId = msg.ThreadID
 
 		messages = append(messages, msg.Messages...)
-		if usageData, ok := msg.Meta["usage"].(map[string]any); ok {
-			b, err := sonic.Marshal(usageData)
-			if err != nil {
-				continue
-			}
-
-			sonic.Unmarshal(b, &usage)
-		}
 
 		// Store the most recent message's meta for run state loading
 		// The last message in the chain contains the current run state
@@ -200,8 +190,8 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 	cm.previousMsgId = previousMessageID
 	cm.convMessages = convMessages
 	cm.oldMessages = messages
-	cm.usage = usage
 	cm.RunState = core.LoadRunStateFromMeta(cm.lastMessageMeta)
+	cm.usage = &cm.RunState.Usage
 
 	return messages, nil
 }
