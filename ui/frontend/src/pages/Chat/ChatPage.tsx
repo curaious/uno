@@ -119,7 +119,6 @@ export const ChatPage: React.FC = () => {
     sendMessage(userMessages, config);
   };
 
-  console.log("All", allMessages)
   const agentsById: { [key: string]: AgentConfig } = {};
   agents.map(agent => {
     agentsById[agent.agent_id] = agent;
