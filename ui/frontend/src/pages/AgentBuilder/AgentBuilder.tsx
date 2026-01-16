@@ -38,11 +38,11 @@ export const AgentBuilder: React.FC = () => {
 
   const handleCreate = () => {
     // Navigate to detail page with "new" flag
-    navigate('/agent-framework/agent-builder/new');
+    navigate('/agent-framework/agents/new');
   };
 
   const handleEdit = (config: AgentConfigSummary) => {
-    navigate(`/agent-framework/agent-builder/${config.id}`);
+    navigate(`/agent-framework/agents/${config.id}`);
   };
 
   const handleDelete = async (name: string) => {

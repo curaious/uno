@@ -30,7 +30,7 @@ import EditIcon from '@mui/icons-material/Edit';
 import CodeIcon from '@mui/icons-material/Code';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import Editor from '@monaco-editor/react';
-import { SchemaBuilder } from '../Schemas/SchemaBuilder';
+import { SchemaBuilder } from './SchemaBuilder';
 
 // Styled components
 const TabsContainer = styled(Box)(() => ({
@@ -454,7 +454,7 @@ export const AgentBuilderDetail: React.FC = () => {
         const response = await api.post('/agent-configs', request);
         // Navigate to the created agent using its ID
         const createdConfig = response.data.data;
-        navigate(`/agent-framework/agent-builder/${createdConfig.id}`, { replace: true });
+        navigate(`/agent-framework/agents/${createdConfig.id}`, { replace: true });
       } catch (err: any) {
         const errorMessage = err.response?.data?.message ||
           err.response?.data?.errorDetails?.message ||
@@ -766,7 +766,7 @@ export const AgentBuilderDetail: React.FC = () => {
   if (error && !config && !isNew) {
     return (
       <PageContainer>
-        <BackButton onClick={() => navigate('/agent-framework/agent-builder')}>
+        <BackButton onClick={() => navigate('/agent-framework/agents')}>
           <ArrowBackIcon sx={{ fontSize: 18 }} />
           Back to Agent Builder
         </BackButton>
@@ -780,7 +780,7 @@ export const AgentBuilderDetail: React.FC = () => {
   return (
     <>
       <PageContainer>
-        <BackButton onClick={() => navigate('/agent-framework/agent-builder')}>
+        <BackButton onClick={() => navigate('/agent-framework/agents')}>
           <ArrowBackIcon sx={{ fontSize: 18 }} />
           Back to Agent Builder
         </BackButton>

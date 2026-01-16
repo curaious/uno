@@ -260,24 +260,9 @@ export const Sidebar: React.FC = props => {
         </ProjectSelect>
       </ProjectSelectorContainer>
       <List>
-        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/models" end >
-          <Icon size={IconSize.Small}><TuneIcon fontSize="small" /></Icon>
-          <ListItemText primary="Model Configurations" />
-        </NavLink>
-
         <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/prompts" end >
           <Icon size={IconSize.Small}><TextSnippetIcon fontSize="small" /></Icon>
           <ListItemText primary="Prompts" />
-        </NavLink>
-
-        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/schemas" end >
-          <Icon size={IconSize.Small}><DataObjectIcon fontSize="small" /></Icon>
-          <ListItemText primary="Schemas" />
-        </NavLink>
-
-        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/mcp-servers" end >
-          <Icon size={IconSize.Small}><StorageIcon fontSize="small" /></Icon>
-          <ListItemText primary="MCP Servers" />
         </NavLink>
 
         <Divider />
@@ -285,11 +270,6 @@ export const Sidebar: React.FC = props => {
         <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/agents" end >
           <Icon size={IconSize.Small}><PsychologyIcon fontSize="small" /></Icon>
           <ListItemText primary="Agents" />
-        </NavLink>
-
-        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/agent-builder" end >
-          <Icon size={IconSize.Small}><SmartToyIcon fontSize="small" /></Icon>
-          <ListItemText primary="Agent Builder" />
         </NavLink>
 
         <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/builder" end >
