@@ -17,7 +17,7 @@ import google.generativeai as genai
 
 # Configure to use Uno's gateway endpoint
 genai.configure(
-    api_key="sk-amg-your-virtual-key-here",  # or your Gemini API key
+    api_key="sk-uno-your-virtual-key-here",  # or your Gemini API key
     client_options={
         "api_endpoint": "http://localhost:6060/api/gateway/gemini/v1beta"
     }
@@ -34,7 +34,7 @@ print(response.text)
 ```javascript main.js
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const genAI = new GoogleGenerativeAI('sk-amg-your-virtual-key-here'); // or your Gemini API key
+const genAI = new GoogleGenerativeAI('sk-uno-your-virtual-key-here'); // or your Gemini API key
 
 // Configure to use Uno's gateway endpoint
 const model = genAI.getGenerativeModel({
@@ -69,7 +69,7 @@ func main() {
     // Note: You'll need to set up a custom HTTP client with the base URL
     // This is a simplified example - you may need to adjust based on the SDK version
     client, err := genai.NewClient(ctx, 
-        option.WithAPIKey("sk-amg-your-virtual-key-here"), // or your Gemini API key
+        option.WithAPIKey("sk-uno-your-virtual-key-here"), // or your Gemini API key
         option.WithEndpoint("http://localhost:6060/api/gateway/gemini/v1beta"),
     )
     if err != nil {
@@ -97,7 +97,7 @@ The gateway supports streaming responses. Use `streamGenerateContent` as the act
 import google.generativeai as genai
 
 genai.configure(
-    api_key="sk-amg-your-virtual-key-here",
+    api_key="sk-uno-your-virtual-key-here",
     client_options={
         "api_endpoint": "http://localhost:6060/api/gateway/gemini/v1beta"
     }
@@ -115,7 +115,7 @@ for chunk in response:
 ```javascript streaming.js
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 
-const genAI = new GoogleGenerativeAI('sk-amg-your-virtual-key-here');
+const genAI = new GoogleGenerativeAI('sk-uno-your-virtual-key-here');
 
 const model = genAI.getGenerativeModel({
   model: 'gemini-1.5-pro:streamGenerateContent',
@@ -151,7 +151,7 @@ func main() {
     ctx := context.Background()
     
     client, err := genai.NewClient(ctx,
-        option.WithAPIKey("sk-amg-your-virtual-key-here"),
+        option.WithAPIKey("sk-uno-your-virtual-key-here"),
         option.WithEndpoint("http://localhost:6060/api/gateway/gemini/v1beta"),
     )
     if err != nil {
@@ -189,5 +189,5 @@ The gateway currently supports the GenerateContent API with:
 
 The gateway accepts authentication via the `key` query parameter:
 
-- **Virtual Key**: Use a virtual key (starts with `sk-amg-`) for managed access control
+- **Virtual Key**: Use a virtual key (starts with `sk-uno-`) for managed access control
 - **Direct API Key**: Use your Google Gemini API key directly

@@ -18,7 +18,7 @@ from anthropic import Anthropic
 # Point the client to Uno's gateway endpoint
 client = Anthropic(
     base_url="http://localhost:6060/api/gateway/anthropic/v1",
-    api_key="sk-amg-your-virtual-key-here",  # or your Anthropic API key
+    api_key="sk-uno-your-virtual-key-here",  # or your Anthropic API key
 )
 
 # Use the Messages API
@@ -38,7 +38,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const anthropic = new Anthropic({
   baseURL: 'http://localhost:6060/api/gateway/anthropic/v1',
-  apiKey: 'sk-amg-your-virtual-key-here', // or your Anthropic API key
+  apiKey: 'sk-uno-your-virtual-key-here', // or your Anthropic API key
 });
 
 async function main() {
@@ -85,7 +85,7 @@ func main() {
     jsonData, _ := json.Marshal(requestBody)
     req, _ := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewBuffer(jsonData))
     req.Header.Set("Content-Type", "application/json")
-    req.Header.Set("x-api-key", "sk-amg-your-virtual-key-here") // or your Anthropic API key
+    req.Header.Set("x-api-key", "sk-uno-your-virtual-key-here") // or your Anthropic API key
     
     client := &http.Client{}
     resp, _ := client.Do(req)
@@ -113,7 +113,7 @@ from anthropic import Anthropic
 
 client = Anthropic(
     base_url="http://localhost:6060/api/gateway/anthropic/v1",
-    api_key="sk-amg-your-virtual-key-here",
+    api_key="sk-uno-your-virtual-key-here",
 )
 
 with client.messages.stream(
@@ -133,7 +133,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 
 const anthropic = new Anthropic({
   baseURL: 'http://localhost:6060/api/gateway/anthropic/v1',
-  apiKey: 'sk-amg-your-virtual-key-here',
+  apiKey: 'sk-uno-your-virtual-key-here',
 });
 
 async function main() {
@@ -187,7 +187,7 @@ func main() {
     jsonData, _ := json.Marshal(requestBody)
     req, _ := http.NewRequestWithContext(context.Background(), "POST", url, bytes.NewBuffer(jsonData))
     req.Header.Set("Content-Type", "application/json")
-    req.Header.Set("x-api-key", "sk-amg-your-virtual-key-here")
+    req.Header.Set("x-api-key", "sk-uno-your-virtual-key-here")
     
     client := &http.Client{}
     resp, _ := client.Do(req)
@@ -228,5 +228,5 @@ The gateway currently supports the Messages API with:
 
 The gateway accepts authentication via the `x-api-key` header:
 
-- **Virtual Key**: Use a virtual key (starts with `sk-amg-`) for managed access control
+- **Virtual Key**: Use a virtual key (starts with `sk-uno-`) for managed access control
 - **Direct API Key**: Use your Anthropic API key directly

@@ -18,7 +18,7 @@ from openai import OpenAI
 # Point the client to Uno's gateway endpoint
 client = OpenAI(
     base_url="http://localhost:6060/api/gateway/openai",
-    api_key="sk-amg-your-virtual-key-here",  # or your OpenAI API key
+    api_key="sk-uno-your-virtual-key-here",  # or your OpenAI API key
 )
 
 # Use the Responses API
@@ -36,7 +36,7 @@ const OpenAI = require('openai');
 
 const openai = new OpenAI({
   baseURL: 'http://localhost:6060/api/gateway/openai',
-  apiKey: 'sk-amg-your-virtual-key-here', // or your OpenAI API key
+  apiKey: 'sk-uno-your-virtual-key-here', // or your OpenAI API key
 });
 
 async function main() {
@@ -66,7 +66,7 @@ import (
 func main() {
     client := openai.NewClient(
         option.WithBaseURL("http://localhost:6060/api/gateway/openai"),
-        option.WithAPIKey("sk-amg-your-virtual-key-here"), // or your OpenAI API key
+        option.WithAPIKey("sk-uno-your-virtual-key-here"), // or your OpenAI API key
     )
 
     response, err := client.Responses.New(context.Background(), openai.ResponseNewParams{
@@ -97,7 +97,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:6060/api/gateway/openai",
-    api_key="sk-amg-your-virtual-key-here",
+    api_key="sk-uno-your-virtual-key-here",
 )
 
 # Use Gemini model
@@ -124,7 +124,7 @@ const OpenAI = require('openai');
 
 const openai = new OpenAI({
   baseURL: 'http://localhost:6060/api/gateway/openai',
-  apiKey: 'sk-amg-your-virtual-key-here',
+  apiKey: 'sk-uno-your-virtual-key-here',
 });
 
 async function main() {
@@ -164,7 +164,7 @@ import (
 func main() {
     client := openai.NewClient(
         option.WithBaseURL("http://localhost:6060/api/gateway/openai"),
-        option.WithAPIKey("sk-amg-your-virtual-key-here"),
+        option.WithAPIKey("sk-uno-your-virtual-key-here"),
     )
 
     // Use Gemini model
@@ -206,7 +206,7 @@ from openai import OpenAI
 
 client = OpenAI(
     base_url="http://localhost:6060/api/gateway/openai",
-    api_key="sk-amg-your-virtual-key-here",
+    api_key="sk-uno-your-virtual-key-here",
 )
 
 stream = client.responses.create(
@@ -226,7 +226,7 @@ const OpenAI = require('openai');
 
 const openai = new OpenAI({
   baseURL: 'http://localhost:6060/api/gateway/openai',
-  apiKey: 'sk-amg-your-virtual-key-here',
+  apiKey: 'sk-uno-your-virtual-key-here',
 });
 
 async function main() {
@@ -260,5 +260,5 @@ The gateway currently supports the Responses API with:
 
 The gateway accepts authentication via the `Authorization` header with a Bearer token:
 
-- **Virtual Key**: Use a virtual key (starts with `sk-amg-`) for managed access control
+- **Virtual Key**: Use a virtual key (starts with `sk-uno-`) for managed access control
 - **Direct API Key**: Use your OpenAI API key directly

@@ -38,7 +38,6 @@
                 "pages": [
                   {
                     "group": "Responses",
-                    "expanded": true,
                     "pages": [
                       "uno-sdk/responses/responses-api",
                       "uno-sdk/responses/text-generation",
@@ -104,14 +103,38 @@
                         ]
                     },
                     {
-                      "group": "Integrations",
-                      "icon": "plug",
+                      "group": "LLM Gateway",
+                      "icon": "route",
                       "pages": [
-                        "gateway/integrations/openai",
-                        "gateway/integrations/anthropic",
-                        "gateway/integrations/gemini"
+                        "gateway/llm/providers",
+                        "gateway/llm/virtual-keys",
+                        "gateway/llm/uno-sdk",
+                        {
+                          "group": "SDK Integrations",
+                          "pages": [
+                            "gateway/llm/sdk-integrations/openai",
+                            "gateway/llm/sdk-integrations/anthropic",
+                            "gateway/llm/sdk-integrations/gemini"
+                          ]
+                        },
+                        "gateway/llm/tracing"
                       ]
                     },
+                  {
+                    "group": "Agent Gateway",
+                    "icon": "robot",
+                    "pages": [
+                      "gateway/agent-builder/agent-builder",
+                      "gateway/agent-builder/agent-runtime",
+                      "gateway/agent-builder/model-configuration",
+                      "gateway/agent-builder/system-prompt",
+                      "gateway/agent-builder/structured-output",
+                      "gateway/agent-builder/mcp-server",
+                      "gateway/agent-builder/conversation-history",
+                      "gateway/agent-builder/versioning",
+                      "gateway/agent-builder/alias"
+                    ]
+                  },
                   {
                     "group": "API Reference",
                     "icon": "code",
