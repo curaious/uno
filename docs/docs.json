@@ -17,7 +17,12 @@
         }
       ]
     },
-    "navigation": {
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-KCJE4F3BCS"
+    }
+  },
+  "navigation": {
         "tabs": [
           {
             "tab": "Uno SDK",
