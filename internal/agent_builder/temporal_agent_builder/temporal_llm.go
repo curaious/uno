@@ -13,8 +13,8 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func (b *AgentBuilder) LLMCall(ctx context.Context, config *agent_config.ModelConfig, in *responses.Request) (*responses.Response, error) {
-	llmClient := builder.BuildLLMClient(b.llmGateway, "", llm.ProviderName(config.ProviderType), config.ModelID)
+func (b *AgentBuilder) LLMCall(ctx context.Context, config *agent_config.ModelConfig, in *responses.Request, key string) (*responses.Response, error) {
+	llmClient := builder.BuildLLMClient(b.llmGateway, key, llm.ProviderName(config.ProviderType), config.ModelID)
 
 	stream, err := llmClient.NewStreamingResponses(ctx, in)
 	if err != nil {
@@ -38,18 +38,20 @@ func (b *AgentBuilder) LLMCall(ctx context.Context, config *agent_config.ModelCo
 type TemporalLLMProxy struct {
 	workflowCtx workflow.Context
 	config      *agent_config.ModelConfig
+	key         string
 }
 
-func NewTemporalLLMProxy(workflowCtx workflow.Context, config *agent_config.ModelConfig) agents.LLM {
+func NewTemporalLLMProxy(workflowCtx workflow.Context, config *agent_config.ModelConfig, key string) agents.LLM {
 	return &TemporalLLMProxy{
 		workflowCtx: workflowCtx,
 		config:      config,
+		key:         key,
 	}
 }
 
 func (l *TemporalLLMProxy) NewStreamingResponses(ctx context.Context, in *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error) {
 	var response *responses.Response
-	err := workflow.ExecuteActivity(l.workflowCtx, "LLMCall", l.config, in).Get(l.workflowCtx, &response)
+	err := workflow.ExecuteActivity(l.workflowCtx, "LLMCall", l.config, in, l.key).Get(l.workflowCtx, &response)
 	if err != nil {
 		return nil, err
 	}

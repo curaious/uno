@@ -11,8 +11,8 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-func (b *AgentBuilder) Summarize(ctx context.Context, projectID uuid.UUID, config *agent_config.HistoryConfig, msgIdToRunId map[string]string, messages []responses.InputMessageUnion, usage *responses.Usage) (*core.SummaryResult, error) {
-	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config)
+func (b *AgentBuilder) Summarize(ctx context.Context, projectID uuid.UUID, config *agent_config.HistoryConfig, msgIdToRunId map[string]string, messages []responses.InputMessageUnion, usage *responses.Usage, key string) (*core.SummaryResult, error) {
+	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config, key)
 	if err != nil {
 		return nil, err
 	}
@@ -24,19 +24,21 @@ type TemporalConversationSummarizerProxy struct {
 	workflowCtx workflow.Context
 	projectID   uuid.UUID
 	config      *agent_config.HistoryConfig
+	key         string
 }
 
-func NewTemporalConversationSummarizerProxy(workflowCtx workflow.Context, projectID uuid.UUID, config *agent_config.HistoryConfig) core.HistorySummarizer {
+func NewTemporalConversationSummarizerProxy(workflowCtx workflow.Context, projectID uuid.UUID, config *agent_config.HistoryConfig, key string) core.HistorySummarizer {
 	return &TemporalConversationSummarizerProxy{
 		workflowCtx: workflowCtx,
 		projectID:   projectID,
 		config:      config,
+		key:         key,
 	}
 }
 
 func (t *TemporalConversationSummarizerProxy) Summarize(ctx context.Context, msgIdToRunId map[string]string, messages []responses.InputMessageUnion, usage *responses.Usage) (*core.SummaryResult, error) {
 	var summaryResult *core.SummaryResult
-	err := workflow.ExecuteActivity(t.workflowCtx, "Summarize", t.projectID, t.config, msgIdToRunId, messages, usage).Get(t.workflowCtx, &summaryResult)
+	err := workflow.ExecuteActivity(t.workflowCtx, "Summarize", t.projectID, t.config, msgIdToRunId, messages, usage, t.key).Get(t.workflowCtx, &summaryResult)
 	if err != nil {
 		return nil, err
 	}

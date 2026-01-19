@@ -12,7 +12,7 @@ import (
 	"github.com/google/uuid"
 )
 
-func BuildConversationManager(svc *services.Services, projectID uuid.UUID, llmGateway *gateway.LLMGateway, config *agent_config.HistoryConfig) (*history.CommonConversationManager, error) {
+func BuildConversationManager(svc *services.Services, projectID uuid.UUID, llmGateway *gateway.LLMGateway, config *agent_config.HistoryConfig, key string) (*history.CommonConversationManager, error) {
 	if config == nil || !config.Enabled {
 		return history.NewConversationManager(adapters2.NewInMemoryConversationPersistence()), nil
 	}
@@ -22,7 +22,7 @@ func BuildConversationManager(svc *services.Services, projectID uuid.UUID, llmGa
 		switch config.Summarizer.Type {
 		case "llm":
 			summarizerInstruction := BuildPrompt(svc.Prompt, projectID, config.Summarizer.LLMSummarizerPrompt)
-			summarizerLLM := BuildLLMClient(llmGateway, "", llm.ProviderName(config.Summarizer.LLMSummarizerModel.ProviderType), config.Summarizer.LLMSummarizerModel.ModelID)
+			summarizerLLM := BuildLLMClient(llmGateway, key, llm.ProviderName(config.Summarizer.LLMSummarizerModel.ProviderType), config.Summarizer.LLMSummarizerModel.ModelID)
 			summarizerModelParams, err := BuildModelParams(config.Summarizer.LLMSummarizerModel)
 			if err != nil {
 				return nil, err

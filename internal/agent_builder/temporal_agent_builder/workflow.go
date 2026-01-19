@@ -30,7 +30,7 @@ func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, bro
 	}
 }
 
-func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *agent_config.AgentConfig, in *agents.AgentInput) (*agents.AgentOutput, error) {
+func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *agent_config.AgentConfig, in *agents.AgentInput, key string) (*agents.AgentOutput, error) {
 	ctx = workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
 	})
@@ -62,7 +62,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *a
 	}
 
 	// LLM Client
-	llmClient := NewTemporalLLMProxy(ctx, agentConfig.Config.Model)
+	llmClient := NewTemporalLLMProxy(ctx, agentConfig.Config.Model, key)
 
 	// History
 	var conversationManager *history.CommonConversationManager
@@ -70,7 +70,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *a
 		conversationPersistenceProxy := NewTemporalConversationPersistenceProxy(ctx, projectID, agentConfig.Config.History)
 		var options []history.ConversationManagerOptions
 		if agentConfig.Config.History.Summarizer != nil && agentConfig.Config.History.Summarizer.Type != "none" {
-			conversationSummarizerProxy := NewTemporalConversationSummarizerProxy(ctx, projectID, agentConfig.Config.History)
+			conversationSummarizerProxy := NewTemporalConversationSummarizerProxy(ctx, projectID, agentConfig.Config.History, key)
 			options = append(options, history.WithSummarizer(conversationSummarizerProxy))
 		}
 		conversationManager = history.NewConversationManager(conversationPersistenceProxy, options...)

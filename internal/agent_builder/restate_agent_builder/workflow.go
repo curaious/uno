@@ -25,6 +25,7 @@ var (
 type WorkflowInput struct {
 	AgentConfig *agent_config.AgentConfig
 	Input       *agents.AgentInput
+	Key         string
 }
 
 type AgentBuilder struct {
@@ -80,14 +81,14 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 		ctx,
 		builder.BuildLLMClient(
 			b.llmGateway,
-			"",
+			in.Key,
 			llm.ProviderName(in.AgentConfig.Config.Model.ProviderType),
 			in.AgentConfig.Config.Model.ModelID,
 		),
 	)
 
 	// History
-	cm, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, in.AgentConfig.Config.History)
+	cm, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, in.AgentConfig.Config.History, in.Key)
 	if err != nil {
 		return nil, err
 	}

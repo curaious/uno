@@ -139,6 +139,20 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			return
 		}
 
+		project, err := svc.Project.GetByID(ctx, projectID)
+		if err != nil {
+			RecordSpanError(span, err)
+			writeError(reqCtx, ctx, "unable to get project", perrors.NewErrInternalServerError(err.Error(), err))
+			return
+		}
+
+		// TODO: avoid default key, and come up with a better mechanism
+		if project.DefaultKey == nil {
+			RecordSpanError(span, errors.New("project default key is required"))
+			writeError(reqCtx, ctx, "project default key is required", perrors.NewErrInternalServerError(err.Error(), err))
+			return
+		}
+
 		agentConfig, err := svc.AgentConfig.GetByAgentIDAndVersion(ctx, projectID, agentID, version)
 		if err != nil {
 			RecordSpanError(span, err)
@@ -193,6 +207,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 				).Request(ctx, &restate_agent_builder.WorkflowInput{
 					AgentConfig: agentConfig,
 					Input:       in,
+					Key:         *project.DefaultKey,
 				})
 				if err != nil {
 					RecordSpanError(span, err)
@@ -217,7 +232,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 				run, err := temporalClient.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 					ID:        runID,
 					TaskQueue: "AgentBuilder",
-				}, "AgentBuilder", agentConfig, in)
+				}, "AgentBuilder", agentConfig, in, project.DefaultKey)
 				if err != nil {
 					RecordSpanError(span, err)
 					return
@@ -250,7 +265,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			// Start execution in goroutine so the handler can return and streaming can begin
 			go func() {
 				defer b.Close(ctx, "default")
-				_, err := builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in)
+				_, err := builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in, *project.DefaultKey)
 				if err != nil {
 					RecordSpanError(span, err)
 				}

@@ -26,7 +26,7 @@ func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, bro
 	}
 }
 
-func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *agent_config.AgentConfig, in *agents.AgentInput) (*agents.AgentOutput, error) {
+func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *agent_config.AgentConfig, in *agents.AgentInput, key string) (*agents.AgentOutput, error) {
 	projectID := agentConfig.ProjectID
 
 	// Build prompt
@@ -49,13 +49,13 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 	// LLM Client
 	llmClient := BuildLLMClient(
 		b.llmGateway,
-		"",
+		key,
 		llm.ProviderName(agentConfig.Config.Model.ProviderType),
 		agentConfig.Config.Model.ModelID,
 	)
 
 	// History
-	cm, err := BuildConversationManager(b.svc, projectID, b.llmGateway, agentConfig.Config.History)
+	cm, err := BuildConversationManager(b.svc, projectID, b.llmGateway, agentConfig.Config.History, key)
 	if err != nil {
 		return nil, err
 	}

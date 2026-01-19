@@ -12,7 +12,7 @@ import (
 )
 
 func (b *AgentBuilder) LoadMessages(ctx context.Context, projectID uuid.UUID, config *agent_config.HistoryConfig, namespace string, previousMessageId string) ([]conversation.ConversationMessage, error) {
-	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config)
+	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config, "")
 	if err != nil {
 		return nil, err
 	}
@@ -21,7 +21,7 @@ func (b *AgentBuilder) LoadMessages(ctx context.Context, projectID uuid.UUID, co
 }
 
 func (b *AgentBuilder) SaveMessages(ctx context.Context, projectID uuid.UUID, config *agent_config.HistoryConfig, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error {
-	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config)
+	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config, "")
 	if err != nil {
 		return err
 	}
@@ -30,7 +30,7 @@ func (b *AgentBuilder) SaveMessages(ctx context.Context, projectID uuid.UUID, co
 }
 
 func (b *AgentBuilder) SaveSummary(ctx context.Context, projectID uuid.UUID, config *agent_config.HistoryConfig, namespace string, summary conversation.Summary) error {
-	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config)
+	conversationManager, err := builder.BuildConversationManager(b.svc, projectID, b.llmGateway, config, "")
 	if err != nil {
 		return err
 	}
