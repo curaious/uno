@@ -1,0 +1,48 @@
+---
+title: Conversation History
+---
+
+Configure whether the agent maintains conversation history across interactions and how to manage long conversations.
+
+## Configuration
+
+**Enable Conversation History** - Toggle switch to enable or disable conversation history.
+
+When enabled, the agent will:
+- Store conversation messages
+- Use previous context in subsequent interactions
+- Maintain state across multiple conversation turns
+
+When disabled, each interaction is treated as a new conversation without context from previous messages.
+
+## Summarization
+
+When conversation history is enabled, you can configure summarization to manage long conversations and reduce token usage.
+
+### LLM-Based Summarization
+
+Uses an LLM to intelligently summarize older conversation history while preserving important context.
+
+**Configuration:**
+- **Summarizer Model** - LLM provider and model for summarization
+- **Summarizer Prompt** - Instructions for how to summarize conversations
+- **Token Threshold** - Summarization triggers when total tokens exceed this value
+- **Keep Recent Count** - Number of recent conversation runs to keep unsummarized
+
+**How it works:**
+- Monitors total token count in conversation history
+- When threshold is exceeded, keeps the most recent N runs intact
+- Summarizes older runs into a single system message
+- Preserves important context while reducing token usage
+
+### Sliding Window Summarization
+
+Keeps only the most recent N conversation runs and discards older ones. This is a simple, cost-effective approach that doesn't require an LLM.
+
+**Configuration:**
+- **Keep Count** - Number of recent conversation runs to retain
+
+**How it works:**
+- Messages are grouped by conversation run ID
+- Only the most recent N runs are kept
+- Older runs are discarded without summarization

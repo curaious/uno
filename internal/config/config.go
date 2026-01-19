@@ -36,6 +36,13 @@ type Config struct {
 	AUTH0_CLIENT_ID     string
 	AUTH0_CLIENT_SECRET string
 	AUTH0_CALLBACK_URL  string
+
+	// Restate
+	RESTATE_WORKER_HOST_PORT string
+	RESTATE_SERVER_ENDPOINT  string
+
+	// Temporal
+	TEMPORAL_SERVER_HOST_PORT string
 }
 
 func ReadConfig() *Config {
@@ -75,6 +82,11 @@ func ReadConfig() *Config {
 		AUTH0_CLIENT_ID:     os.Getenv("AUTH0_CLIENT_ID"),
 		AUTH0_CLIENT_SECRET: os.Getenv("AUTH0_CLIENT_SECRET"),
 		AUTH0_CALLBACK_URL:  os.Getenv("AUTH0_CALLBACK_URL"),
+
+		RESTATE_WORKER_HOST_PORT: os.Getenv("RESTATE_WORKER_HOST_PORT"),
+		RESTATE_SERVER_ENDPOINT:  os.Getenv("RESTATE_SERVER_ENDPOINT"),
+
+		TEMPORAL_SERVER_HOST_PORT: os.Getenv("TEMPORAL_SERVER_HOST_PORT"),
 	}
 }
 

@@ -1,0 +1,37 @@
+---
+title: Agent Runtime
+---
+
+The Runtime setting determines how the agent executes and handles failures.
+
+## Runtime Types
+
+### Local
+
+Runs everything in the same process as the request handler. This is the simplest runtime with no external dependencies.
+
+**Characteristics:**
+- Fast execution with no network overhead
+- Crashes during the agent loop cannot recover
+- Suitable for development and low-risk scenarios
+
+### Restate
+
+Uses Restate server for durable execution. Each agent loop runs as a Restate workflow, and each IO operation is a Restate durable step.
+
+**Characteristics:**
+- Durable execution with automatic recovery
+- IO operation results are stored by Restate and reused upon recovery/replay instead of performing the operation again
+- Provides strong guarantees for long-running agent operations
+- Streaming is handled through sidecar Redis-based streaming
+- Suitable for production environments requiring reliability
+
+### Temporal
+
+Uses Temporal server for durable execution. Each agent loop runs as a Temporal workflow, and each IO operation is a Temporal activity.
+
+**Characteristics:**
+- Durable execution with automatic recovery
+- IO operations are executed as Temporal activities, providing isolation and retry capabilities
+- Streaming is handled through sidecar Redis-based streaming
+- Suitable for production environments requiring workflow orchestration

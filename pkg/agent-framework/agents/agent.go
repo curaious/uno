@@ -2,39 +2,66 @@ package agents
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
 
-	"github.com/bytedance/sonic"
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/history"
-	"github.com/curaious/uno/pkg/agent-framework/mcpclient"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/constants"
 	"github.com/curaious/uno/pkg/llm/responses"
 	internal_adapters "github.com/curaious/uno/pkg/sdk/adapters"
+	"github.com/google/uuid"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 var (
 	tracer = otel.Tracer("Agent")
 )
 
+type MCPToolset interface {
+	GetName() string
+	ListTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error)
+}
+
+type LLM interface {
+	NewStreamingResponses(ctx context.Context, in *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error)
+}
+
+type WrappedLLM struct {
+	llm llm.Provider
+}
+
+func (l *WrappedLLM) NewStreamingResponses(ctx context.Context, in *responses.Request, cb func(chunk *responses.ResponseChunk)) (*responses.Response, error) {
+	acc := Accumulator{}
+
+	stream, err := l.llm.NewStreamingResponses(ctx, in)
+	if err != nil {
+		return nil, err
+	}
+
+	return acc.ReadStream(stream, cb)
+}
+
+type AgentRuntime interface {
+	Run(ctx context.Context, agent *Agent, in *AgentInput) (*AgentOutput, error)
+}
+
 type Agent struct {
-	name        string
-	output      map[string]any
-	history     *history.CommonConversationManager
-	instruction core.SystemPromptProvider
-	tools       []core.Tool
-	mcpServers  []*mcpclient.MCPClient
-	llm         llm.Provider
-	parameters  responses.Parameters
-	runtime     AgentRuntime
-	maxLoops    int
+	Name         string
+	output       map[string]any
+	history      *history.CommonConversationManager
+	instruction  core.SystemPromptProvider
+	tools        []core.Tool
+	mcpServers   []MCPToolset
+	llm          LLM
+	parameters   responses.Parameters
+	runtime      AgentRuntime
+	maxLoops     int
+	streamBroker core.StreamBroker
 }
 
 type AgentOptions struct {
@@ -46,7 +73,7 @@ type AgentOptions struct {
 	LLM        llm.Provider
 	Output     map[string]any
 	Tools      []core.Tool
-	McpServers []*mcpclient.MCPClient
+	McpServers []MCPToolset
 	Runtime    AgentRuntime
 	MaxLoops   int
 }
@@ -74,40 +101,62 @@ func NewAgent(opts *AgentOptions) *Agent {
 	}
 
 	return &Agent{
-		name:        opts.Name,
+		Name:        opts.Name,
 		output:      opts.Output,
 		history:     opts.History,
 		instruction: opts.Instruction,
 		tools:       opts.Tools,
 		mcpServers:  opts.McpServers,
-		llm:         opts.LLM,
+		llm:         &WrappedLLM{opts.LLM},
 		parameters:  opts.Parameters,
 		runtime:     opts.Runtime,
 		maxLoops:    maxLoops,
 	}
 }
 
-func (e *Agent) PrepareTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
-	coreTools := e.tools
+func (e *Agent) WithLLM(wrappedLLM LLM) *Agent {
+	return &Agent{
+		Name:         e.Name,
+		output:       e.output,
+		history:      e.history,
+		instruction:  e.instruction,
+		tools:        e.tools,
+		mcpServers:   e.mcpServers,
+		llm:          wrappedLLM,
+		parameters:   e.parameters,
+		runtime:      e.runtime,
+		maxLoops:     e.maxLoops,
+		streamBroker: e.streamBroker,
+	}
+}
+
+func (e *Agent) PrepareMCPTools(ctx context.Context, runContext map[string]any) ([]core.Tool, error) {
+	coreTools := []core.Tool{}
 	if e.mcpServers != nil {
 		for _, mcpServer := range e.mcpServers {
-			cli, err := mcpServer.GetClient(ctx, runContext)
+			mcpTools, err := mcpServer.ListTools(ctx, runContext)
 			if err != nil {
-				return nil, fmt.Errorf("failed to initialize MCP server: %w", err)
+				return nil, fmt.Errorf("failed to list MCP tools: %w", err)
 			}
-			coreTools = append(coreTools, cli.GetTools()...)
+
+			coreTools = append(coreTools, mcpTools...)
 		}
 	}
 
 	return coreTools, nil
 }
 
+func (e *Agent) GetRunID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 type AgentInput struct {
-	Namespace         string
-	PreviousMessageID string
-	Messages          []responses.InputMessageUnion
-	RunContext        map[string]any
-	Callback          func(chunk *responses.ResponseChunk)
+	Namespace         string                               `json:"namespace"`
+	PreviousMessageID string                               `json:"previous_message_id"`
+	Messages          []responses.InputMessageUnion        `json:"messages"`
+	RunContext        map[string]any                       `json:"run_context"`
+	Callback          func(chunk *responses.ResponseChunk) `json:"-"`
+	StreamBroker      core.StreamBroker                    `json:"-"`
 }
 
 // AgentOutput represents the result of agent execution
@@ -119,122 +168,74 @@ type AgentOutput struct {
 }
 
 func (e *Agent) Execute(ctx context.Context, in *AgentInput) (*AgentOutput, error) {
-	// Delegate to runtime, or use default LocalRuntime if none is set
-	runtime := e.runtime
-	if runtime == nil {
-		runtime = DefaultRuntime()
-	}
-	return runtime.Run(ctx, e, in)
-}
-
-func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executor core.DurableExecutor) (*AgentOutput, error) {
 	ctx, span := tracer.Start(ctx, "Agent.Execute")
 	defer span.End()
 
-	span.SetAttributes(attribute.String("agent.name", e.name))
+	if in.Callback == nil {
+		in.Callback = NilCallback
+	}
 
-	tools, err := e.PrepareTools(ctx, in.RunContext)
+	// Delegate to runtime, or use default LocalRuntime if none is set
+	runtime := e.runtime
+	if runtime != nil {
+		return runtime.Run(ctx, e, in)
+	}
+
+	return e.ExecuteWithExecutor(ctx, in, in.Callback)
+}
+
+func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func(chunk *responses.ResponseChunk)) (*AgentOutput, error) {
+	// Connect to MCP servers, and list the tools
+	mcpTools, err := e.PrepareMCPTools(ctx, in.RunContext)
 	if err != nil {
 		return nil, err
 	}
 
-	toolDefs := make([]responses.ToolUnion, len(tools))
-	for idx, coreTool := range tools {
-		toolDefs[idx] = *coreTool.Tool(ctx)
+	// Merge MCP tools with other tools
+	tools := append(e.tools, mcpTools...)
+
+	// Create tool schemas for input payload
+	var toolDefs []responses.ToolUnion
+	if len(tools) > 0 {
+		toolDefs = make([]responses.ToolUnion, len(tools))
+		for idx, coreTool := range tools {
+			toolDefs[idx] = *coreTool.Tool(ctx)
+		}
 	}
 
-	cb := in.Callback
-	if cb == nil {
-		cb = core.NilCallback
-	}
-
-	chatHistory := e.history.NewRun()
-
-	runId := chatHistory.GetMessageID()
-
-	// DURABLE CHECKPOINT: Load the conversation history (DB read)
-	_, err = executor.Run(ctx, "load-messages", func(ctx context.Context) (any, error) {
-		return chatHistory.LoadMessages(ctx, in.Namespace, in.PreviousMessageID)
-	})
+	// Generate a run ID
+	run, err := history.NewRun(ctx, e.history, in.Namespace, in.PreviousMessageID, in.Messages)
 	if err != nil {
-		span.RecordError(err)
-		return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
+		return &AgentOutput{Status: core.RunStatusError, RunID: ""}, err
 	}
-
-	runId = chatHistory.GetMessageID()
 
 	// Load run state from meta (in-memory, no DB call)
-	meta := chatHistory.GetMeta()
-	runState := core.LoadRunStateFromMeta(meta)
-	var rejectedToolCallIds []string
+	runId := run.GetMessageID()
+
+	// TODO: what's the implication of obtaining traceid from context in case of durable execution?
 	var traceid string
-	sc := span.SpanContext()
-	if sc.IsValid() {
+	if sc := trace.SpanFromContext(ctx).SpanContext(); sc.IsValid() {
 		traceid = sc.TraceID().String()
 	}
 
-	// Initialize state
-	if runState == nil || runState.IsComplete() {
-		// FRESH RUN: No state or previous run completed
-		runState = core.NewRunState()
-		if len(in.Messages) > 0 {
-			chatHistory.AddMessages(ctx, in.Messages, nil)
-		}
-
-		// DURABLE: Emit run created event (side effect)
-		executor.Run(ctx, "emit-run-created", func(ctx context.Context) (any, error) {
-			cb(&responses.ResponseChunk{
-				OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
-					RunState: responses.ChunkRunData{
-						Id:      runId,
-						Object:  "run",
-						Status:  "created",
-						TraceID: traceid,
-					},
-				},
-			})
-			return nil, nil
-		})
-	} else if runState.IsPaused() {
-		// RESUME: Transition to execute the approved tools
-		// msgs is ignored on resume - we continue from existing messages with pending tools
-		if runState.CurrentStep == core.StepAwaitApproval {
-			// Expected an approval response message
-			if len(in.Messages) == 0 || in.Messages[0].OfFunctionCallApprovalResponse == nil {
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, errors.New("expected approval response message")
-			}
-			runState.CurrentStep = core.StepExecuteTools
+	// Collect tool rejections
+	var rejectedToolCallIds []string
+	if run.RunState.IsPaused() {
+		if run.RunState.CurrentStep == core.StepAwaitApproval {
 			rejectedToolCallIds = in.Messages[0].OfFunctionCallApprovalResponse.RejectedCallIds
 		}
 	}
 
-	// DURABLE: Emit run in progress event (side effect)
-	executor.Run(ctx, "emit-run-in-progress", func(ctx context.Context) (any, error) {
-		cb(&responses.ResponseChunk{
-			OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
-				RunState: responses.ChunkRunData{
-					Id:      runId,
-					Object:  "run",
-					Status:  "in_progress",
-					TraceID: traceid,
-				},
-			},
-		})
-		return nil, nil
-	})
+	// Emit run.created
+	// TODO: make this a durable step to avoid resending on replays
+	e.runCreated(ctx, runId, traceid, cb)
 
-	// DURABLE CHECKPOINT: Load system instruction (potential DB read)
+	// Get the prompt
 	instruction := "You are a helpful assistant."
 	if e.instruction != nil {
-		instructionAny, err := executor.Run(ctx, "load-instruction", func(ctx context.Context) (any, error) {
-			return e.instruction.GetPrompt(ctx, in.RunContext)
-		})
+		instruction, err = e.instruction.GetPrompt(ctx, in.RunContext)
 		if err != nil {
-			span.RecordError(err)
 			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-		}
-		if instructionAny != nil {
-			instruction = instructionAny.(string)
 		}
 	}
 
@@ -255,73 +256,29 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 	finalOutput := []responses.InputMessageUnion{}
 
 	// Main loop - driven by state machine
-	for runState.LoopIteration < e.maxLoops {
-		// Check for cancellation (durable)
-		if cancelled, ok, _ := executor.Get(ctx, "cancelled"); ok && cancelled.(bool) {
-			slog.InfoContext(ctx, "agent execution cancelled")
-			return &AgentOutput{Status: core.RunStatusError, RunID: runId}, fmt.Errorf("execution cancelled")
-		}
-
-		switch runState.NextStep() {
+	for run.RunState.LoopIteration < e.maxLoops {
+		switch run.RunState.NextStep() {
 
 		case core.StepCallLLM:
-			// Get the messages from the conversation history
-			convMessagesAny, err := executor.Run(ctx, fmt.Sprintf("get-messages-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
-				return chatHistory.GetMessages(ctx)
-			})
-
-			buf, err := sonic.Marshal(convMessagesAny)
+			convMessages, err := run.GetMessages(ctx)
 			if err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			var convMessages []responses.InputMessageUnion
-			if err := sonic.Unmarshal(buf, &convMessages); err != nil {
-				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-			}
-
-			// DURABLE CHECKPOINT: LLM Call
-			respAny, err := executor.Run(ctx, fmt.Sprintf("llm-call-%d", runState.LoopIteration), func(ctx context.Context) (any, error) {
-				stream, err := e.llm.NewStreamingResponses(ctx, &responses.Request{
-					Instructions: utils.Ptr(instruction),
-					Input: responses.InputUnion{
-						OfInputMessageList: convMessages,
-					},
-					Tools:      toolDefs,
-					Parameters: parameters,
-				})
-				if err != nil {
-					return nil, err
-				}
-
-				acc := Accumulator{}
-				return acc.ReadStream(stream, cb)
-			})
+			resp, err := e.llm.NewStreamingResponses(ctx, &responses.Request{
+				Instructions: utils.Ptr(instruction),
+				Input: responses.InputUnion{
+					OfInputMessageList: convMessages,
+				},
+				Tools:      toolDefs,
+				Parameters: parameters,
+			}, cb)
 			if err != nil {
-				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-			}
-
-			// Unmarshal response
-			buf, err = sonic.Marshal(respAny)
-			if err != nil {
-				span.RecordError(err)
-				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-			}
-
-			resp := &responses.Response{}
-			if err := sonic.Unmarshal(buf, resp); err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
 			// Track the LLM's usage
-			runState.Usage.InputTokens += resp.Usage.InputTokens
-			runState.Usage.OutputTokens += resp.Usage.OutputTokens
-			runState.Usage.InputTokensDetails.CachedTokens += resp.Usage.InputTokensDetails.CachedTokens
-			runState.Usage.TotalTokens += resp.Usage.TotalTokens
+			run.TrackUsage(resp.Usage)
 
 			// Convert output to input messages and add to history
 			inputMsgs := []responses.InputMessageUnion{}
@@ -333,7 +290,8 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				}
 				inputMsgs = append(inputMsgs, inputMsg)
 			}
-			chatHistory.AddMessages(ctx, inputMsgs, resp.Usage)
+
+			run.AddMessages(ctx, inputMsgs, resp.Usage)
 			finalOutput = append(finalOutput, inputMsgs...)
 
 			// Extract tool calls
@@ -346,27 +304,27 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 
 			if len(toolCalls) == 0 {
 				// No tools = done
-				runState.TransitionToComplete()
+				run.RunState.TransitionToComplete()
 			} else {
 				// Partition tools by approval requirement
 				needsApproval, immediate := partitionByApproval(ctx, tools, toolCalls)
 
 				// Execute immediate tools first (if any), then handle approval
 				if len(immediate) > 0 {
-					runState.TransitionToExecuteTools(immediate)
+					run.RunState.TransitionToExecuteTools(immediate)
 					// Store tools needing approval for after immediate execution
 					if len(needsApproval) > 0 {
-						runState.ToolsAwaitingApproval = needsApproval
+						run.RunState.ToolsAwaitingApproval = needsApproval
 					}
 				} else if len(needsApproval) > 0 {
 					// Only approval-required tools, no immediate ones
-					runState.TransitionToAwaitApproval(needsApproval)
+					run.RunState.TransitionToAwaitApproval(needsApproval)
 				}
 			}
 
 		case core.StepExecuteTools:
 			// Execute pending tool calls
-			for _, toolCall := range runState.PendingToolCalls {
+			for _, toolCall := range run.RunState.PendingToolCalls {
 				tool := findTool(ctx, tools, toolCall.Name)
 				if tool == nil {
 					slog.ErrorContext(ctx, "tool not found", slog.String("tool_name", toolCall.Name))
@@ -385,36 +343,15 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 						},
 					}
 				} else {
-					// DURABLE CHECKPOINT: Tool execution
-					toolResultAny, err := executor.Run(ctx, fmt.Sprintf("tool-%s-%s", toolCall.ID, toolCall.Name), func(ctx context.Context) (any, error) {
-						return tool.Execute(ctx, &toolCall)
-					})
+					toolResult, err = tool.Execute(ctx, &toolCall)
 					if err != nil {
-						span.RecordError(err)
-						slog.ErrorContext(ctx, "tool call execution failed", slog.Any("error", err))
-						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-					}
-
-					// Unmarshal tool result
-					buf, err := sonic.Marshal(toolResultAny)
-					if err != nil {
-						span.RecordError(err)
-						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
-					}
-
-					toolResult = &responses.FunctionCallOutputMessage{}
-					if err := sonic.Unmarshal(buf, toolResult); err != nil {
-						span.RecordError(err)
 						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}
 				}
 
-				// DURABLE: Emit tool result event (side effect)
-				executor.Run(ctx, fmt.Sprintf("emit-tool-result-%s", toolCall.ID), func(ctx context.Context) (any, error) {
-					cb(&responses.ResponseChunk{
-						OfFunctionCallOutput: toolResult,
-					})
-					return nil, nil
+				// TODO: Make this a durable step to avoid resending
+				cb(&responses.ResponseChunk{
+					OfFunctionCallOutput: toolResult,
 				})
 
 				toolResultMsg := []responses.InputMessageUnion{
@@ -422,77 +359,42 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 				}
 
 				// Add tool result to history
-				chatHistory.AddMessages(ctx, toolResultMsg, nil)
+				run.AddMessages(ctx, toolResultMsg, nil)
 				finalOutput = append(finalOutput, toolResultMsg...)
 			}
 
-			runState.ClearPendingTools()
+			run.RunState.ClearPendingTools()
 
 			// Check if there are tools waiting for approval (queued during immediate execution)
-			if runState.HasToolsAwaitingApproval() {
-				runState.PromoteAwaitingToApproval()
+			if run.RunState.HasToolsAwaitingApproval() {
+				run.RunState.PromoteAwaitingToApproval()
 			} else {
-				runState.TransitionToLLM()
+				run.RunState.TransitionToLLM()
 			}
 
 		case core.StepAwaitApproval:
-			// DURABLE CHECKPOINT: Save state and exit - will resume when approval comes (DB write)
-			_, err := executor.Run(ctx, "save-messages-paused", func(ctx context.Context) (any, error) {
-				return nil, chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
-			})
+			err = run.SaveMessages(ctx, run.RunState.ToMeta(traceid))
 			if err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			// DURABLE: Emit run paused event (side effect)
-			executor.Run(ctx, "emit-run-paused", func(ctx context.Context) (any, error) {
-				cb(&responses.ResponseChunk{
-					OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
-						RunState: responses.ChunkRunData{
-							Id:               runId,
-							Object:           "run",
-							Status:           "paused",
-							PendingToolCalls: runState.PendingToolCalls,
-							Usage:            runState.Usage,
-							TraceID:          traceid,
-						},
-					},
-				})
-				return nil, nil
-			})
+			// TODO: make this a durable step to avoid resending on replays
+			e.runPaused(ctx, runId, traceid, run.RunState, cb)
 
 			return &AgentOutput{
 				RunID:            runId,
 				Status:           core.RunStatusPaused,
-				PendingApprovals: runState.PendingToolCalls,
+				PendingApprovals: run.RunState.PendingToolCalls,
 			}, nil
 
 		case core.StepComplete:
-			// DURABLE CHECKPOINT: Save final state (DB write)
-			_, err := executor.Run(ctx, "save-messages-complete", func(ctx context.Context) (any, error) {
-				return nil, chatHistory.SaveMessages(ctx, runState.ToMeta(traceid))
-			})
+			err = run.SaveMessages(ctx, run.RunState.ToMeta(traceid))
 			if err != nil {
-				span.RecordError(err)
 				return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 			}
 
-			// DURABLE: Emit run completed event (side effect)
-			executor.Run(ctx, "emit-run-completed", func(ctx context.Context) (any, error) {
-				cb(&responses.ResponseChunk{
-					OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
-						RunState: responses.ChunkRunData{
-							Id:      runId,
-							Object:  "run",
-							Status:  "completed",
-							Usage:   runState.Usage,
-							TraceID: traceid,
-						},
-					},
-				})
-				return nil, nil
-			})
+			// TODO: make this a durable step to avoid resending on replays
+			e.runCompleted(ctx, runId, traceid, run.RunState, cb)
 
 			return &AgentOutput{
 				RunID:  runId,
@@ -506,12 +408,62 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, executo
 	return &AgentOutput{Status: core.RunStatusError, RunID: runId}, fmt.Errorf("exceeded maximum loops (%d)", e.maxLoops)
 }
 
-// Cancel signals the agent to stop execution (requires a durable executor with state).
-func (e *Agent) Cancel(ctx context.Context, executor core.DurableExecutor, reason string) error {
-	if executor == nil {
-		return fmt.Errorf("cancel requires a durable executor")
-	}
-	return executor.Set(ctx, "cancelled", true)
+func (e *Agent) runCreated(ctx context.Context, runId string, traceId string, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunCreated: &responses.ChunkRun[constants.ChunkTypeRunCreated]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "created",
+				TraceID: traceId,
+			},
+		},
+	})
+
+	cb(&responses.ResponseChunk{
+		OfRunInProgress: &responses.ChunkRun[constants.ChunkTypeRunInProgress]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "in_progress",
+				TraceID: traceId,
+			},
+		},
+	})
+
+	return nil
+}
+
+func (e *Agent) runPaused(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunPaused: &responses.ChunkRun[constants.ChunkTypeRunPaused]{
+			RunState: responses.ChunkRunData{
+				Id:               runId,
+				Object:           "run",
+				Status:           "paused",
+				PendingToolCalls: runState.PendingToolCalls,
+				Usage:            runState.Usage,
+				TraceID:          traceId,
+			},
+		},
+	})
+
+	return nil
+}
+
+func (e *Agent) runCompleted(ctx context.Context, runId string, traceId string, runState *core.RunState, cb func(chunk *responses.ResponseChunk)) error {
+	cb(&responses.ResponseChunk{
+		OfRunCompleted: &responses.ChunkRun[constants.ChunkTypeRunCompleted]{
+			RunState: responses.ChunkRunData{
+				Id:      runId,
+				Object:  "run",
+				Status:  "completed",
+				Usage:   runState.Usage,
+				TraceID: traceId,
+			},
+		},
+	})
+	return nil
 }
 
 // partitionByApproval splits tool calls into those needing approval and those that can execute immediately
@@ -614,4 +566,8 @@ func (a *Accumulator) ReadStream(stream chan *responses.ResponseChunk, cb func(c
 		Output: finalOutput,
 		Usage:  usage,
 	}, nil
+}
+
+func NilCallback(msg *responses.ResponseChunk) {
+	// No-op
 }

@@ -7,20 +7,27 @@ import (
 	"github.com/curaious/uno/internal/services/project"
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/sdk/adapters"
 	"github.com/google/uuid"
 )
 
 type SDK struct {
-	endpoint      string
-	projectId     uuid.UUID
-	virtualKey    string
-	directMode    bool
-	llmConfigs    gateway.ConfigStore
-	restateConfig RestateConfig
+	endpoint       string
+	projectId      uuid.UUID
+	virtualKey     string
+	directMode     bool
+	llmConfigs     gateway.ConfigStore
+	restateConfig  RestateConfig
+	temporalConfig TemporalConfig
+	redisConfig    RedisConfig
 
-	agents map[string]*agents.Agent
+	agents               map[string]*agents.Agent
+	restateAgentConfigs  map[string]*agents.AgentOptions
+	temporalAgentConfigs map[string]*agents.AgentOptions
+	redisBroker          core.StreamBroker
 }
 
 type ServerConfig struct {
@@ -38,6 +45,14 @@ type RestateConfig struct {
 	Endpoint string
 }
 
+type TemporalConfig struct {
+	Endpoint string
+}
+
+type RedisConfig struct {
+	Endpoint string
+}
+
 type ClientOptions struct {
 	ServerConfig ServerConfig
 
@@ -45,7 +60,9 @@ type ClientOptions struct {
 	// If `LLMConfigs` is set, then `ApiKey` will be ignored.
 	LLMConfigs gateway.ConfigStore
 
-	RestateConfig RestateConfig
+	RestateConfig  RestateConfig
+	TemporalConfig TemporalConfig
+	RedisConfig    RedisConfig
 }
 
 func New(opts *ClientOptions) (*SDK, error) {
@@ -53,13 +70,30 @@ func New(opts *ClientOptions) (*SDK, error) {
 		return nil, fmt.Errorf("must provide either ServerConfig.Endpoint or LLMConfigs")
 	}
 
+	var broker core.StreamBroker
+	var err error
+	if opts.RedisConfig.Endpoint != "" {
+		broker, err = streaming.NewRedisStreamBroker(streaming.RedisStreamBrokerOptions{
+			Addr: opts.RedisConfig.Endpoint,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("error creating redis stream broker: %w", err)
+		}
+	}
+
 	sdk := &SDK{
-		llmConfigs:    opts.LLMConfigs,
-		directMode:    opts.LLMConfigs != nil,
-		endpoint:      opts.ServerConfig.Endpoint,
-		virtualKey:    opts.ServerConfig.VirtualKey,
-		restateConfig: opts.RestateConfig,
-		agents:        map[string]*agents.Agent{},
+		llmConfigs:     opts.LLMConfigs,
+		directMode:     opts.LLMConfigs != nil,
+		endpoint:       opts.ServerConfig.Endpoint,
+		virtualKey:     opts.ServerConfig.VirtualKey,
+		restateConfig:  opts.RestateConfig,
+		temporalConfig: opts.TemporalConfig,
+		redisConfig:    opts.RedisConfig,
+
+		agents:               map[string]*agents.Agent{},
+		restateAgentConfigs:  map[string]*agents.AgentOptions{},
+		temporalAgentConfigs: map[string]*agents.AgentOptions{},
+		redisBroker:          broker,
 	}
 
 	if opts.ServerConfig.ProjectName == "" {

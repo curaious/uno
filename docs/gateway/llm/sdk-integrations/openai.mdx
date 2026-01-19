@@ -1,0 +1,264 @@
+---
+title: OpenAI
+description: Integrate Uno LLM Gateway with OpenAI SDKs using the Responses API
+---
+
+Uno LLM Gateway supports OpenAI's **Responses API** for text generation, images, tool calling, and reasoning. You can use **any OpenAI SDK** by simply pointing it to Uno's gateway endpoint. This allows you to leverage Uno's features like virtual keys, provider management, and observability while using your existing OpenAI code.
+
+## Overview
+
+The Uno LLM Gateway provides an endpoint at `/api/gateway/openai/responses` that implements OpenAI's Responses API specification. This means you can use any OpenAI SDK (Python, JavaScript, Go, etc.) without modifying your code - just change the base URL.
+
+## Usage Examples
+
+<CodeGroup dropdown>
+```python main.py
+from openai import OpenAI
+
+# Point the client to Uno's gateway endpoint
+client = OpenAI(
+    base_url="http://localhost:6060/api/gateway/openai",
+    api_key="sk-uno-your-virtual-key-here",  # or your OpenAI API key
+)
+
+# Use the Responses API
+response = client.responses.create(
+    model="gpt-4.1-mini",
+    instructions="You are a helpful assistant.",
+    input="Hello, how are you?",
+)
+
+print(response.output_text)
+```
+
+```javascript main.js
+const OpenAI = require('openai');
+
+const openai = new OpenAI({
+  baseURL: 'http://localhost:6060/api/gateway/openai',
+  apiKey: 'sk-uno-your-virtual-key-here', // or your OpenAI API key
+});
+
+async function main() {
+  const response = await openai.responses.create({
+    model: 'gpt-4.1-mini',
+    instructions: 'You are a helpful assistant.',
+    input: 'Hello, how are you?',
+  });
+
+  console.log(response.output_text);
+}
+
+main();
+```
+
+```go main.go
+package main
+
+import (
+    "context"
+    "fmt"
+
+    "github.com/openai/openai-go/v3"
+    "github.com/openai/openai-go/v3/option"
+)
+
+func main() {
+    client := openai.NewClient(
+        option.WithBaseURL("http://localhost:6060/api/gateway/openai"),
+        option.WithAPIKey("sk-uno-your-virtual-key-here"), // or your OpenAI API key
+    )
+
+    response, err := client.Responses.New(context.Background(), openai.ResponseNewParams{
+        Model:       "gpt-4.1-mini",
+        Instructions: "You are a helpful assistant.",
+        Input:       "Hello, how are you?",
+    })
+
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(response.OutputText)
+}
+```
+</CodeGroup>
+
+## Accessing Other Provider Models
+
+The gateway allows you to access models from other providers (like Gemini, Anthropic, etc.) using the same OpenAI SDK. Simply prefix the model name with the provider name followed by a slash:
+
+- `Gemini/gemini-3-flash-preview` - Access Google Gemini models
+- `Anthropic/claude-haiku-4-5` - Access Anthropic Claude models
+
+<CodeGroup dropdown>
+```python multi_provider.py
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:6060/api/gateway/openai",
+    api_key="sk-uno-your-virtual-key-here",
+)
+
+# Use Gemini model
+response = client.responses.create(
+    model="Gemini/gemini-3-flash-preview",
+    instructions="You are a helpful assistant.",
+    input="Hello, how are you?",
+)
+
+print(response.output_text)
+
+# Use Anthropic Claude model
+response = client.responses.create(
+    model="Anthropic/claude-haiku-4-5",
+    instructions="You are a helpful assistant.",
+    input="What is the capital of France?",
+)
+
+print(response.output_text)
+```
+
+```javascript multi_provider.js
+const OpenAI = require('openai');
+
+const openai = new OpenAI({
+  baseURL: 'http://localhost:6060/api/gateway/openai',
+  apiKey: 'sk-uno-your-virtual-key-here',
+});
+
+async function main() {
+  // Use Gemini model
+  const geminiResponse = await openai.responses.create({
+    model: 'Gemini/gemini-3-flash-preview',
+    instructions: 'You are a helpful assistant.',
+    input: 'Hello, how are you?',
+  });
+
+  console.log(geminiResponse.output_text);
+
+  // Use Anthropic Claude model
+  const claudeResponse = await openai.responses.create({
+    model: 'Anthropic/claude-haiku-4-5',
+    instructions: 'You are a helpful assistant.',
+    input: 'What is the capital of France?',
+  });
+
+  console.log(claudeResponse.output_text);
+}
+
+main();
+```
+
+```go multi_provider.go
+package main
+
+import (
+    "context"
+    "fmt"
+
+    "github.com/openai/openai-go/v3"
+    "github.com/openai/openai-go/v3/option"
+)
+
+func main() {
+    client := openai.NewClient(
+        option.WithBaseURL("http://localhost:6060/api/gateway/openai"),
+        option.WithAPIKey("sk-uno-your-virtual-key-here"),
+    )
+
+    // Use Gemini model
+    geminiResponse, err := client.Responses.New(context.Background(), openai.ResponseNewParams{
+        Model:        "Gemini/gemini-3-flash-preview",
+        Instructions: "You are a helpful assistant.",
+        Input:        "Hello, how are you?",
+    })
+
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(geminiResponse.OutputText)
+
+    // Use Anthropic Claude model
+    claudeResponse, err := client.Responses.New(context.Background(), openai.ResponseNewParams{
+        Model:        "Anthropic/claude-haiku-4-5",
+        Instructions: "You are a helpful assistant.",
+        Input:        "What is the capital of France?",
+    })
+
+    if err != nil {
+        panic(err)
+    }
+
+    fmt.Println(claudeResponse.OutputText)
+}
+```
+</CodeGroup>
+
+## Streaming Support
+
+The gateway supports streaming responses via Server-Sent Events (SSE). Use your SDK's streaming methods as you normally would:
+
+<CodeGroup dropdown>
+```python streaming.py
+from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://localhost:6060/api/gateway/openai",
+    api_key="sk-uno-your-virtual-key-here",
+)
+
+stream = client.responses.create(
+    model="gpt-4.1-mini",
+    instructions="You are a helpful assistant.",
+    input="Tell me a story.",
+    stream=True,
+)
+
+for chunk in stream:
+    if chunk.output_text:
+        print(chunk.output_text, end="", flush=True)
+```
+
+```javascript streaming.js
+const OpenAI = require('openai');
+
+const openai = new OpenAI({
+  baseURL: 'http://localhost:6060/api/gateway/openai',
+  apiKey: 'sk-uno-your-virtual-key-here',
+});
+
+async function main() {
+  const stream = await openai.responses.create({
+    model: 'gpt-4.1-mini',
+    instructions: 'You are a helpful assistant.',
+    input: 'Tell me a story.',
+    stream: true,
+  });
+
+  for await (const chunk of stream) {
+    if (chunk.output_text) {
+      process.stdout.write(chunk.output_text);
+    }
+  }
+}
+
+main();
+```
+</CodeGroup>
+
+## Supported Features
+
+The gateway currently supports the Responses API with:
+- ✅ **Text generation** - Standard text completions
+- ✅ **Images** - Image generation and processing
+- ✅ **Tool calling** - Function calling capabilities
+- ✅ **Reasoning** - Advanced reasoning models
+
+## Authentication
+
+The gateway accepts authentication via the `Authorization` header with a Bearer token:
+
+- **Virtual Key**: Use a virtual key (starts with `sk-uno-`) for managed access control
+- **Direct API Key**: Use your OpenAI API key directly

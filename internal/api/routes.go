@@ -32,20 +32,21 @@ func (s *Server) initNewRoutes() fasthttp.RequestHandler {
 		log.Fatal(err)
 	}
 
+	// Common routes
 	controllers.RegisterAuthRoutes(r, s.services, auth)
-	controllers.RegisterConversationRoutes(r, s.services)
-	controllers.RegisterProjectRoutes(r, s.services)
+	controllers.RegisterTracesRoutes(r.Group("/api/agent-server"), s.services)
+
+	// Gateway routes
 	controllers.RegisterProviderRoutes(r, s.services)
-	controllers.RegisterModelRoutes(r, s.services)
-	controllers.RegisterAgentRoutes(r, s.services)
-	controllers.RegisterMCPServerRoutes(r, s.services)
-	controllers.RegisterPromptRoutes(r, s.services)
-	controllers.RegisterSchemaRoutes(r, s.services)
 	controllers.RegisterVirtualKeyRoutes(r, s.services)
 	controllers.RegisterGatewayRoutes(r.Group("/api/gateway"), s.services, s.llmGateway)
-	controllers.RegisterConverseRoute(r, s.services, s.llmGateway)
-	controllers.RegisterTracesRoutes(r.Group("/api/agent-server"), s.services)
-	controllers.RegisterDurableConverseRoute(r, s.services)
+
+	// Agent framework routes
+	controllers.RegisterProjectRoutes(r, s.services)
+	controllers.RegisterPromptRoutes(r, s.services)
+	controllers.RegisterAgentConfigRoutes(r, s.services)
+	controllers.RegisterConversationRoutes(r, s.services)
+	controllers.RegisterDurableConverseRoute(r, s.services, s.llmGateway, s.conf, s.broker)
 
 	return s.withMiddlewares(r.Handler, auth)
 }

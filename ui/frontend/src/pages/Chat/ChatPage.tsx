@@ -1,8 +1,8 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import styles from './ChatPage.module.css';
 import { Chat } from "./Chat";
-import { api } from "../../api";
-import { AgentWithDetails } from "../../components/Chat/types";
+import {api, Response} from "../../api";
+import {AgentConfig, AgentWithDetails} from "../../components/Chat/types";
 import classnames from "classnames";
 import { Box, ButtonBase, Menu, MenuItem } from '@mui/material';
 import { PageContainer } from "../../components/shared/Page";
@@ -16,8 +16,10 @@ export const ChatPage: React.FC = () => {
   const namespace = 'playground';
   
   // Agent selection
-  const [agents, setAgents] = useState<AgentWithDetails[]>([]);
-  const [selectedAgentName, setSelectedAgentName] = useState<string>('');
+  const [agents, setAgents] = useState<AgentConfig[]>([]);
+  const [selectedAgentId, setSelectedAgentId] = useState<string>('');
+  const [agentVersions, setAgentVersions] = useState<AgentConfig[]>([]);
+  const [selectedAgentVersion, setSelectedAgentVersion] = useState<number>(0);
   
   // Context and headers for requests
   const [context, setContext] = useState<string>('');
@@ -25,8 +27,10 @@ export const ChatPage: React.FC = () => {
   
   // UI state
   const [agentMenuOpen, setAgentMenuOpen] = useState(false);
+  const [agentVersionMenuOpen, setAgentVersionMenuOpen] = useState(false);
   const [addContextDialogOpen, setAddContextDialogOpen] = useState(false);
   const ref = useRef(null);
+  const ref2 = useRef(null);
 
   // Get project name from localStorage
   const projectName = useMemo(() => {
@@ -57,10 +61,11 @@ export const ChatPage: React.FC = () => {
   useEffect(() => {
     const loadAgents = async () => {
       try {
-        const response = await api.get('/agents');
+        const response = await api.get('/agent-configs');
         setAgents(response.data.data || []);
         if (response.data.data && response.data.data.length > 0) {
-          setSelectedAgentName(response.data.data[0].name);
+          setSelectedAgentId(response.data.data[0].agent_id);
+          setSelectedAgentVersion(0);
         }
       } catch (err: any) {
         console.error('Failed to load agents', err);
@@ -68,6 +73,26 @@ export const ChatPage: React.FC = () => {
     };
     loadAgents();
   }, []);
+
+  // Load agent versions
+  useEffect(() => {
+    if (!selectedAgentId) {
+      return
+    }
+
+    const loadAgentVersions = async(id: string) => {
+      try {
+        const response = await api.get<Response<AgentConfig[]>>(`/agent-configs/${id}/versions`);
+        if (response.data.data && response.data.data.length > 0) {
+          setAgentVersions(response.data.data);
+          setSelectedAgentVersion(0);
+        }
+      } catch (err: any) {
+        console.error('Failed to load agents', err);
+      }
+    }
+    loadAgentVersions(selectedAgentId);
+  }, [selectedAgentId]);
 
   const onUserMessage = (userMessages: MessageUnion[]) => {
     // Parse context and headers
@@ -86,7 +111,7 @@ export const ChatPage: React.FC = () => {
 
     const config: ConverseConfig = {
       namespace,
-      agentName: selectedAgentName,
+      agentId: selectedAgentId+":"+selectedAgentVersion,
       context: parsedContext,
       headers: parsedHeaders,
     };
@@ -94,7 +119,15 @@ export const ChatPage: React.FC = () => {
     sendMessage(userMessages, config);
   };
 
-  console.log("All", allMessages)
+  const agentsById: { [key: string]: AgentConfig } = {};
+  agents.map(agent => {
+    agentsById[agent.agent_id] = agent;
+  });
+
+  const agentVersionsById: { [key: number ]: AgentConfig } = {};
+  agentVersions.map(agentVersion => {
+    agentVersionsById[agentVersion.version] = agentVersion;
+  })
 
   return (
     <PageContainer>
@@ -144,9 +177,30 @@ export const ChatPage: React.FC = () => {
                   }}
                   ref={ref}
                 >
-                  {selectedAgentName}
+                  {agentsById[selectedAgentId]?.name}
                   <KeyboardArrowUpIcon style={{ fontSize: 17, color: '#999' }} />
                 </ButtonBase>
+
+                <ButtonBase
+                  onClick={() => setAgentVersionMenuOpen(true)}
+                  style={{
+                    background: '#1b1b1d',
+                    padding: '4px 8px',
+                    fontSize: '14px',
+                    borderRadius: '14px',
+                    display: 'flex',
+                    gap: '4px',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ccc',
+                    fontWeight: 600,
+                  }}
+                  ref={ref2}
+                >
+                  {agentVersionsById[selectedAgentVersion]?.version || 'Latest'}
+                  <KeyboardArrowUpIcon style={{ fontSize: 17, color: '#999' }} />
+                </ButtonBase>
+
                 <ButtonBase onClick={() => setAddContextDialogOpen(true)}>
                   @
                 </ButtonBase>
@@ -160,14 +214,35 @@ export const ChatPage: React.FC = () => {
                 >
                   {agents.map((agent) => (
                     <MenuItem 
-                      key={agent.id} 
-                      value={agent.name} 
+                      key={agent.agent_id}
+                      value={agent.agent_id}
                       onClick={() => {
-                        setSelectedAgentName(agent.name);
+                        setSelectedAgentId(agent.agent_id);
                         setAgentMenuOpen(false);
                       }}
                     >
                       {agent.name}
+                    </MenuItem>
+                  ))}
+                </Menu>
+
+                <Menu
+                  open={agentVersionMenuOpen}
+                  onClose={() => setAgentVersionMenuOpen(false)}
+                  anchorEl={ref2.current}
+                  anchorOrigin={{ vertical: 'top', horizontal: 'left' }}
+                  transformOrigin={{ vertical: 'bottom', horizontal: 'left' }}
+                >
+                  {agentVersions.map((agentVersion) => (
+                    <MenuItem
+                      key={agentVersion.agent_id}
+                      value={agentVersion.agent_id}
+                      onClick={() => {
+                        setSelectedAgentVersion(agentVersion.version);
+                        setAgentMenuOpen(false);
+                      }}
+                    >
+                      {agentVersion.version || 'Latest'}
                     </MenuItem>
                   ))}
                 </Menu>

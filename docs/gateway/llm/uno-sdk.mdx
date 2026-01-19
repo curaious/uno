@@ -1,0 +1,209 @@
+---
+title: Uno SDK
+description: Use the Uno SDK to make LLM calls through the Uno LLM Gateway.
+---
+
+The Uno SDK provides a Go client library for making LLM calls through the Uno LLM Gateway. It abstracts away provider differences and provides a unified interface for interacting with multiple LLM providers (OpenAI, Anthropic, Gemini, xAI, and Ollama).
+
+## Prerequisites
+
+- Golang v1.25.0 or later
+- A running Uno LLM Gateway instance
+- A virtual key configured in the gateway (see [Virtual Keys](/gateway/llm/virtual-keys))
+
+## Installation
+
+Install the Uno SDK:
+
+```bash
+go get -u github.com/curaious/uno
+```
+
+## Setting Up the SDK
+
+To use the SDK with the Uno LLM Gateway, you need to configure it with the gateway endpoint and a virtual key.
+
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+
+    "github.com/curaious/uno/pkg/sdk"
+    "github.com/curaious/uno/pkg/llm"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/internal/utils"
+)
+
+func main() {
+    // Initialize the SDK with gateway configuration
+    client, err := sdk.New(&sdk.ClientOptions{
+        ServerConfig: sdk.ServerConfig{
+            Endpoint:  "http://localhost:6060",  // Your Uno gateway endpoint
+            VirtualKey: "sk-uno-your-virtual-key-here",  // Your virtual key
+        },
+    })
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Create an LLM model instance
+    model := client.NewLLM(sdk.LLMOptions{
+        Provider: llm.ProviderNameOpenAI,
+        Model:    "gpt-4.1-mini",
+    })
+
+    // Make an LLM call
+    resp, err := model.NewResponses(
+        context.Background(),
+        &responses.Request{
+            Instructions: utils.Ptr("You are a helpful assistant."),
+            Input: responses.InputUnion{
+                OfString: utils.Ptr("What is the capital of France?"),
+            },
+        },
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Extract and print the response
+    for _, output := range resp.Output {
+        if output.OfOutputMessage != nil {
+            for _, content := range output.OfOutputMessage.Content {
+                if content.OfOutputText != nil {
+                    fmt.Println(content.OfOutputText.Text)
+                }
+            }
+        }
+    }
+}
+```
+
+## Configuration
+
+### ServerConfig
+
+The `ServerConfig` struct contains the gateway connection settings:
+
+- **Endpoint**: The base URL of your Uno LLM Gateway (e.g., `http://localhost:6060` or `https://your-gateway.com`)
+- **VirtualKey**: Your virtual key from the gateway (prefixed with `sk-uno-`)
+
+**Example:**
+
+```go
+client, err := sdk.New(&sdk.ClientOptions{
+    ServerConfig: sdk.ServerConfig{
+        Endpoint:   "https://gateway.example.com",
+        VirtualKey: "sk-uno-P7MjwUHAuLbkb16W5z2j8YD-4BSXSg9gKhDiRYEBQ",
+    },
+})
+```
+
+### Getting Your Virtual Key
+
+1. Navigate to the **Virtual Keys** page in the Uno gateway dashboard
+2. Create a new virtual key or use an existing one
+3. Copy the secret key (it starts with `sk-uno-`)
+4. Use it in your SDK configuration
+
+See the [Virtual Keys documentation](/gateway/llm/virtual-keys) for more details.
+
+## Making LLM Calls
+
+### Basic Example
+
+```go
+// Create a model instance
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOpenAI,
+    Model:    "gpt-4.1-mini",
+})
+
+// Make a request
+resp, err := model.NewResponses(
+    context.Background(),
+    &responses.Request{
+        Instructions: utils.Ptr("You are a helpful assistant."),
+        Input: responses.InputUnion{
+            OfString: utils.Ptr("Hello, how are you?"),
+        },
+    },
+)
+
+if err != nil {
+    log.Fatal(err)
+}
+
+// Process the response
+for _, output := range resp.Output {
+    if output.OfOutputMessage != nil {
+        for _, content := range output.OfOutputMessage.Content {
+            if content.OfOutputText != nil {
+                fmt.Println(content.OfOutputText.Text)
+            }
+        }
+    }
+}
+```
+
+### Supported Providers
+
+You can switch between providers by changing the `Provider` field:
+
+```go
+// OpenAI
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOpenAI,
+    Model:    "gpt-4.1-mini",
+})
+
+// Anthropic
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameAnthropic,
+    Model:    "claude-3-5-sonnet-20241022",
+})
+
+// Gemini
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameGemini,
+    Model:    "gemini-1.5-pro",
+})
+
+// xAI
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameXAI,
+    Model:    "grok-beta",
+})
+
+// Ollama
+model := client.NewLLM(sdk.LLMOptions{
+    Provider: llm.ProviderNameOllama,
+    Model:    "llama2",
+})
+```
+
+**Note:** Make sure your virtual key has access to the providers and models you want to use. Configure this in the Virtual Keys page of the gateway dashboard.
+
+## Advanced Usage
+
+The SDK supports many advanced features:
+
+- **Streaming Responses**: Get responses in real-time as they're generated
+- **Tool Calling**: Use function calling with LLMs
+- **Structured Output**: Get responses in JSON format with schema validation
+- **Reasoning**: Use chain-of-thought reasoning for complex tasks
+- **Image Generation**: Generate images with supported providers
+- **Multi-turn Conversations**: Maintain conversation history
+
+For detailed information on these features, see the [Responses API documentation](/uno-sdk/responses/responses-api).
+
+## Next Steps
+
+- Learn more about the [Responses API](/uno-sdk/responses/responses-api) for advanced LLM features
+- Explore [Text Generation](/uno-sdk/responses/text-generation) for basic text completion
+- Check out [Streaming Responses](/uno-sdk/responses/text-generation#streaming-responses) for real-time responses
+- See [Tool Calling](/uno-sdk/responses/tool-calling) for function calling capabilities
+- Build [Agents](/uno-sdk/agents/simple-agent) with the Agent SDK

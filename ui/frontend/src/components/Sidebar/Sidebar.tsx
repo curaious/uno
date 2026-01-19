@@ -21,6 +21,7 @@ import {SlideDialog} from "../shared/Dialog";
 import {Input, InputGroup, InputLabel} from "../shared/Input";
 import {Button} from "../shared/Buttons";
 import TuneIcon from '@mui/icons-material/Tune';
+import SmartToyIcon from '@mui/icons-material/SmartToy';
 
 
 const SidebarDiv = styled('div')(() => ({
@@ -259,24 +260,9 @@ export const Sidebar: React.FC = props => {
         </ProjectSelect>
       </ProjectSelectorContainer>
       <List>
-        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/models" end >
-          <Icon size={IconSize.Small}><TuneIcon fontSize="small" /></Icon>
-          <ListItemText primary="Model Configurations" />
-        </NavLink>
-
         <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/prompts" end >
           <Icon size={IconSize.Small}><TextSnippetIcon fontSize="small" /></Icon>
           <ListItemText primary="Prompts" />
-        </NavLink>
-
-        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/schemas" end >
-          <Icon size={IconSize.Small}><DataObjectIcon fontSize="small" /></Icon>
-          <ListItemText primary="Schemas" />
-        </NavLink>
-
-        <NavLink className={({ isActive }) => isActive ? 'active': ''}  to="/agent-framework/mcp-servers" end >
-          <Icon size={IconSize.Small}><StorageIcon fontSize="small" /></Icon>
-          <ListItemText primary="MCP Servers" />
         </NavLink>
 
         <Divider />
@@ -360,7 +346,7 @@ export const Sidebar: React.FC = props => {
                   setDefaultKey(event.target.value);
                   setFormError(null);
                 }}
-                placeholder="e.g., sk-amg-..."
+                placeholder="e.g., sk-uno-..."
                 fullWidth
               />
             </InputGroup>

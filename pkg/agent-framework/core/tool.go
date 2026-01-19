@@ -13,10 +13,14 @@ type Tool interface {
 }
 
 type BaseTool struct {
-	*responses.ToolUnion
+	ToolUnion        responses.ToolUnion
 	RequiresApproval bool
 }
 
 func (t *BaseTool) NeedApproval() bool {
 	return t.RequiresApproval
+}
+
+func (t *BaseTool) Tool(ctx context.Context) *responses.ToolUnion {
+	return &t.ToolUnion
 }

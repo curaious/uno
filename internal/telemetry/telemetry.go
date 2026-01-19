@@ -9,11 +9,10 @@ import (
 	"os"
 	"strings"
 
-	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/propagation"
-
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/exporters/stdout/stdouttrace"
+	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	"go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
@@ -99,12 +98,18 @@ func NewProvider(endpoint string) func() {
 	}
 
 	tp := trace.NewTracerProvider(
-		trace.WithBatcher(exp),
+		trace.WithSampler(trace.ParentBased(trace.AlwaysSample())),
+		trace.WithSpanProcessor(trace.NewBatchSpanProcessor(exp)),
 		trace.WithResource(newResource()),
 	)
 
 	otel.SetTracerProvider(tp)
-	otel.SetTextMapPropagator(propagation.TraceContext{})
+	otel.SetTextMapPropagator(
+		propagation.NewCompositeTextMapPropagator(
+			propagation.TraceContext{},
+			propagation.Baggage{},
+		),
+	)
 
 	return func() {
 		if err := f.Close(); err != nil {

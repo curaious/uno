@@ -1,0 +1,30 @@
+---
+title: Connecting MCP Servers
+---
+
+Connect Model Context Protocol (MCP) servers to provide tools and resources to your agent.
+
+## Adding MCP Servers
+
+1. Click **Add MCP Server**
+2. Configure the MCP server connection details:
+   - **Endpoint** - The MCP server endpoint URL
+   - **Headers** - Optional custom HTTP headers for authentication
+   - **Tool Filter** - Optional list of tool names to include (empty means all tools are available)
+   - **Tools Requiring Human Approval** - Optional list of tool names that require human approval before execution
+
+## Tool Filter
+
+Filter which tools from the MCP server are available to the agent. If left empty, all tools from the server are available. Specify tool names to restrict access to only selected tools.
+
+## Human in the Loop
+
+Configure tools that require human approval before execution. When the agent attempts to use a tool marked for approval:
+
+- Agent execution pauses
+- The tool call is queued for approval
+- Execution resumes after approval is granted or denied
+
+This provides safety controls for sensitive operations like data deletion or system modifications.
+
+MCP servers extend agent capabilities by providing external tools, data sources, and integrations. You can add multiple MCP servers to a single agent.

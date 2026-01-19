@@ -22,7 +22,7 @@ func NewVirtualKeyRepo(db *sqlx.DB) *VirtualKeyRepo {
 	return &VirtualKeyRepo{db: db}
 }
 
-// generateSecretKey generates a new secret key with prefix "sk-amg-"
+// generateSecretKey generates a new secret key with prefix "sk-uno-"
 func generateSecretKey() (string, error) {
 	// Generate 32 random bytes
 	bytes := make([]byte, 32)
@@ -34,7 +34,7 @@ func generateSecretKey() (string, error) {
 	encoded := base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bytes)
 
 	// Return with prefix
-	return "sk-amg-" + encoded, nil
+	return "sk-uno-" + encoded, nil
 }
 
 // Create creates a new virtual key with its providers and models
