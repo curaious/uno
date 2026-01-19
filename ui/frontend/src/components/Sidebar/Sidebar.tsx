@@ -346,7 +346,7 @@ export const Sidebar: React.FC = props => {
                   setDefaultKey(event.target.value);
                   setFormError(null);
                 }}
-                placeholder="e.g., sk-amg-..."
+                placeholder="e.g., sk-uno-..."
                 fullWidth
               />
             </InputGroup>

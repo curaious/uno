@@ -266,7 +266,7 @@ export const ProjectsPage: React.FC = () => {
                 setDefaultKey(event.target.value);
                 setFormError(null);
               }}
-              placeholder="e.g., sk-amg-..."
+              placeholder="e.g., sk-uno-..."
               fullWidth
             />
           </InputGroup>

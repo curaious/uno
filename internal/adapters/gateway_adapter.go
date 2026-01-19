@@ -20,7 +20,7 @@ type InternalLLMGateway struct {
 }
 
 // NewInternalLLMGateway creates a provider using the internal gateway.
-// The key can be a virtual key (sk-amg-xxx) which will be resolved to actual API keys,
+// The key can be a virtual key (sk-uno-xxx) which will be resolved to actual API keys,
 // or a direct API key for the provider.
 func NewInternalLLMGateway(gw *gateway.LLMGateway, key string) *InternalLLMGateway {
 	return &InternalLLMGateway{

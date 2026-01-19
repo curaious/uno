@@ -1,3 +1,29 @@
 ---
 title: Model Configuration
 ---
+
+Configure the LLM provider and model parameters for your agent.
+
+## Required Fields
+
+**Provider Type** - Select the LLM provider (e.g., OpenAI, Anthropic, etc.)
+
+**Model ID** - Select the specific model from the chosen provider
+
+## Model Parameters (Optional)
+
+Configure model behavior parameters. Leave fields empty to use default values.
+
+### Generation Parameters
+
+- **Temperature** (0.0-2.0) - Controls randomness in output. Higher values increase creativity.
+- **Top P** (0.0-1.0) - Nucleus sampling parameter. Controls diversity via nucleus sampling.
+- **Max Output Token** - Maximum tokens in the response
+- **Max Tool Call** - Maximum tool calls per response
+
+### Advanced Parameters
+
+- **Top Logprob** - Number of most likely tokens to return
+- **Parallel Tool Call** - Enable parallel tool call execution (toggle switch)
+- **Reasoning Effort** - Level of reasoning effort (Default, Low, Medium, High)
+- **Reasoning Budget (Tokens)** - Maximum tokens for reasoning (optional)

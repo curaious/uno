@@ -238,7 +238,7 @@ export const VirtualKeys: React.FC = props => {
 
   const maskSecretKey = (secretKey: string) => {
     if (secretKey.length <= 12) return '••••••••';
-    // Show first 8 chars (sk-amg-) and last 4 chars
+    // Show first 8 chars (sk-uno-) and last 4 chars
     return secretKey.substring(0, 8) + '••••••••' + secretKey.substring(secretKey.length - 4);
   };
 

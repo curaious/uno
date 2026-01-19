@@ -1,3 +1,20 @@
 ---
 title: Aliases
 ---
+
+Create aliases to map names to specific agent versions or version combinations.
+
+## Alias Configuration
+
+**Alias Name** - Unique name for the alias (required)
+
+**Version 1** - Primary version to map (required). Select from available versions or $LATEST (version 0).
+
+**Version 2** - Optional second version for A/B testing or gradual rollouts
+
+**Weight** - Required when Version 2 is set. Percentage (0-100) indicating traffic distribution to Version 2. The remainder goes to Version 1.
+
+## Use Cases
+
+- **Single Version** - Map an alias to one version for stable references
+- **Dual Version** - Map to two versions with weighted distribution for gradual rollouts or A/B testing

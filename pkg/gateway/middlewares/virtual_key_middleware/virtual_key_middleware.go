@@ -55,7 +55,7 @@ func (middleware *VirtualKeyMiddleware) HandleRequest(next gateway.RequestHandle
 		defer span.End()
 
 		// Check rate limits if this is a virtual key
-		if strings.HasPrefix(key, "sk-amg") {
+		if strings.HasPrefix(key, "sk-uno") {
 			if err := middleware.checkRateLimits(ctx, key); err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
@@ -80,7 +80,7 @@ func (middleware *VirtualKeyMiddleware) HandleStreamingRequest(next gateway.Stre
 		defer span.End()
 
 		// Check rate limits if this is a virtual key
-		if strings.HasPrefix(key, "sk-amg") {
+		if strings.HasPrefix(key, "sk-uno") {
 			if err := middleware.checkRateLimits(ctx, key); err != nil {
 				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
@@ -104,7 +104,7 @@ func (middleware *VirtualKeyMiddleware) getDirectKey(ctx context.Context, provid
 	model := r.GetRequestedModel()
 
 	// If the virtual key is provided, fetch the associated direct key
-	if strings.HasPrefix(key, "sk-amg") {
+	if strings.HasPrefix(key, "sk-uno") {
 		if middleware.configStore == nil {
 			err := errors.New("config store is required when virtual key is provided")
 			return key, err
