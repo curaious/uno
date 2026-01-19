@@ -23,6 +23,7 @@ Uses Restate server for durable execution. Each agent loop runs as a Restate wor
 - Durable execution with automatic recovery
 - IO operation results are stored by Restate and reused upon recovery/replay instead of performing the operation again
 - Provides strong guarantees for long-running agent operations
+- Streaming is handled through sidecar Redis-based streaming
 - Suitable for production environments requiring reliability
 
 ### Temporal
@@ -32,4 +33,5 @@ Uses Temporal server for durable execution. Each agent loop runs as a Temporal w
 **Characteristics:**
 - Durable execution with automatic recovery
 - IO operations are executed as Temporal activities, providing isolation and retry capabilities
+- Streaming is handled through sidecar Redis-based streaming
 - Suitable for production environments requiring workflow orchestration

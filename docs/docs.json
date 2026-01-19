@@ -124,7 +124,6 @@
                     "group": "Agent Gateway",
                     "icon": "robot",
                     "pages": [
-                      "gateway/agent-builder/agent-builder",
                       "gateway/agent-builder/agent-runtime",
                       "gateway/agent-builder/model-configuration",
                       "gateway/agent-builder/system-prompt",
@@ -132,7 +131,8 @@
                       "gateway/agent-builder/mcp-server",
                       "gateway/agent-builder/conversation-history",
                       "gateway/agent-builder/versioning",
-                      "gateway/agent-builder/alias"
+                      "gateway/agent-builder/alias",
+                      "gateway/agent-builder/conversing-with-the-agent"
                     ]
                   },
                   {

@@ -1,0 +1,49 @@
+---
+title: Conversing with the Agent
+---
+
+The chat interface allows you to interact with your agents through a conversational interface.
+
+## Interface Overview
+
+The chat interface consists of:
+
+- **Sidebar** - Lists all your conversations
+- **Main Chat Area** - Displays messages and agent responses
+- **Input Bar** - Agent selection, version selection, context configuration, and message input
+
+## Selecting an Agent
+
+Click the agent name button above the input field to open the agent selection menu. Choose the agent you want to converse with.
+
+## Selecting Agent Version
+
+Click the **Latest** button to select a specific agent version. The menu shows all available versions for the selected agent. Version 0 represents the latest version.
+
+## Adding Context
+
+Click the **@** button to open the "Add Context" dialog. This allows you to provide additional context and headers that will be sent with each message.
+
+### Context
+
+JSON object containing additional context data to pass to the agent. This can include user information, session data, or any custom context your agent needs.
+
+### Headers
+
+JSON object containing HTTP headers to include with the request. Useful for authentication tokens, custom headers, or metadata.
+
+Both context and headers are edited in JSON format using the code editor. The values persist across messages in the same session.
+
+## Sending Messages
+
+Type your message in the "Ask anything" input field and press Enter or click the send button. The agent will process your message and stream the response in real-time.
+
+## Conversation Management
+
+### Starting a New Chat
+
+Click **New Chat** in the sidebar to start a fresh conversation. This creates a new conversation thread without previous context (unless conversation history is enabled for the agent).
+
+### Viewing Past Conversations
+
+All your conversations are listed in the sidebar under "Chats". Click any conversation to resume it. The agent will have access to the conversation history if history is enabled.
