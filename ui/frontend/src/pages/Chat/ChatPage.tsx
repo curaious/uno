@@ -9,8 +9,7 @@ import { PageContainer } from "../../components/shared/Page";
 import KeyboardArrowUpIcon from "@mui/icons-material/KeyboardArrowUp";
 import { SlideDialog } from "../../components/shared/Dialog";
 import Editor from "@monaco-editor/react";
-import { STORAGE_KEY, PROJECT_NAME_STORAGE_KEY } from "../../contexts/ProjectContext";
-import {ConverseConfig, MessageUnion, Usage, useConversation} from "@curaious/uno-converse";
+import {ConverseConfig, MessageUnion, Usage, useConversation, useProjectContext} from "@curaious/uno-converse";
 
 export const ChatPage: React.FC = () => {
   const namespace = 'playground';
@@ -32,14 +31,9 @@ export const ChatPage: React.FC = () => {
   const ref = useRef(null);
   const ref2 = useRef(null);
 
-  // Get project name from localStorage
-  const projectName = useMemo(() => {
-    try {
-      return localStorage.getItem(PROJECT_NAME_STORAGE_KEY) || '';
-    } catch {
-      return '';
-    }
-  }, []);
+  const {
+    projectId
+  } = useProjectContext();
 
   // Use the conversation hook for all conversation/thread/message management
   const {
@@ -52,9 +46,7 @@ export const ChatPage: React.FC = () => {
     startNewChat,
     isStreaming
   } = useConversation({
-    projectName,
     namespace,
-    baseUrl: api.defaults.baseURL!,
   });
 
   // Load agents
@@ -72,7 +64,7 @@ export const ChatPage: React.FC = () => {
       }
     };
     loadAgents();
-  }, []);
+  }, [projectId]);
 
   // Load agent versions
   useEffect(() => {

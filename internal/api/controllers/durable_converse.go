@@ -98,6 +98,13 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			return
 		}
 
+		projectID, err := uuid.Parse(projectIDStr)
+		if err != nil {
+			RecordSpanError(span, err)
+			writeError(reqCtx, ctx, "unable to parse project id", perrors.NewErrInternalServerError(err.Error(), err))
+			return
+		}
+
 		agentIDStr := string(reqCtx.QueryArgs().Peek("agent_id"))
 		if agentIDStr == "" {
 			RecordSpanError(span, errors.New("agent_id is required"))
@@ -107,12 +114,23 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 
 		version := 0
 		frag := strings.Split(agentIDStr, ":")
+
+		agentID, err := uuid.Parse(frag[0])
+		if err != nil {
+			RecordSpanError(span, err)
+			writeError(reqCtx, ctx, "unable to parse agent id", perrors.NewErrInternalServerError(err.Error(), err))
+			return
+		}
+
 		if len(frag) > 1 {
 			agentIDStr = frag[0]
 			v, err := strconv.Atoi(frag[1])
 			if err != nil {
+				v, err = svc.AgentConfig.GetAgentVersionByAlias(ctx, projectID, agentID, frag[1])
+			}
+			if err != nil {
 				RecordSpanError(span, err)
-				writeError(reqCtx, ctx, "Invalid version number", perrors.NewErrInvalidRequest("version number is invalid", err))
+				writeError(reqCtx, ctx, "invalid version or alias", perrors.NewErrInternalServerError(err.Error(), err))
 				return
 			}
 			version = v
@@ -132,20 +150,6 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			attribute.String("namespace", reqPayload.Namespace),
 			attribute.String("session_id", reqPayload.SessionID),
 		)
-
-		projectID, err := uuid.Parse(projectIDStr)
-		if err != nil {
-			RecordSpanError(span, err)
-			writeError(reqCtx, ctx, "unable to parse project id", perrors.NewErrInternalServerError(err.Error(), err))
-			return
-		}
-
-		agentID, err := uuid.Parse(agentIDStr)
-		if err != nil {
-			RecordSpanError(span, err)
-			writeError(reqCtx, ctx, "unable to parse agent id", perrors.NewErrInternalServerError(err.Error(), err))
-			return
-		}
 
 		project, err := svc.Project.GetByID(ctx, projectID)
 		if err != nil {

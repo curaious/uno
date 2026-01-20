@@ -4,4 +4,9 @@ export type {
   UseConversationOptions,
   UseConversationReturn,
 } from './useConversation';
+export { useAgent } from './useAgent';
+export type {
+  UseAgentOptions,
+  UseAgentReturn,
+} from './useAgent';
 

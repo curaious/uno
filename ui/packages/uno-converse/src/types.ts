@@ -1,3 +1,10 @@
+export interface Agent {
+  id: string;
+  agent_id: string;
+  name: string;
+  version: number;
+}
+
 // Message Roles
 export enum Role {
   User = "user",
@@ -354,4 +361,3 @@ export function isReasoningMessage(msg: MessageUnion): msg is ReasoningMessage {
 export function isImageGenerationCallMessage(msg: MessageUnion): msg is ImageGenerationCallMessage {
   return msg.type === MessageType.ImageGenerationCall;
 }
-

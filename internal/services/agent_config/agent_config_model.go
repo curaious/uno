@@ -142,23 +142,23 @@ type AgentConfigAlias struct {
 	Name      string    `json:"name" db:"name"`
 	Version1  int       `json:"version1" db:"version1"`           // Required: at least one version
 	Version2  *int      `json:"version2,omitempty" db:"version2"` // Optional: second version
-	Weight    *float64  `json:"weight,omitempty" db:"weight"`     // Weight for version2 (0-100), required if version2 is set
+	Weight    *int      `json:"weight,omitempty" db:"weight"`     // Weight for version2 (0-100), required if version2 is set
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
 }
 
 // CreateAliasRequest represents the request to create a new alias
 type CreateAliasRequest struct {
-	Name     string   `json:"name" validate:"required,min=1,max=255"`
-	Version1 int      `json:"version1" validate:"required"`
-	Version2 *int     `json:"version2,omitempty"`
-	Weight   *float64 `json:"weight,omitempty" validate:"omitempty,min=0,max=100"`
+	Name     string `json:"name" validate:"required,min=1,max=255"`
+	Version1 int    `json:"version1" validate:"required"`
+	Version2 *int   `json:"version2,omitempty"`
+	Weight   *int   `json:"weight,omitempty" validate:"omitempty,min=0,max=100"`
 }
 
 // UpdateAliasRequest represents the request to update an existing alias
 type UpdateAliasRequest struct {
-	Name     string   `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
-	Version1 *int     `json:"version1,omitempty"`
-	Version2 *int     `json:"version2,omitempty"`
-	Weight   *float64 `json:"weight,omitempty" validate:"omitempty,min=0,max=100"`
+	Name     string `json:"name,omitempty" validate:"omitempty,min=1,max=255"`
+	Version1 *int   `json:"version1,omitempty"`
+	Version2 *int   `json:"version2,omitempty"`
+	Weight   *int   `json:"weight,omitempty" validate:"omitempty,min=0,max=100"`
 }

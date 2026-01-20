@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/curaious/uno/internal/utils"
 	"github.com/google/uuid"
 )
 
@@ -129,6 +130,24 @@ func (s *AgentConfigService) GetLatestByName(ctx context.Context, projectID uuid
 	}
 
 	return config, nil
+}
+
+// GetAgentVersionByAlias retrieves an alias by agent name and alias name
+func (s *AgentConfigService) GetAgentVersionByAlias(ctx context.Context, projectID uuid.UUID, agentID uuid.UUID, aliasName string) (int, error) {
+	alias, err := s.repo.GetAliasByName(ctx, projectID, agentID, aliasName)
+	if err != nil {
+		return -1, err
+	}
+
+	if alias.Version2 == nil {
+		return alias.Version1, nil
+	}
+
+	idx := utils.WeightedRandomIndex([]int{100 - *alias.Weight, *alias.Weight})
+	if idx == 0 {
+		return alias.Version1, nil
+	}
+	return *alias.Version2, nil
 }
 
 // List retrieves all agent configs for a project
