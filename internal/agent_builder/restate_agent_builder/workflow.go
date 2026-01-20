@@ -124,5 +124,6 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 		McpServers:  mcpProxies,
 		Tools:       nil,
 		Runtime:     nil,
+		MaxLoops:    in.AgentConfig.Config.MaxIteration,
 	}).WithLLM(llmClient).ExecuteWithExecutor(ctx, in.Input, cb)
 }

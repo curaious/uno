@@ -45,6 +45,7 @@ export interface HistoryConfig {
 
 export interface AgentConfigData {
   runtime?: 'Local' | 'Restate' | 'Temporal';
+  max_iteration?: number;
   model?: ModelConfig;
   prompt?: PromptConfig;
   schema?: SchemaConfig;

@@ -61,12 +61,13 @@ type HistoryConfig struct {
 
 // AgentConfigData represents the complete JSON configuration stored in the config column
 type AgentConfigData struct {
-	Runtime    *string           `json:"runtime,omitempty"` // "Local", "Restate", or "Temporal"
-	Model      *ModelConfig      `json:"model,omitempty"`
-	Prompt     *PromptConfig     `json:"prompt,omitempty"`
-	Schema     *SchemaConfig     `json:"schema,omitempty"`
-	MCPServers []MCPServerConfig `json:"mcp_servers,omitempty"`
-	History    *HistoryConfig    `json:"history,omitempty"`
+	MaxIteration *int              `json:"max_iteration,omitempty"`
+	Runtime      *string           `json:"runtime,omitempty"` // "Local", "Restate", or "Temporal"
+	Model        *ModelConfig      `json:"model,omitempty"`
+	Prompt       *PromptConfig     `json:"prompt,omitempty"`
+	Schema       *SchemaConfig     `json:"schema,omitempty"`
+	MCPServers   []MCPServerConfig `json:"mcp_servers,omitempty"`
+	History      *HistoryConfig    `json:"history,omitempty"`
 }
 
 // Scan implements the sql.Scanner interface for database/sql

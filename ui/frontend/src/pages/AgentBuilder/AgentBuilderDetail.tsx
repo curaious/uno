@@ -893,6 +893,26 @@ export const AgentBuilderDetail: React.FC = () => {
             </InputGroup>
 
             <InputGroup>
+              <InputLabel>Max Iteration</InputLabel>
+              <Input
+                type="number"
+                value={formData.max_iteration ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value.trim();
+                  const numValue = value === '' ? undefined : parseInt(value, 10);
+                  setFormData(prev => ({
+                    ...prev,
+                    max_iteration: (numValue !== undefined && !isNaN(numValue) && numValue > 0) ? numValue : undefined
+                  }));
+                }}
+                fullWidth
+                inputProps={{ min: 1 }}
+                helperText="Maximum number of iterations the agent can perform. Leave empty to run without limit."
+                placeholder="e.g., 10"
+              />
+            </InputGroup>
+
+            <InputGroup>
               <InputLabel>Runtime</InputLabel>
               <Select
                 value={formData.runtime || ''}
