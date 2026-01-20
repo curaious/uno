@@ -83,6 +83,9 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *a
 		mcpProxies = append(mcpProxies, mcpProxy)
 	}
 
+	// Tools
+	toolList := builder.BuildToolsList(agentConfig.Config.Tools)
+
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{
 		Name:        agentConfig.Name,
@@ -91,7 +94,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *a
 		Output:      outputFormat,
 		History:     conversationManager,
 		McpServers:  mcpProxies,
-		Tools:       nil,
+		Tools:       toolList,
 		Runtime:     nil,
 		MaxLoops:    agentConfig.Config.MaxIteration,
 	}).WithLLM(llmClient).ExecuteWithExecutor(context.Background(), in, cb)

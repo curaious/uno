@@ -43,6 +43,30 @@ export interface HistoryConfig {
   summarizer?: SummarizerConfig;
 }
 
+export interface ImageGenerationToolConfig {
+  enabled: boolean;
+  // Future config options can be added here
+  [key: string]: any;
+}
+
+export interface WebSearchToolConfig {
+  enabled: boolean;
+  // Future config options can be added here
+  [key: string]: any;
+}
+
+export interface CodeExecutionToolConfig {
+  enabled: boolean;
+  // Future config options can be added here
+  [key: string]: any;
+}
+
+export interface ToolsConfig {
+  image_generation?: ImageGenerationToolConfig;
+  web_search?: WebSearchToolConfig;
+  code_execution?: CodeExecutionToolConfig;
+}
+
 export interface AgentConfigData {
   runtime?: 'Local' | 'Restate' | 'Temporal';
   max_iteration?: number;
@@ -51,6 +75,7 @@ export interface AgentConfigData {
   schema?: SchemaConfig;
   mcp_servers?: MCPServerConfig[];
   history?: HistoryConfig;
+  tools?: ToolsConfig;
 }
 
 export interface AgentConfig {
