@@ -74,6 +74,8 @@ services:
       - "3000:3000"   # Frontend UI
     env_file:
       - env_vars
+    environment:
+      RUNTIME_ENABLED: ${UNO_RUNTIME_ENABLED:-}
     depends_on:
       uno-postgres:
         condition: service_healthy

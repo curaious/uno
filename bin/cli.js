@@ -70,6 +70,20 @@ function runDockerCompose(args, options = {}) {
     }
   }
   
+  // Set RUNTIME_ENABLED based on profiles
+  if (options.profiles) {
+    const runtimeEnabled = [];
+    if (options.profiles.includes('temporal') || options.profiles.includes('all')) {
+      runtimeEnabled.push('temporal');
+    }
+    if (options.profiles.includes('restate') || options.profiles.includes('all')) {
+      runtimeEnabled.push('restate');
+    }
+    if (runtimeEnabled.length > 0) {
+      env.UNO_RUNTIME_ENABLED = runtimeEnabled.join(',');
+    }
+  }
+  
   const proc = spawn('docker', composeArgs, {
     stdio: 'inherit',
     cwd: DEPLOYMENTS_DIR,
@@ -180,7 +194,7 @@ async function main() {
     dockerArgs.push(...composeArgs);
   }
   
-  runDockerCompose(dockerArgs);
+  runDockerCompose(dockerArgs, { profiles: profiles });
 }
 
 main().catch((err) => {
