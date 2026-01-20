@@ -15,7 +15,7 @@ var restateWorkerCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		conf := config.ReadConfig()
 
-		os.Setenv("OTEL_SERVICE_NAME", "restate-service")
+		os.Setenv("OTEL_SERVICE_NAME", "restate-worker")
 
 		shutdownTelemetry := telemetry.NewProvider(conf.OTEL_EXPORTER_OTLP_ENDPOINT)
 		defer shutdownTelemetry()

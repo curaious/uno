@@ -8,7 +8,7 @@ import (
 )
 
 var rootCmd = &cobra.Command{
-	Use: "gollm",
+	Use: "uno",
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		err := godotenv.Overload()
 		if err != nil {

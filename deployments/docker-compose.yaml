@@ -102,7 +102,7 @@ services:
 
   uno-restate-service:
     image: ${UNO_IMAGE:-praveenraj9495/uno-gateway:latest}
-    command: ["restate-service"]
+    command: ["restate-worker"]
     env_file:
       - env_vars
     depends_on:
