@@ -106,6 +106,7 @@ func New() *Server {
 	if err != nil {
 		log.Fatalf("Failed to create redis stream broker: %v", err)
 	}
+	slog.Info("Redis stream broker initialized")
 
 	s := &Server{
 		conf:        conf,

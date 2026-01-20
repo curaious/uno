@@ -92,4 +92,5 @@ USER uno
 EXPOSE 6060 3000
 
 ENTRYPOINT ["/app/entrypoint.sh"]
+CMD ["agent-server"]
 

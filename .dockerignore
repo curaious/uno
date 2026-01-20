@@ -1,10 +1,10 @@
 # Dependencies
-frontend/node_modules
-packages/uno-converse/node_modules
+ui/node_modules
+ui/frontend/node_modules
+ui/frontend/build
+ui/packages/uno-converse/node_modules
+ui/packages/uno-converse/dist
 node_modules
-
-# Build outputs
-frontend/build
 
 # Git
 .git

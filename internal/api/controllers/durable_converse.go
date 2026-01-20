@@ -61,7 +61,7 @@ func getTemporalClient(conf *config.Config) client.Client {
 		},
 	})
 	if err != nil {
-		log.Fatalf("failed to connect to redis: %v", err)
+		log.Fatalf("failed to connect to temporal: %v", err)
 	}
 
 	return cli
@@ -76,7 +76,15 @@ func RecordSpanError(span trace.Span, err error) {
 }
 
 func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
-	temporalClient := getTemporalClient(conf)
+	var temporalClient client.Client
+	if strings.Contains(conf.RUNTIME_ENABLED, "temporal") {
+		temporalClient = getTemporalClient(conf)
+	}
+
+	var restateClient *ingress.Client
+	if strings.Contains(conf.RUNTIME_ENABLED, "restate") {
+		restateClient = ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
+	}
 
 	r.POST("/api/agent-server/converse", func(reqCtx *fasthttp.RequestCtx) {
 		ctx, span := tracer.Start(reqCtx, "Controller.Converse")
@@ -187,6 +195,12 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 
 		switch *agentConfig.Config.Runtime {
 		case "Restate":
+			if restateClient == nil {
+				err = errors.New("restate runtime is not enabled")
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, err.Error(), perrors.NewErrInternalServerError(err.Error(), err))
+				return
+			}
 			runID = uuid.New().String()
 			// Subscribe first to ensure we don't miss any chunks
 			stream, subErr := broker.Subscribe(ctx, runID)
@@ -197,7 +211,6 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			}
 
 			// Start workflow in goroutine so the handler can return and streaming can begin
-			restateClient := ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
 			go func() {
 				_, err := ingress.Workflow[*restate_agent_builder.WorkflowInput, *agents.AgentOutput](
 					restateClient,
@@ -218,6 +231,13 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			streamChunksFromChannel(ctx, reqCtx, stream, span)
 
 		case "Temporal":
+			if temporalClient == nil {
+				err = errors.New("restate runtime is not enabled")
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, err.Error(), perrors.NewErrInternalServerError(err.Error(), err))
+				return
+			}
+
 			runID = uuid.New().String()
 			// Subscribe first to ensure we don't miss any chunks
 			stream, subErr := broker.Subscribe(ctx, runID)

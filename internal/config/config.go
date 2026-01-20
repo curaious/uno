@@ -43,6 +43,9 @@ type Config struct {
 
 	// Temporal
 	TEMPORAL_SERVER_HOST_PORT string
+
+	// Runtime
+	RUNTIME_ENABLED string
 }
 
 func ReadConfig() *Config {
@@ -87,6 +90,8 @@ func ReadConfig() *Config {
 		RESTATE_SERVER_ENDPOINT:  os.Getenv("RESTATE_SERVER_ENDPOINT"),
 
 		TEMPORAL_SERVER_HOST_PORT: os.Getenv("TEMPORAL_SERVER_HOST_PORT"),
+
+		RUNTIME_ENABLED: os.Getenv("RUNTIME_ENABLED"),
 	}
 }
 

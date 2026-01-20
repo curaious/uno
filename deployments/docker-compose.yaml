@@ -83,6 +83,40 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  uno-temporal-worker:
+    image: ${UNO_IMAGE:-praveenraj9495/uno-gateway:latest}
+    command: ["temporal-worker"]
+    env_file:
+      - env_vars
+    depends_on:
+      uno-postgres:
+        condition: service_healthy
+      uno-redis:
+        condition: service_healthy
+      uno-clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - temporal
+      - all
+
+  uno-restate-service:
+    image: ${UNO_IMAGE:-praveenraj9495/uno-gateway:latest}
+    command: ["restate-service"]
+    env_file:
+      - env_vars
+    depends_on:
+      uno-postgres:
+        condition: service_healthy
+      uno-redis:
+        condition: service_healthy
+      uno-clickhouse:
+        condition: service_healthy
+    restart: unless-stopped
+    profiles:
+      - restate
+      - all
+
 volumes:
   clickhouse_data:
   postgres_data:
