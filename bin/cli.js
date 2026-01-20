@@ -6,6 +6,7 @@ const fs = require('fs');
 
 const DEPLOYMENTS_DIR = path.join(__dirname, '..', 'deployments');
 const COMPOSE_FILE = path.join(DEPLOYMENTS_DIR, 'docker-compose.yaml');
+const PACKAGE_JSON = path.join(__dirname, '..', 'package.json');
 
 const CYAN = '\x1b[36m';
 const GREEN = '\x1b[32m';
@@ -54,9 +55,25 @@ function runDockerCompose(args, options = {}) {
   
   log(`\n${DIM}Running: docker ${composeArgs.join(' ')}${RESET}\n`);
   
+  // Read version from package.json and construct full image name
+  let env = { ...process.env };
+  if (fs.existsSync(PACKAGE_JSON)) {
+    try {
+      const pkg = JSON.parse(fs.readFileSync(PACKAGE_JSON, 'utf8'));
+      if (pkg.version && !env.UNO_IMAGE) {
+        // Only set UNO_IMAGE if it's not already set (allows manual override)
+        env.UNO_IMAGE = `praveenraj9495/uno-gateway:${pkg.version}`;
+        log(`${DIM}Using Uno version: ${pkg.version}${RESET}\n`);
+      }
+    } catch (err) {
+      // If we can't read package.json, continue without version
+    }
+  }
+  
   const proc = spawn('docker', composeArgs, {
     stdio: 'inherit',
     cwd: DEPLOYMENTS_DIR,
+    env: env,
     ...options
   });
   
