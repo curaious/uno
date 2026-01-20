@@ -95,6 +95,16 @@ func (m *MessageTypeWebSearchCall) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type MessageTypeCodeInterpreterCall string
+
+func (m *MessageTypeCodeInterpreterCall) Value() string { return "code_interpreter_call" }
+func (m *MessageTypeCodeInterpreterCall) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *MessageTypeCodeInterpreterCall) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 // --------------------- //
 // End Of Message Types //
 // ------------------- //
@@ -432,6 +442,66 @@ func (m *ChunkTypeWebSearchCallCompleted) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type ChunkTypeCodeInterpreterCallInProgress string
+
+func (m *ChunkTypeCodeInterpreterCallInProgress) Value() string {
+	return "response.code_interpreter_call.in_progress"
+}
+func (m *ChunkTypeCodeInterpreterCallInProgress) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeCodeInterpreterCallInProgress) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeCodeInterpreterCallCodeDelta string
+
+func (m *ChunkTypeCodeInterpreterCallCodeDelta) Value() string {
+	return "response.code_interpreter_call_code.delta"
+}
+func (m *ChunkTypeCodeInterpreterCallCodeDelta) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeCodeInterpreterCallCodeDelta) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeCodeInterpreterCallCodeDone string
+
+func (m *ChunkTypeCodeInterpreterCallCodeDone) Value() string {
+	return "response.code_interpreter_call_code.done"
+}
+func (m *ChunkTypeCodeInterpreterCallCodeDone) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeCodeInterpreterCallCodeDone) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeCodeInterpreterCallInterpreting string
+
+func (m *ChunkTypeCodeInterpreterCallInterpreting) Value() string {
+	return "response.code_interpreter_call.interpreting"
+}
+func (m *ChunkTypeCodeInterpreterCallInterpreting) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeCodeInterpreterCallInterpreting) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ChunkTypeCodeInterpreterCallCompleted string
+
+func (m *ChunkTypeCodeInterpreterCallCompleted) Value() string {
+	return "response.code_interpreter_call.completed"
+}
+func (m *ChunkTypeCodeInterpreterCallCompleted) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ChunkTypeCodeInterpreterCallCompleted) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 // ------------------ //
 // End Of Chunk Type //
 // ---------------- //
@@ -473,6 +543,18 @@ func (m *ToolTypeWebSearch) MarshalJSON() ([]byte, error) {
 	return sonic.Marshal(m.Value())
 }
 func (m *ToolTypeWebSearch) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ToolTypeCodeExecution string
+
+func (m *ToolTypeCodeExecution) Value() string {
+	return "code_interpreter"
+}
+func (m *ToolTypeCodeExecution) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m *ToolTypeCodeExecution) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 

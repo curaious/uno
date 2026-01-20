@@ -46,6 +46,13 @@ type ResponseChunk struct {
 	OfWebSearchCallSearching  *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallSearching]  `json:",omitempty"`
 	OfWebSearchCallCompleted  *ChunkWebSearchCall[constants.ChunkTypeWebSearchCallCompleted]  `json:",omitempty"`
 
+	// For output item of type "code_interpreter"
+	OfCodeInterpreterCallInProgress   *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInProgress]   `json:",omitempty"`
+	OfCodeInterpreterCallCodeDelta    *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDelta]    `json:",omitempty"`
+	OfCodeInterpreterCallCodeDone     *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDone]     `json:",omitempty"`
+	OfCodeInterpreterCallInterpreting *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInterpreting] `json:",omitempty"`
+	OfCodeInterpreterCallCompleted    *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCompleted]    `json:",omitempty"`
+
 	// Custom Chunks
 	OfRunCreated         *ChunkRun[constants.ChunkTypeRunCreated]    `json:",omitempty"`
 	OfRunInProgress      *ChunkRun[constants.ChunkTypeRunInProgress] `json:",omitempty"`
@@ -217,6 +224,36 @@ func (u *ResponseChunk) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var codeInterpreterCallInProgress *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInProgress]
+	if err := sonic.Unmarshal(data, &codeInterpreterCallInProgress); err == nil {
+		u.OfCodeInterpreterCallInProgress = codeInterpreterCallInProgress
+		return nil
+	}
+
+	var codeInterpreterCallCodeDelta *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDelta]
+	if err := sonic.Unmarshal(data, &codeInterpreterCallCodeDelta); err == nil {
+		u.OfCodeInterpreterCallCodeDelta = codeInterpreterCallCodeDelta
+		return nil
+	}
+
+	var codeInterpreterCallCodeDone *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDone]
+	if err := sonic.Unmarshal(data, &codeInterpreterCallCodeDone); err == nil {
+		u.OfCodeInterpreterCallCodeDone = codeInterpreterCallCodeDone
+		return nil
+	}
+
+	var codeInterpreterCallInterpreting *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInterpreting]
+	if err := sonic.Unmarshal(data, &codeInterpreterCallInterpreting); err == nil {
+		u.OfCodeInterpreterCallInterpreting = codeInterpreterCallInterpreting
+		return nil
+	}
+
+	var codeInterpreterCallCompleted *ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCompleted]
+	if err := sonic.Unmarshal(data, &codeInterpreterCallCompleted); err == nil {
+		u.OfCodeInterpreterCallCompleted = codeInterpreterCallCompleted
+		return nil
+	}
+
 	return errors.New("invalid response chunk union")
 }
 
@@ -330,6 +367,26 @@ func (u *ResponseChunk) MarshalJSON() ([]byte, error) {
 		return sonic.Marshal(u.OfFunctionCallOutput)
 	}
 
+	if u.OfCodeInterpreterCallInProgress != nil {
+		return sonic.Marshal(u.OfCodeInterpreterCallInProgress)
+	}
+
+	if u.OfCodeInterpreterCallCodeDelta != nil {
+		return sonic.Marshal(u.OfCodeInterpreterCallCodeDelta)
+	}
+
+	if u.OfCodeInterpreterCallCodeDone != nil {
+		return sonic.Marshal(u.OfCodeInterpreterCallCodeDone)
+	}
+
+	if u.OfCodeInterpreterCallInterpreting != nil {
+		return sonic.Marshal(u.OfCodeInterpreterCallInterpreting)
+	}
+
+	if u.OfCodeInterpreterCallCompleted != nil {
+		return sonic.Marshal(u.OfCodeInterpreterCallCompleted)
+	}
+
 	return nil, nil
 }
 
@@ -422,6 +479,26 @@ func (u *ResponseChunk) ChunkType() string {
 		return u.OfWebSearchCallCompleted.Type.Value()
 	}
 
+	if u.OfCodeInterpreterCallInProgress != nil {
+		return u.OfCodeInterpreterCallInProgress.Type.Value()
+	}
+
+	if u.OfCodeInterpreterCallCodeDelta != nil {
+		return u.OfCodeInterpreterCallCodeDelta.Type.Value()
+	}
+
+	if u.OfCodeInterpreterCallCodeDone != nil {
+		return u.OfCodeInterpreterCallCodeDone.Type.Value()
+	}
+
+	if u.OfCodeInterpreterCallInterpreting != nil {
+		return u.OfCodeInterpreterCallInterpreting.Type.Value()
+	}
+
+	if u.OfCodeInterpreterCallCompleted != nil {
+		return u.OfCodeInterpreterCallCompleted.Type.Value()
+	}
+
 	// Custom Chunks
 	if u.OfRunCreated != nil {
 		return u.OfRunCreated.Type.Value()
@@ -488,7 +565,7 @@ type ChunkOutputItem[T any] struct {
 }
 
 type ChunkOutputItemData struct {
-	Type string `json:"type"` // "function_call" , "message", "reasoning", "image_generation_call", "web_search_call"
+	Type string `json:"type"` // "function_call" , "message", "reasoning", "image_generation_call", "web_search_call", "code_interpreter"
 
 	// Common fields
 	Id     string `json:"id"`
@@ -517,6 +594,11 @@ type ChunkOutputItemData struct {
 
 	// For "web_search_call"
 	Action *WebSearchCallActionUnion `json:"action,omitempty"`
+
+	// For "code_interpreter_call"
+	Code        *string                          `json:"code,omitempty"`
+	ContainerID *string                          `json:"container_id,omitempty"`
+	Outputs     []CodeInterpreterCallOutputParam `json:"outputs,omitempty"`
 }
 
 type ChunkContentPart[T any] struct {
@@ -608,6 +690,21 @@ type ChunkWebSearchCall[T any] struct {
 	SequenceNumber int    `json:"sequence_number"`
 	ItemId         string `json:"item_id"`
 	OutputIndex    int    `json:"output_index"`
+}
+
+type ChunkCodeInterpreterCall[T any] struct {
+	Type T `json:"type"`
+
+	ItemId         string `json:"item_id"`
+	SequenceNumber int    `json:"sequence_number"`
+	OutputIndex    int    `json:"output_index"`
+
+	// Only on response.code_interpreter_call_code.delta
+	Delta       *string `json:"delta,omitempty"`
+	Obfuscation *string `json:"obfuscation,omitempty"`
+
+	// Only on response.code_interpreter_call_code.done
+	Code *string `json:"code,omitempty"`
 }
 
 type ChunkResponseUsage struct {

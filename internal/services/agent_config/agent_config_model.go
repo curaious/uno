@@ -61,9 +61,9 @@ type HistoryConfig struct {
 
 // ToolConfig represents tools enabled and their parameters
 type ToolConfig struct {
-	ImageGeneration         *ImageGenerationToolConfig `json:"image_generation,omitempty"`
-	WebSearch               *WebSearchToolConfig       `json:"web_search,omitempty"`
-	CodeExecutionToolConfig *CodeExecutionToolConfig   `json:"code_execution,omitempty"`
+	ImageGeneration *ImageGenerationToolConfig `json:"image_generation,omitempty"`
+	WebSearch       *WebSearchToolConfig       `json:"web_search,omitempty"`
+	CodeExecution   *CodeExecutionToolConfig   `json:"code_execution,omitempty"`
 }
 
 // ImageGenerationToolConfig represents parameters for the image generation tool

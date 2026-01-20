@@ -20,5 +20,9 @@ func BuildToolsList(config *agent_config.ToolConfig) []core.Tool {
 		toolList = append(toolList, tools.NewWebSearchTool())
 	}
 
+	if config.CodeExecution != nil && config.CodeExecution.Enabled {
+		toolList = append(toolList, tools.NewCodeExecutionTool())
+	}
+
 	return toolList
 }
