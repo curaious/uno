@@ -1,8 +1,8 @@
-import axios from 'axios';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChunkProcessor } from '../streaming/ChunkProcessor';
 import { streamSSE } from '../streaming/streamSSE';
 import {
+  Agent,
   Conversation,
   ConversationMessage,
   ConverseConfig,
@@ -10,6 +10,7 @@ import {
   MessageUnion,
   Thread,
 } from '../types';
+import { useProjectContext } from '../ProjectProvider';
 
 /**
  * Simple ID generator for message IDs
@@ -38,12 +39,6 @@ export type GetHeadersFn = () => Record<string, string> | Promise<Record<string,
 export interface UseConversationOptions {
   /** The namespace for conversations */
   namespace: string;
-  /** Base URL of the Uno Agent Server (e.g., 'https://api.example.com/api/agent-server') */
-  baseUrl: string;
-  /** Project Name used to fetch the project ID */
-  projectName: string;
-  /** Optional function to get custom headers for requests (e.g., for authentication) */
-  getHeaders?: GetHeadersFn;
   /** Auto-load conversations on mount (default: true) */
   autoLoad?: boolean;
 }
@@ -52,12 +47,6 @@ export interface UseConversationOptions {
  * Return type for the useConversation hook
  */
 export interface UseConversationReturn {
-  // Project state
-  /** The fetched project ID */
-  projectId: string;
-  /** Whether the project ID is being fetched */
-  projectLoading: boolean;
-
   // Conversation list state
   /** List of all conversations */
   conversations: Conversation[];
@@ -131,11 +120,6 @@ export interface UseConversationReturn {
  *     startNewChat,
  *   } = useConversation({
  *     namespace: 'my-app',
- *     projectName: 'my-project',
- *     baseUrl: 'https://my-uno-server.com/api/agent-server',
- *     getHeaders: () => ({
- *       'Authorization': `Bearer ${getToken()}`,
- *     }),
  *   });
  *
  *   const handleSend = async (text: string) => {
@@ -160,32 +144,17 @@ export interface UseConversationReturn {
  * ```
  */
 export function useConversation(options: UseConversationOptions): UseConversationReturn {
-  const { namespace, projectName, baseUrl, getHeaders, autoLoad = true } = options;
+  const { namespace, autoLoad = true } = options;
 
-  // Create axios instance with request interceptor for custom headers
-  const axiosInstance = useMemo(() => {
-    const instance = axios.create({
-      baseURL: baseUrl,
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    // Add request interceptor to inject custom headers
-    if (getHeaders) {
-      instance.interceptors.request.use(async (config) => {
-        const customHeaders = await getHeaders();
-        Object.assign(config.headers, customHeaders);
-        return config;
-      });
-    }
-
-    return instance;
-  }, [baseUrl, getHeaders]);
-
-  // Project state
-  const [projectId, setProjectId] = useState<string>('');
-  const [projectLoading, setProjectLoading] = useState(false);
+  // Get project context (axios instance, projectId, etc.)
+  const {
+    axiosInstance,
+    projectId,
+    projectLoading,
+    buildParams,
+    getRequestHeaders,
+    baseUrl,
+  } = useProjectContext();
 
   // Conversation list state
   const [conversations, setConversations] = useState<Conversation[]>([]);
@@ -214,64 +183,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   // ============================================
   // API Helper Functions
   // ============================================
-
-  /**
-   * Build query params with project_id if available
-   */
-  const buildParams = useCallback((params?: Record<string, string>) => {
-    const result: Record<string, string> = {};
-    if (projectId) {
-      result.project_id = projectId;
-    }
-    if (params) {
-      Object.assign(result, params);
-    }
-    return result;
-  }, [projectId]);
-
-  /**
-   * Get headers for streaming requests (combines default + custom headers)
-   */
-  const getRequestHeaders = useCallback(async (): Promise<Record<string, string>> => {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Add custom headers if getHeaders function is provided
-    if (getHeaders) {
-      const customHeaders = await getHeaders();
-      Object.assign(headers, customHeaders);
-    }
-
-    return headers;
-  }, [getHeaders]);
-
-  // ============================================
-  // Project Management
-  // ============================================
-
-  /**
-   * Fetch the project ID using the project name
-   */
-  const fetchProjectId = useCallback(async () => {
-    if (!projectName) {
-      return;
-    }
-
-    setProjectLoading(true);
-    try {
-      const response = await axiosInstance.get<{ data: string } | string>('/project/id', {
-        params: { name: projectName },
-      });
-      const id = typeof response.data === 'string' ? response.data : response.data.data;
-      setProjectId(id || '');
-    } catch (error) {
-      console.error('Failed to fetch project ID:', error);
-      throw error;
-    } finally {
-      setProjectLoading(false);
-    }
-  }, [axiosInstance, projectName]);
+  // Note: buildParams and getRequestHeaders are now provided by ProjectProvider
 
   // ============================================
   // Conversation Management
@@ -553,13 +465,6 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   // Effects for auto-loading
   // ============================================
 
-  // Fetch project ID on mount
-  useEffect(() => {
-    if (autoLoad && projectName) {
-      fetchProjectId();
-    }
-  }, [autoLoad, projectName, fetchProjectId]);
-
   // Load conversations after project ID is fetched
   useEffect(() => {
     if (autoLoad && projectId) {
@@ -592,10 +497,6 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     : messages;
 
   return {
-    // Project state
-    projectId,
-    projectLoading,
-
     // Conversation list state
     conversations,
     conversationsLoading,

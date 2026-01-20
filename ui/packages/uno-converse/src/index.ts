@@ -5,6 +5,19 @@ export type {
   UseConversationReturn,
 } from './hooks';
 
+export { useAgent } from './hooks';
+export type {
+  UseAgentOptions,
+  UseAgentReturn,
+} from './hooks';
+
+// Project Provider
+export { ProjectProvider, useProjectContext } from './ProjectProvider';
+export type {
+  ProjectProviderProps,
+  ProjectContextValue,
+} from './ProjectProvider';
+
 // Streaming utilities
 export {
   ChunkProcessor,
