@@ -82,6 +82,18 @@ func (m ContentTypeWebSearchResultContent) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 
+type ContentTypeBashCodeExecutionToolResultContent string
+
+func (m ContentTypeBashCodeExecutionToolResultContent) Value() string {
+	return "bash_code_execution_tool_result"
+}
+func (m ContentTypeBashCodeExecutionToolResultContent) MarshalJSON() ([]byte, error) {
+	return sonic.Marshal(m.Value())
+}
+func (m ContentTypeBashCodeExecutionToolResultContent) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
 type ContentTypeDeltaText string
 
 func (m ContentTypeDeltaText) Value() string                  { return "text_delta" }
@@ -216,6 +228,14 @@ type ToolTypeWebSearchTool string
 func (m ToolTypeWebSearchTool) Value() string                { return "web_search_20250305" }
 func (m ToolTypeWebSearchTool) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
 func (m ToolTypeWebSearchTool) UnmarshalJSON(buf []byte) error {
+	return unmarshalConstantString(m, buf)
+}
+
+type ToolTypeCodeExecutionTool string
+
+func (m ToolTypeCodeExecutionTool) Value() string                { return "code_execution_20250825" }
+func (m ToolTypeCodeExecutionTool) MarshalJSON() ([]byte, error) { return sonic.Marshal(m.Value()) }
+func (m ToolTypeCodeExecutionTool) UnmarshalJSON(buf []byte) error {
 	return unmarshalConstantString(m, buf)
 }
 

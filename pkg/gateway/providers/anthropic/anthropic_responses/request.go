@@ -35,13 +35,14 @@ type MessageUnion struct {
 type Contents []ContentUnion
 
 type ContentUnion struct {
-	OfText             *TextContent             `json:",omitempty"`
-	OfToolUse          *ToolUseContent          `json:",omitempty"`
-	OfToolResult       *ToolUseResultContent    `json:",omitempty"`
-	OfThinking         *ThinkingContent         `json:",omitempty"`
-	OfRedactedThinking *RedactedThinkingContent `json:",omitempty"`
-	OfServerToolUse    *ServerToolUseContent    `json:",omitempty"`
-	OfWebSearchResult  *WebSearchResultContent  `json:",omitempty"`
+	OfText                        *TextContent                    `json:",omitempty"`
+	OfToolUse                     *ToolUseContent                 `json:",omitempty"`
+	OfToolResult                  *ToolUseResultContent           `json:",omitempty"`
+	OfThinking                    *ThinkingContent                `json:",omitempty"`
+	OfRedactedThinking            *RedactedThinkingContent        `json:",omitempty"`
+	OfServerToolUse               *ServerToolUseContent           `json:",omitempty"`
+	OfWebSearchResult             *WebSearchResultContent         `json:",omitempty"`
+	OfBashCodeExecutionToolResult *BashCodeExecutionResultContent `json:",omitempty"`
 }
 
 func (u *ContentUnion) UnmarshalJSON(data []byte) error {
@@ -87,6 +88,12 @@ func (u *ContentUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var bashCodeExecutionToolResult BashCodeExecutionResultContent
+	if err := sonic.Unmarshal(data, &bashCodeExecutionToolResult); err == nil {
+		u.OfBashCodeExecutionToolResult = &bashCodeExecutionToolResult
+		return nil
+	}
+
 	return errors.New("invalid input content union")
 }
 
@@ -117,6 +124,10 @@ func (u *ContentUnion) MarshalJSON() ([]byte, error) {
 
 	if u.OfWebSearchResult != nil {
 		return sonic.Marshal(*u.OfWebSearchResult)
+	}
+
+	if u.OfBashCodeExecutionToolResult != nil {
+		return sonic.Marshal(*u.OfBashCodeExecutionToolResult)
 	}
 
 	return nil, nil
@@ -164,9 +175,10 @@ type RedactedThinkingContent struct {
 type ServerToolUseContent struct {
 	Type  ContentTypeServerToolUse `json:"type"`
 	Id    string                   `json:"id"`
-	Name  string                   `json:"name"` // "web_search"
+	Name  string                   `json:"name"` // "web_search", "bash_code_execution"
 	Input struct {
-		Query string `json:"query"`
+		Query   string `json:"query"`
+		Command string `json:"command"`
 	} `json:"input"`
 }
 
@@ -192,9 +204,24 @@ type WebSearchToolUserLocationParam struct {
 	Timezone string `json:"timezone"`
 }
 
+type BashCodeExecutionResultContent struct {
+	Type      ContentTypeBashCodeExecutionToolResultContent `json:"type"`
+	ToolUseId string                                        `json:"tool_use_id"`
+	Content   BashCodeExecutionResultParam                  `json:"content"`
+}
+
+type BashCodeExecutionResultParam struct {
+	Type       string `json:"type"` // "bash_code_execution_result"
+	Stdout     string `json:"stdout"`
+	Stderr     string `json:"stderr"`
+	ReturnCode int    `json:"return_code"`
+	Content    []any  `json:"content"`
+}
+
 type ToolUnion struct {
-	OfCustomTool    *CustomTool    `json:",omitempty"`
-	OfWebSearchTool *WebSearchTool `json:",omitempty"`
+	OfCustomTool        *CustomTool        `json:",omitempty"`
+	OfWebSearchTool     *WebSearchTool     `json:",omitempty"`
+	OfCodeExecutionTool *CodeExecutionTool `json:",omitempty"`
 }
 
 func (u *ToolUnion) UnmarshalJSON(data []byte) error {
@@ -210,6 +237,12 @@ func (u *ToolUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var codeExecutionTool CodeExecutionTool
+	if err := sonic.Unmarshal(data, &codeExecutionTool); err == nil {
+		u.OfCodeExecutionTool = &codeExecutionTool
+		return nil
+	}
+
 	return errors.New("invalid tool union")
 }
 
@@ -220,6 +253,10 @@ func (u *ToolUnion) MarshalJSON() ([]byte, error) {
 
 	if u.OfWebSearchTool != nil {
 		return sonic.Marshal(u.OfWebSearchTool)
+	}
+
+	if u.OfCodeExecutionTool != nil {
+		return sonic.Marshal(u.OfCodeExecutionTool)
 	}
 
 	return nil, nil
@@ -234,9 +271,14 @@ type CustomTool struct {
 
 type WebSearchTool struct {
 	Type           ToolTypeWebSearchTool           `json:"type"`
-	Name           string                          `json:"name"`
+	Name           string                          `json:"name"` // "web_search"
 	MaxUses        int                             `json:"max_uses"`
 	AllowedDomains []string                        `json:"allowed_domains,omitempty"`
 	BlockedDomains []string                        `json:"blocked_domains,omitempty"`
 	UserLocation   *WebSearchToolUserLocationParam `json:"user_location,omitempty"`
+}
+
+type CodeExecutionTool struct {
+	Type ToolTypeCodeExecutionTool `json:"type"`
+	Name string                    `json:"name"` // "code_execution"
 }
