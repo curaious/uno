@@ -17,6 +17,21 @@ npx @curaious/uno
 
 This command will automatically download the required files and start all services.
 
+### Optional: Start with Additional Services
+
+You can also start Uno with additional worker services:
+
+```bash
+# Start with Temporal worker
+npx @curaious/uno --temporal
+
+# Start with Restate service
+npx @curaious/uno --restate
+
+# Start with both Temporal and Restate
+npx @curaious/uno --all
+```
+
 ## 2. Open the Dashboard
 
 Once the services are running, open `http://localhost:3000` in your browser.
