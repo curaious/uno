@@ -1,10 +1,10 @@
 # Uno
-This project provides primarily two things:
-* [Golang SDK](https://github.com/curaious/uno?tab=readme-ov-file#golang-sdk) for building LLM powered apps.
-    * [Make LLM calls](https://github.com/curaious/uno?tab=readme-ov-file#making-llm-calls) to various provide using an unified interface.
-    * [Build agents](https://github.com/curaious/uno?tab=readme-ov-file#building-agents) with custom tools, mcp servers, memory, and durable execution.
+This project primarily provides two things:
+* [Golang SDK](https://github.com/curaious/uno?tab=readme-ov-file#golang-sdk) for building LLM-powered applications.
+    * [Make LLM calls](https://github.com/curaious/uno?tab=readme-ov-file#making-llm-calls) to multiple providers through a unified interface.
+    * [Build agents](https://github.com/curaious/uno?tab=readme-ov-file#building-agents) with custom tools, MCP servers, conversation history, and durable execution.
 
-* [AI Gateway](https://github.com/curaious/uno?tab=readme-ov-file#ai-gateway) for managing access and rate limiting LLM calls with observability, and building and deploying agents without writing code with observability.
+* [AI Gateway](https://github.com/curaious/uno?tab=readme-ov-file#ai-gateway) for managing access and rate limiting LLM calls, and building and deploying agents without writing code with built-in observability for LLM calls and Agent Loop.
 
 ## Golang SDK
 
