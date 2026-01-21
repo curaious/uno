@@ -710,7 +710,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemAdded(item
 		}
 	}
 
-	if item.Item.Type == "code_interpreter" {
+	if item.Item.Type == "code_interpreter_call" {
 		return []ResponseChunk{
 			c.buildContentBlockStartServerToolUse("bash_code_execution", item.OutputIndex, item.Item.Id),
 		}
@@ -829,7 +829,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemDone(item 
 		return chunks
 	}
 
-	if item.Item.Type == "code_interpreter" {
+	if item.Item.Type == "code_interpreter_call" {
 		chunks := []ResponseChunk{}
 
 		chunks = append(chunks, ResponseChunk{

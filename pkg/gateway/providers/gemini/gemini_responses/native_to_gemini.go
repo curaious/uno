@@ -491,7 +491,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemDone(item 
 		return nil
 	}
 
-	if item.Item.Type == "code_interpreter" {
+	if item.Item.Type == "code_interpreter_call" {
 		outputs := []string{}
 		for _, o := range item.Item.Outputs {
 			outputs = append(outputs, o.Logs)

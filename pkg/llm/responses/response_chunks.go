@@ -565,7 +565,7 @@ type ChunkOutputItem[T any] struct {
 }
 
 type ChunkOutputItemData struct {
-	Type string `json:"type"` // "function_call" , "message", "reasoning", "image_generation_call", "web_search_call", "code_interpreter"
+	Type string `json:"type"` // "function_call" , "message", "reasoning", "image_generation_call", "web_search_call", "code_interpreter_call"
 
 	// Common fields
 	Id     string `json:"id"`

@@ -1,0 +1,258 @@
+---
+title: Code Execution Tool
+---
+
+The Code Execution Tool allows models to write and execute code in a sandboxed environment. This is useful for mathematical calculations, data analysis, code generation, and other computational tasks.
+
+Supported in OpenAI, Anthropic, and Gemini models. The `container` parameter is available only for OpenAI, and ignored for others.
+
+## Basic Usage
+
+To enable code execution, include the `CodeExecutionTool` in your request's `Tools` array:
+
+```go
+resp, err := model.NewResponses(
+    context.Background(),
+    &responses.Request{
+        Instructions: utils.Ptr("You are a personal math tutor. When asked a math question, write and run code using the python tool to answer the question."),
+        Input: responses.InputUnion{
+            OfString: utils.Ptr("I need to solve the equation 3x + 11 = 14. Can you help me?"),
+        },
+        Tools: []responses.ToolUnion{
+            {
+                OfCodeExecution: &responses.CodeExecutionTool{},
+            },
+        },
+    },
+)
+```
+
+## Container Configuration (OpenAI Only)
+
+For OpenAI models, you can configure the execution container with memory limits and file attachments:
+
+```go
+Tools: []responses.ToolUnion{
+    {
+        OfCodeExecution: &responses.CodeExecutionTool{
+            Container: &responses.CodeExecutionToolContainerUnion{
+                ContainerConfig: &responses.CodeExecutionToolContainerConfig{
+                    Type:        "auto",
+                    MemoryLimit: "4g",
+                    FileIds:     []string{}, // Optional: attach files to the container
+                },
+            },
+        },
+    },
+},
+```
+
+Alternatively, you can reuse an existing container by providing its ID:
+
+```go
+Tools: []responses.ToolUnion{
+    {
+        OfCodeExecution: &responses.CodeExecutionTool{
+            Container: &responses.CodeExecutionToolContainerUnion{
+                ContainerID: utils.Ptr("container_abc123"),
+            },
+        },
+    },
+},
+```
+
+**Note:** The `container` parameter is only supported by OpenAI models. For Anthropic and Gemini, this parameter is ignored.
+
+## Code Execution Responses
+
+When the model executes code, it returns a `CodeInterpreterCallMessage` in the response output. This message contains the executed code and its outputs.
+
+```go
+import (
+    "context"
+    "fmt"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/internal/utils"
+)
+
+func main() {
+    // ... client and model initialization ...
+
+    resp, err := model.NewResponses(context.Background(), &responses.Request{
+        Instructions: utils.Ptr("You are a helpful assistant that can run code."),
+        Input: responses.InputUnion{
+            OfString: utils.Ptr("Calculate 15 * 23"),
+        },
+        Tools: []responses.ToolUnion{
+            {
+                OfCodeExecution: &responses.CodeExecutionTool{},
+            },
+        },
+        Parameters: responses.Parameters{
+            Include: []responses.Includable{
+                responses.IncludableCodeInterpreterCallOutputs,
+            },
+        },
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    // Process the response
+    for _, output := range resp.Output {
+        if output.OfCodeInterpreterCall != nil {
+            codeCall := output.OfCodeInterpreterCall
+            
+            fmt.Printf("Code Interpreter ID: %s\n", codeCall.ID)
+            fmt.Printf("Status: %s\n", codeCall.Status)
+            fmt.Printf("Code:\n%s\n", codeCall.Code)
+            fmt.Printf("Container ID: %s\n", codeCall.ContainerID)
+            
+            // Process outputs
+            for _, output := range codeCall.Outputs {
+                if output.Type == "logs" {
+                    fmt.Printf("Output:\n%s\n", output.Logs)
+                }
+            }
+        }
+    }
+}
+```
+
+## Streaming Code Execution
+
+When streaming, code execution progress is reported through different chunk types:
+
+- `code_interpreter_call.in_progress`: Code execution has started
+- `code_interpreter_call.code.delta`: Incremental code updates as the model writes code
+- `code_interpreter_call.code.done`: Code writing is complete
+- `code_interpreter_call.interpreting`: Code is being executed
+- `code_interpreter_call.completed`: Code execution is complete
+
+```go
+import (
+    "context"
+    "fmt"
+    "github.com/curaious/uno/pkg/llm/responses"
+    "github.com/curaious/uno/internal/utils"
+)
+
+func main() {
+    // ... client and model initialization ...
+
+    stream, err := model.NewStreamingResponses(context.Background(), &responses.Request{
+        Instructions: utils.Ptr("You are a personal math tutor. When asked a math question, write and run code using the python tool to answer the question."),
+        Input: responses.InputUnion{
+            OfInputMessageList: responses.InputMessageList{
+                {
+                    OfEasyInput: &responses.EasyMessage{
+                        Role: constants.RoleUser,
+                        Content: responses.EasyInputContentUnion{
+                            OfString: utils.Ptr("I need to solve the equation 3x + 11 = 14. Can you help me?"),
+                        },
+                    },
+                },
+            },
+        },
+        Tools: []responses.ToolUnion{
+            {
+                OfCodeExecution: &responses.CodeExecutionTool{
+                    Container: &responses.CodeExecutionToolContainerUnion{
+                        ContainerConfig: &responses.CodeExecutionToolContainerConfig{
+                            Type:        "auto",
+                            MemoryLimit: "4g",
+                        },
+                    },
+                },
+            },
+        },
+        Parameters: responses.Parameters{
+            Stream: utils.Ptr(true),
+            Include: []responses.Includable{
+                responses.IncludableCodeInterpreterCallOutputs,
+            },
+        },
+    })
+    if err != nil {
+        panic(err)
+    }
+
+    for chunk := range stream {
+        // Check for code execution progress
+        if chunk.OfCodeInterpreterCallInProgress != nil {
+            fmt.Println("Code execution started...")
+        }
+        
+        // Code is being written incrementally
+        if chunk.OfCodeInterpreterCallCodeDelta != nil {
+            delta := chunk.OfCodeInterpreterCallCodeDelta
+            if delta.Delta != nil {
+                fmt.Print(*delta.Delta) // Print code as it's being written
+            }
+        }
+        
+        // Code writing is complete
+        if chunk.OfCodeInterpreterCallCodeDone != nil {
+            done := chunk.OfCodeInterpreterCallCodeDone
+            if done.Code != nil {
+                fmt.Printf("\n\nComplete code:\n%s\n", *done.Code)
+            }
+        }
+        
+        // Code is being executed
+        if chunk.OfCodeInterpreterCallInterpreting != nil {
+            fmt.Println("Executing code...")
+        }
+        
+        // Code execution is complete
+        if chunk.OfCodeInterpreterCallCompleted != nil {
+            fmt.Println("Code execution completed!")
+        }
+        
+        // Check for completed output items
+        if chunk.OfOutputItemDone != nil {
+            item := chunk.OfOutputItemDone.Item
+            if item.Type == "code_interpreter_call" {
+                fmt.Printf("Final code:\n%s\n", item.Code)
+                fmt.Printf("Outputs:\n%v\n", item.Outputs)
+            }
+        }
+    }
+}
+```
+
+## Code Interpreter Call Message Structure
+
+The `CodeInterpreterCallMessage` contains the following fields:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **Type** | `string` | Always `"code_interpreter_call"` |
+| **ID** | `string` | Unique identifier for the code execution |
+| **Status** | `string` | Status of execution (e.g., `"in_progress"`, `"completed"`) |
+| **Code** | `string` | The code that was executed |
+| **ContainerID** | `string` | Container identifier (OpenAI only) |
+| **Outputs** | `[]CodeInterpreterCallOutputParam` | Array of execution outputs |
+
+### CodeInterpreterCallOutputParam
+
+Each output in the `Outputs` array has the following structure:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| **Type** | `string` | Output type (e.g., `"logs"`) |
+| **Logs** | `string` | The output text/logs from code execution |
+
+## Including Outputs
+
+To receive code execution outputs in the response, include `IncludableCodeInterpreterCallOutputs` in the `Parameters.Include` array:
+
+```go
+Parameters: responses.Parameters{
+    Include: []responses.Includable{
+        responses.IncludableCodeInterpreterCallOutputs,
+    },
+},
+```
+
+Without this parameter, the `Outputs` field may be empty in the response.

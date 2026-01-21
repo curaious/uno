@@ -977,7 +977,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedCodeIn
 			SequenceNumber: c.nextSeqNum(),
 			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
-				Type:   "code_interpreter",
+				Type:   "code_interpreter_call",
 				Id:     c.currentOutputID,
 				Status: "in_progress",
 				Code:   &code,
@@ -1051,7 +1051,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneCodeInt
 			SequenceNumber: c.nextSeqNum(),
 			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
-				Type:   "code_interpreter",
+				Type:   "code_interpreter_call",
 				Id:     c.currentOutputID,
 				Status: "completed",
 				Code:   &code,

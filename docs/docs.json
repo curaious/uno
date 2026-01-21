@@ -50,7 +50,8 @@
                       "uno-sdk/responses/tool-calling",
                       "uno-sdk/responses/reasoning",
                       "uno-sdk/responses/structured-output",
-                      "uno-sdk/responses/web-search-tool"
+                      "uno-sdk/responses/web-search-tool",
+                      "uno-sdk/responses/code-execution-tool"
                     ]
                   },
                   "uno-sdk/embeddings/embeddings",
@@ -132,8 +133,9 @@
                       "gateway/agent-builder/agent-runtime",
                       "gateway/agent-builder/model-configuration",
                       "gateway/agent-builder/system-prompt",
-                      "gateway/agent-builder/structured-output",
+                      "gateway/agent-builder/built-in-tools",
                       "gateway/agent-builder/mcp-server",
+                      "gateway/agent-builder/structured-output",
                       "gateway/agent-builder/conversation-history",
                       "gateway/agent-builder/versioning",
                       "gateway/agent-builder/alias",
