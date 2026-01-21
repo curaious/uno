@@ -104,6 +104,10 @@ func (in *ToolUnion) ToNative() responses.ToolUnion {
 		}
 	}
 
+	if in.OfCodeExecutionTool != nil {
+		out.OfCodeExecution = &responses.CodeExecutionTool{}
+	}
+
 	return out
 }
 
@@ -278,6 +282,34 @@ func (msg *MessageUnion) ToNativeMessage() []responses.InputMessageUnion {
 				previousServerToolUse = nil
 			}
 		}
+
+		if content.OfBashCodeExecutionToolResult != nil {
+			if previousServerToolUse != nil && previousServerToolUse.Name == "bash_code_execution" {
+				id := previousServerToolUse.Id
+				cmd := previousServerToolUse.Input.Command
+				cmdOut := content.OfBashCodeExecutionToolResult.Content.Stdout
+				if content.OfBashCodeExecutionToolResult.Content.ReturnCode != 0 {
+					cmd = content.OfBashCodeExecutionToolResult.Content.Stderr
+				}
+
+				out = append(out, responses.InputMessageUnion{
+					OfCodeInterpreterCall: &responses.CodeInterpreterCallMessage{
+						ID:          id,
+						Status:      "completed",
+						Code:        cmd,
+						ContainerID: "",
+						Outputs: []responses.CodeInterpreterCallOutputParam{
+							{
+								Type: "logs",
+								Logs: cmdOut,
+							},
+						},
+					},
+				})
+
+				previousServerToolUse = nil
+			}
+		}
 	}
 
 	return out
@@ -347,7 +379,7 @@ func (in *Response) ToNativeResponse() *responses.Response {
 			previousWebSearchCall = content.OfServerToolUse
 		}
 
-		if content.OfWebSearchResult != nil && previousWebSearchCall != nil {
+		if content.OfWebSearchResult != nil && previousWebSearchCall != nil && previousWebSearchCall.Name == "web_search" {
 			sources := []responses.WebSearchCallActionOfSearchSource{}
 			for _, searchResultContent := range content.OfWebSearchResult.Content {
 				sources = append(sources, responses.WebSearchCallActionOfSearchSource{
@@ -376,6 +408,34 @@ func (in *Response) ToNativeResponse() *responses.Response {
 			})
 
 			previousWebSearchCall = nil
+		}
+
+		if content.OfBashCodeExecutionToolResult != nil {
+			if previousWebSearchCall != nil && previousWebSearchCall.Name == "bash_code_execution" {
+				id := previousWebSearchCall.Id
+				cmd := previousWebSearchCall.Input.Command
+				cmdOut := content.OfBashCodeExecutionToolResult.Content.Stdout
+				if content.OfBashCodeExecutionToolResult.Content.ReturnCode != 0 {
+					cmd = content.OfBashCodeExecutionToolResult.Content.Stderr
+				}
+
+				output = append(output, responses.OutputMessageUnion{
+					OfCodeInterpreterCall: &responses.CodeInterpreterCallMessage{
+						ID:          id,
+						Status:      "completed",
+						Code:        cmd,
+						ContainerID: "",
+						Outputs: []responses.CodeInterpreterCallOutputParam{
+							{
+								Type: "logs",
+								Logs: cmdOut,
+							},
+						},
+					},
+				})
+
+				previousWebSearchCall = nil
+			}
 		}
 	}
 
@@ -510,6 +570,8 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleContentBlockStart(bl
 		return c.handleServerToolUseBlockStart(content.OfServerToolUse)
 	case content.OfWebSearchResult != nil:
 		return c.handleWebSearchToolResultBlockStart(content.OfWebSearchResult)
+	case content.OfBashCodeExecutionToolResult != nil:
+		return c.handleBashCodeExecutionToolResult(content.OfBashCodeExecutionToolResult)
 	}
 
 	return nil
@@ -540,15 +602,30 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleThinkingBlockStart(t
 }
 
 func (c *ResponseChunkToNativeResponseChunkConverter) handleServerToolUseBlockStart(serverToolUse *ServerToolUseContent) []*responses.ResponseChunk {
-	return []*responses.ResponseChunk{
-		c.buildOutputItemAddedWebSearchCall(),
-		c.buildWebSearchCallInProgress(),
-		c.buildWebSearchCallSearching(),
-		c.buildWebSearchCallCompleted(),
+	if serverToolUse.Name == "web_search" {
+		return []*responses.ResponseChunk{
+			c.buildOutputItemAddedWebSearchCall(),
+			c.buildWebSearchCallInProgress(),
+			c.buildWebSearchCallSearching(),
+			c.buildWebSearchCallCompleted(),
+		}
 	}
+
+	if serverToolUse.Name == "bash_code_execution" {
+		return []*responses.ResponseChunk{
+			c.buildOutputItemAddedCodeInterpreterCall(serverToolUse.Input.Command),
+			c.buildCodeInterpreterCallInProgress(),
+		}
+	}
+
+	return []*responses.ResponseChunk{}
 }
 
 func (c *ResponseChunkToNativeResponseChunkConverter) handleWebSearchToolResultBlockStart(webResultToolResult *WebSearchResultContent) []*responses.ResponseChunk {
+	return nil
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) handleBashCodeExecutionToolResult(bashCodeExecutionToolResult *BashCodeExecutionResultContent) []*responses.ResponseChunk {
 	return nil
 }
 
@@ -580,6 +657,12 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleContentBlockDelta(de
 	case content.OfServerToolUse != nil && delta.Delta.OfInputJSON != nil:
 		json := delta.Delta.OfInputJSON.PartialJSON
 		c.accumulatedDelta += json
+
+		if content.OfServerToolUse.Name == "bash_code_execution" {
+			return []*responses.ResponseChunk{
+				c.buildCodeInterpreterCallCodeDelta(json),
+			}
+		}
 		return nil
 
 	case content.OfThinking != nil:
@@ -620,9 +703,11 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handleContentBlockStop() [
 	case content.OfThinking != nil:
 		result = c.completeThinkingBlock()
 	case content.OfServerToolUse != nil:
-		return nil // we don't do anything for server_tool_use content stop, we will wait for content_block_stop of "web_search_tool_result"
+		return c.completeServerToolUseBlock(content.OfServerToolUse)
 	case content.OfWebSearchResult != nil:
 		result = c.completeWebSearchCallBlock(content.OfWebSearchResult)
+	case content.OfBashCodeExecutionToolResult != nil:
+		result = c.completeBashCodeExecutionToolResult(content.OfBashCodeExecutionToolResult)
 	}
 
 	// Reset for next block
@@ -697,9 +782,40 @@ func (c *ResponseChunkToNativeResponseChunkConverter) completeThinkingBlock() []
 	}
 }
 
+func (c *ResponseChunkToNativeResponseChunkConverter) completeServerToolUseBlock(serverToolUse *ServerToolUseContent) []*responses.ResponseChunk {
+	text := c.accumulatedDelta
+
+	if serverToolUse.Name == "web_search" {
+		return nil // we don't do anything for server_tool_use content stop, we will wait for content_block_stop of "web_search_tool_result"
+	}
+
+	if serverToolUse.Name == "bash_code_execution" {
+		return []*responses.ResponseChunk{
+			c.buildCodeInterpreterCallCodeDone(text),
+			c.buildCodeInterpreterCallInterpreting(),
+		}
+	}
+
+	return nil
+}
+
 func (c *ResponseChunkToNativeResponseChunkConverter) completeWebSearchCallBlock(webSearchResult *WebSearchResultContent) []*responses.ResponseChunk {
 	return []*responses.ResponseChunk{
 		c.buildOutputItemDoneWebSearchCall(webSearchResult),
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) completeBashCodeExecutionToolResult(bashCodeExecutionResult *BashCodeExecutionResultContent) []*responses.ResponseChunk {
+	text := c.accumulatedDelta
+
+	output := c.currentBlock.ContentBlock.OfBashCodeExecutionToolResult.Content.Stdout
+	if c.currentBlock.ContentBlock.OfBashCodeExecutionToolResult.Content.ReturnCode > 0 {
+		output = c.currentBlock.ContentBlock.OfBashCodeExecutionToolResult.Content.Stderr
+	}
+
+	return []*responses.ResponseChunk{
+		c.buildCodeInterpreterCallCompleted(text),
+		c.buildOutputItemDoneCodeInterpreterCall(text, output),
 	}
 }
 
@@ -756,7 +872,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedMessag
 		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
 			Type:           constants.ChunkTypeOutputItemAdded(""),
 			SequenceNumber: c.nextSeqNum(),
-			OutputIndex:    0,
+			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
 				Type:    "message",
 				Id:      c.currentOutputID,
@@ -773,7 +889,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedFuncti
 		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
 			Type:           constants.ChunkTypeOutputItemAdded(""),
 			SequenceNumber: c.nextSeqNum(),
-			OutputIndex:    0,
+			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
 				Type:      "function_call",
 				Id:        c.currentOutputID,
@@ -791,7 +907,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedReason
 		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
 			Type:           constants.ChunkTypeOutputItemAdded(""),
 			SequenceNumber: c.nextSeqNum(),
-			OutputIndex:    0,
+			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
 				Type:             "reasoning",
 				Id:               c.currentOutputID,
@@ -808,7 +924,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedWebSea
 		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
 			Type:           constants.ChunkTypeOutputItemAdded(""),
 			SequenceNumber: c.nextSeqNum(),
-			OutputIndex:    0,
+			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
 				Type:   "web_search_call",
 				Id:     c.currentOutputID,
@@ -850,6 +966,102 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildWebSearchCallComplete
 			SequenceNumber: c.nextSeqNum(),
 			ItemId:         c.currentOutputID,
 			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedCodeInterpreterCall(code string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
+			Type:           constants.ChunkTypeOutputItemAdded(""),
+			SequenceNumber: c.nextSeqNum(),
+			OutputIndex:    c.outputIndex,
+			Item: responses.ChunkOutputItemData{
+				Type:   "code_interpreter",
+				Id:     c.currentOutputID,
+				Status: "in_progress",
+				Code:   &code,
+			},
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallInProgress() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallInProgress: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInProgress]{
+			Type:           constants.ChunkTypeCodeInterpreterCallInProgress(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallCodeDelta(delta string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallCodeDelta: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDelta]{
+			Type:           constants.ChunkTypeCodeInterpreterCallCodeDelta(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+			Delta:          &delta,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallCodeDone(code string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallCodeDone: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDone]{
+			Type:           constants.ChunkTypeCodeInterpreterCallCodeDone(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+			Code:           &code,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallInterpreting() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallInterpreting: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInterpreting]{
+			Type:           constants.ChunkTypeCodeInterpreterCallInterpreting(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallCompleted(code string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallCompleted: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCompleted]{
+			Type:           constants.ChunkTypeCodeInterpreterCallCompleted(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.currentOutputID,
+			OutputIndex:    c.outputIndex,
+			Code:           &code,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneCodeInterpreterCall(code string, output string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
+			Type:           constants.ChunkTypeOutputItemDone(""),
+			SequenceNumber: c.nextSeqNum(),
+			OutputIndex:    c.outputIndex,
+			Item: responses.ChunkOutputItemData{
+				Type:   "code_interpreter",
+				Id:     c.currentOutputID,
+				Status: "completed",
+				Code:   &code,
+				Outputs: []responses.CodeInterpreterCallOutputParam{
+					{
+						Type: "logs",
+						Logs: output,
+					},
+				},
+			},
 		},
 	}
 }
@@ -984,7 +1196,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneMessage
 		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
 			Type:           constants.ChunkTypeOutputItemDone(""),
 			SequenceNumber: c.nextSeqNum(),
-			OutputIndex:    0,
+			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
 				Type:    "message",
 				Id:      c.currentOutputID,
@@ -1013,7 +1225,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneFunctio
 		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
 			Type:           constants.ChunkTypeOutputItemDone(""),
 			SequenceNumber: c.nextSeqNum(),
-			OutputIndex:    0,
+			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
 				Type:      "function_call",
 				Id:        c.currentOutputID,
@@ -1057,7 +1269,7 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneReasoni
 		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
 			Type:           constants.ChunkTypeOutputItemDone(""),
 			SequenceNumber: c.nextSeqNum(),
-			OutputIndex:    0,
+			OutputIndex:    c.outputIndex,
 			Item: responses.ChunkOutputItemData{
 				Type:             "reasoning",
 				Id:               c.currentOutputID,

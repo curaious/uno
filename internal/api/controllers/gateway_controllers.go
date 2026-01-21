@@ -670,6 +670,9 @@ func GeminiResponse(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, act
 	converter := gemini_responses.NativeResponseChunkToResponseChunkConverter{}
 
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		_, _ = fmt.Fprintf(w, "[")
+		firstChunk := true
+
 	loop:
 		for {
 			select {
@@ -685,9 +688,13 @@ func GeminiResponse(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, act
 						slog.WarnContext(ctx, "Error encoding response: %v\n", err)
 						continue
 					}
-					fmt.Println(string(buf))
 
-					_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
+					if !firstChunk {
+						_, _ = fmt.Fprintf(w, ",\n")
+					}
+
+					_, _ = fmt.Fprintf(w, "%s\n", buf)
+					firstChunk = false
 
 					err = w.Flush()
 					if err != nil {
@@ -695,6 +702,12 @@ func GeminiResponse(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, act
 					}
 				}
 			}
+		}
+
+		_, _ = fmt.Fprintf(w, "]")
+		err = w.Flush()
+		if err != nil {
+			slog.WarnContext(ctx, "Error flushing buffer: %v\n", err)
 		}
 	})
 }
@@ -790,6 +803,8 @@ func GeminiSpeech(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, actio
 	converter := gemini_speech.NativeResponseChunkToResponseChunkConverter{}
 
 	ctx.SetBodyStreamWriter(func(w *bufio.Writer) {
+		_, _ = fmt.Fprintf(w, "[")
+		firstChunk := true
 	loop:
 		for {
 			select {
@@ -805,9 +820,15 @@ func GeminiSpeech(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, actio
 						slog.WarnContext(ctx, "Error encoding response: %v\n", err)
 						continue
 					}
-					fmt.Println(string(buf))
 
-					_, _ = fmt.Fprintf(w, "data: %s\n\n", buf)
+					if !firstChunk {
+						_, _ = fmt.Fprintf(w, ",\n")
+					}
+
+					_, _ = fmt.Fprintf(w, "%s\n", buf)
+					firstChunk = false
+
+					_, _ = fmt.Fprintf(w, "data: %s\n", buf)
 
 					err = w.Flush()
 					if err != nil {
@@ -815,6 +836,12 @@ func GeminiSpeech(ctx *fasthttp.RequestCtx, stdCtx context.Context, model, actio
 					}
 				}
 			}
+		}
+
+		_, _ = fmt.Fprintf(w, "]")
+		err = w.Flush()
+		if err != nil {
+			slog.WarnContext(ctx, "Error flushing buffer: %v\n", err)
 		}
 	})
 }

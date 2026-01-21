@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { api } from '../../api';
-import { AgentConfig, AgentConfigData, MCPServerConfig, ModelConfig, PromptConfig, SchemaConfig, HistoryConfig, SummarizerConfig, CreateAgentConfigRequest, UpdateAgentConfigRequest, AgentConfigAlias, CreateAliasRequest, UpdateAliasRequest } from './types';
+import { AgentConfig, AgentConfigData, MCPServerConfig, ModelConfig, PromptConfig, SchemaConfig, HistoryConfig, SummarizerConfig, CreateAgentConfigRequest, UpdateAgentConfigRequest, AgentConfigAlias, CreateAliasRequest, UpdateAliasRequest, ToolsConfig, ImageGenerationToolConfig, WebSearchToolConfig, CodeExecutionToolConfig } from './types';
 import { ProviderType, ProviderModelsResponse, ModelParameters, ReasoningConfig, PromptWithLatestVersion, PromptVersion, JSONSchemaDefinition } from '../../components/Chat/types';
 import { PageContainer, PageHeader, PageTitle } from '../../components/shared/Page';
 import { Button } from '../../components/shared/Buttons';
@@ -177,6 +177,11 @@ export const AgentBuilderDetail: React.FC = () => {
     weight: undefined
   });
 
+  // Tools state
+  const [imageGenerationEnabled, setImageGenerationEnabled] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [codeExecutionEnabled, setCodeExecutionEnabled] = useState(false);
+
   const loadConfig = useCallback(async () => {
     if (!id || isNew) return;
 
@@ -239,6 +244,12 @@ export const AgentBuilderDetail: React.FC = () => {
         top_logprobs: summarizerParams.top_logprobs,
       });
       setSummarizerReasoningConfig(summarizerParams.reasoning || {});
+
+      // Load tools state
+      const tools = configData.config?.tools || {};
+      setImageGenerationEnabled(tools.image_generation?.enabled || false);
+      setWebSearchEnabled(tools.web_search?.enabled || false);
+      setCodeExecutionEnabled(tools.code_execution?.enabled || false);
     } catch (err: any) {
       const errorMessage = err.response?.data?.message ||
         err.response?.data?.errorDetails?.message ||
@@ -358,14 +369,22 @@ export const AgentBuilderDetail: React.FC = () => {
 
   // Check for changes
   useEffect(() => {
+    // Check if tool states differ from original
+    const originalTools = originalData.tools || {};
+    const toolsChanged = 
+      imageGenerationEnabled !== (originalTools.image_generation?.enabled || false) ||
+      webSearchEnabled !== (originalTools.web_search?.enabled || false) ||
+      codeExecutionEnabled !== (originalTools.code_execution?.enabled || false);
+
     if (isNew) {
-      // For new agents, has changes if name or config is set
-      setHasChanges(agentName.trim() !== '' || JSON.stringify(formData) !== '{}');
+      // For new agents, has changes if name or config is set or any tool is enabled
+      const hasToolEnabled = imageGenerationEnabled || webSearchEnabled || codeExecutionEnabled;
+      setHasChanges(agentName.trim() !== '' || JSON.stringify(formData) !== '{}' || hasToolEnabled);
     } else {
-      const changed = JSON.stringify(formData) !== JSON.stringify(originalData);
+      const changed = JSON.stringify(formData) !== JSON.stringify(originalData) || toolsChanged;
       setHasChanges(changed);
     }
-  }, [formData, originalData, isNew, agentName]);
+  }, [formData, originalData, isNew, agentName, imageGenerationEnabled, webSearchEnabled, codeExecutionEnabled]);
 
   // Sync model parameters to formData
   useEffect(() => {
@@ -436,7 +455,79 @@ export const AgentBuilderDetail: React.FC = () => {
     }));
   }, [summarizerModelParameters, summarizerReasoningConfig, formData.history?.summarizer?.type]);
 
+  // Sync tools state to formData
+  useEffect(() => {
+    setFormData(prev => {
+      const tools: ToolsConfig = {};
+      
+      if (imageGenerationEnabled) {
+        tools.image_generation = {
+          // Preserve existing config if it exists, then override enabled
+          ...(prev.tools?.image_generation || {}),
+          enabled: true
+        };
+      }
+      
+      if (webSearchEnabled) {
+        tools.web_search = {
+          // Preserve existing config if it exists, then override enabled
+          ...(prev.tools?.web_search || {}),
+          enabled: true
+        };
+      }
+      
+      if (codeExecutionEnabled) {
+        tools.code_execution = {
+          // Preserve existing config if it exists, then override enabled
+          ...(prev.tools?.code_execution || {}),
+          enabled: true
+        };
+      }
+
+      // Only add tools to formData if at least one is enabled
+      return {
+        ...prev,
+        tools: Object.keys(tools).length > 0 ? tools : undefined
+      };
+    });
+  }, [imageGenerationEnabled, webSearchEnabled, codeExecutionEnabled]);
+
   const handleSave = async () => {
+    // Build tools config from current state
+    const tools: ToolsConfig = {};
+    
+    if (imageGenerationEnabled) {
+      tools.image_generation = {
+        // Preserve existing config if it exists, then override enabled
+        ...(formData.tools?.image_generation || {}),
+        enabled: true
+      };
+    }
+    
+    if (webSearchEnabled) {
+      tools.web_search = {
+        // Preserve existing config if it exists, then override enabled
+        ...(formData.tools?.web_search || {}),
+        enabled: true
+      };
+    }
+    
+    if (codeExecutionEnabled) {
+      tools.code_execution = {
+        // Preserve existing config if it exists, then override enabled
+        ...(formData.tools?.code_execution || {}),
+        enabled: true
+      };
+    }
+
+    // Construct the complete config with tools
+    const configWithTools: AgentConfigData = {
+      ...formData,
+      tools: Object.keys(tools).length > 0 ? tools : undefined
+    };
+
+    console.log('Saving config with tools:', configWithTools);
+
     if (isNew) {
       // Create new agent
       if (!agentName.trim()) {
@@ -449,7 +540,7 @@ export const AgentBuilderDetail: React.FC = () => {
         setError(null);
         const request: CreateAgentConfigRequest = {
           name: agentName.trim(),
-          config: formData
+          config: configWithTools
         };
         const response = await api.post('/agent-configs', request);
         // Navigate to the created agent using its ID
@@ -471,7 +562,7 @@ export const AgentBuilderDetail: React.FC = () => {
         setSaving(true);
         setError(null);
         const request: UpdateAgentConfigRequest = {
-          config: formData
+          config: configWithTools
         };
         if (configId) {
           await api.post(`/agent-configs/${configId}/versions`, request);
@@ -864,6 +955,7 @@ export const AgentBuilderDetail: React.FC = () => {
             <Tab label="Output Schema" />
             <Tab label="MCP Servers" />
             <Tab label="History" />
+            <Tab label="Tools" />
             <Tab label="Versions" />
             <Tab label="Alias" />
           </Tabs>
@@ -890,6 +982,26 @@ export const AgentBuilderDetail: React.FC = () => {
                   helperText="Agent name cannot be changed after creation"
                 />
               )}
+            </InputGroup>
+
+            <InputGroup>
+              <InputLabel>Max Iteration</InputLabel>
+              <Input
+                type="number"
+                value={formData.max_iteration ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value.trim();
+                  const numValue = value === '' ? undefined : parseInt(value, 10);
+                  setFormData(prev => ({
+                    ...prev,
+                    max_iteration: (numValue !== undefined && !isNaN(numValue) && numValue > 0) ? numValue : undefined
+                  }));
+                }}
+                fullWidth
+                inputProps={{ min: 1 }}
+                helperText="Maximum number of iterations the agent can perform. Leave empty to run without limit."
+                placeholder="e.g., 10"
+              />
             </InputGroup>
 
             <InputGroup>
@@ -1870,8 +1982,87 @@ export const AgentBuilderDetail: React.FC = () => {
           </Box>
         </CustomTabPanel>
 
-        {/* Tab 6: Versions */}
+        {/* Tab 6: Tools */}
         <CustomTabPanel value={tabValue} index={6}>
+          <Box maxWidth="800px">
+            <ConfigSection>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    Image Generation Tool
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+                    Enable image generation capabilities for the agent
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={imageGenerationEnabled}
+                      onChange={(e) => setImageGenerationEnabled(e.target.checked)}
+                    />
+                  }
+                  label={imageGenerationEnabled ? 'Enabled' : 'Disabled'}
+                />
+              </Box>
+              {/* Future configuration options can be added here */}
+              {imageGenerationEnabled && false && (
+                <Box sx={{ mt: 2, p: 2, bgcolor: 'rgba(0, 0, 0, 0.1)', borderRadius: 1 }}>
+                  <Typography variant="body2" sx={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+                    Additional configuration options will be available here in the future.
+                  </Typography>
+                </Box>
+              )}
+            </ConfigSection>
+
+            <ConfigSection>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    Web Search Tool
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+                    Enable web search capabilities for the agent
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={webSearchEnabled}
+                      onChange={(e) => setWebSearchEnabled(e.target.checked)}
+                    />
+                  }
+                  label={webSearchEnabled ? 'Enabled' : 'Disabled'}
+                />
+              </Box>
+            </ConfigSection>
+
+            <ConfigSection>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    Code Execution Tool
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+                    Enable code execution capabilities for the agent
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={codeExecutionEnabled}
+                      onChange={(e) => setCodeExecutionEnabled(e.target.checked)}
+                    />
+                  }
+                  label={codeExecutionEnabled ? 'Enabled' : 'Disabled'}
+                />
+              </Box>
+            </ConfigSection>
+          </Box>
+        </CustomTabPanel>
+
+        {/* Tab 7: Versions */}
+        <CustomTabPanel value={tabValue} index={7}>
           <Box>
             {isNew ? (
               <Box sx={{ textAlign: 'center', py: 6, color: 'var(--text-secondary)' }}>
@@ -2006,6 +2197,12 @@ export const AgentBuilderDetail: React.FC = () => {
                           top_logprobs: summarizerParams.top_logprobs,
                         });
                         setSummarizerReasoningConfig(summarizerParams.reasoning || {});
+
+                        // Load tools state
+                        const tools = configData.config?.tools || {};
+                        setImageGenerationEnabled(tools.image_generation?.enabled || false);
+                        setWebSearchEnabled(tools.web_search?.enabled || false);
+                        setCodeExecutionEnabled(tools.code_execution?.enabled || false);
                         
                         setTabValue(0); // Switch to Agent Info tab
                       } catch (err: any) {
@@ -2048,8 +2245,8 @@ export const AgentBuilderDetail: React.FC = () => {
           </Box>
         </CustomTabPanel>
 
-        {/* Tab 7: Alias */}
-        <CustomTabPanel value={tabValue} index={7}>
+        {/* Tab 8: Alias */}
+        <CustomTabPanel value={tabValue} index={8}>
           <Box>
             {isNew ? (
               <Box sx={{ textAlign: 'center', py: 6, color: 'var(--text-secondary)' }}>

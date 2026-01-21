@@ -95,6 +95,7 @@ func (a *TemporalAgentV2) Execute(ctx workflow.Context, in *agents.AgentInput) (
 		Name:       a.options.Name,
 		Output:     a.options.Output,
 		Parameters: a.options.Parameters,
+		MaxLoops:   a.options.MaxLoops,
 
 		History:     conversationHistory,
 		Instruction: promptProxy,

@@ -63,6 +63,7 @@ func (w *AgentWorkflow) Run(restateCtx restate.WorkflowContext, input *WorkflowI
 		Name:       agentOptions.Name,
 		Output:     agentOptions.Output,
 		Parameters: agentOptions.Parameters,
+		MaxLoops:   agentOptions.MaxLoops,
 
 		Instruction: promptProxy,
 		History:     conversationHistory,

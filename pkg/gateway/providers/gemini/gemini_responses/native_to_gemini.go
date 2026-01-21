@@ -2,6 +2,7 @@ package gemini_responses
 
 import (
 	"log/slog"
+	"strings"
 
 	"github.com/bytedance/sonic"
 	"github.com/curaious/uno/internal/utils"
@@ -107,6 +108,10 @@ func NativeToolsToTools(nativeTools []responses.ToolUnion) []Tool {
 				ParametersJsonSchema: nativeTool.OfFunction.Parameters,
 				ResponseJsonSchema:   nil,
 			})
+		}
+
+		if nativeTool.OfCodeExecution != nil {
+			out.CodeExecution = &CodeExecutionTool{}
 		}
 	}
 
@@ -265,6 +270,31 @@ func NativeMessagesToMessages(in responses.InputUnion) []Content {
 					},
 				})
 			}
+
+			// Code Interpreter Call
+			if nativeMessage.OfCodeInterpreterCall != nil {
+				outputs := []string{}
+				for _, o := range nativeMessage.OfCodeInterpreterCall.Outputs {
+					outputs = append(outputs, o.Logs)
+				}
+
+				out = append(out, Content{
+					Parts: []Part{
+						{
+							ExecutableCode: &ExecutableCodePart{
+								Language: "",
+								Code:     nativeMessage.OfCodeInterpreterCall.Code,
+							},
+						},
+						{
+							CodeExecutionResult: &CodeExecutionResultPart{
+								Outcome: "OUTCOME_OK",
+								Output:  strings.Join(outputs, "\n"),
+							},
+						},
+					},
+				})
+			}
 		}
 	}
 
@@ -288,6 +318,27 @@ func NativeResponseToResponse(in *responses.Response) *Response {
 				FunctionCall: &FunctionCall{
 					Name: nativeOutput.OfFunctionCall.Name,
 					Args: nativeOutput.OfFunctionCall.Arguments,
+				},
+			})
+		}
+
+		if nativeOutput.OfCodeInterpreterCall != nil {
+			outputs := []string{}
+			for _, o := range nativeOutput.OfCodeInterpreterCall.Outputs {
+				outputs = append(outputs, o.Logs)
+			}
+
+			parts = append(parts, Part{
+				ExecutableCode: &ExecutableCodePart{
+					Language: "",
+					Code:     nativeOutput.OfCodeInterpreterCall.Code,
+				},
+			})
+
+			parts = append(parts, Part{
+				CodeExecutionResult: &CodeExecutionResultPart{
+					Outcome: "OUTCOME_OK",
+					Output:  strings.Join(outputs, "\n"),
 				},
 			})
 		}
@@ -350,11 +401,17 @@ func (c *NativeResponseChunkToResponseChunkConverter) NativeResponseChunkToRespo
 		return c.handleReasoningSummaryTextDelta(in.OfReasoningSummaryTextDelta)
 	case in.OfOutputItemAdded != nil:
 		return c.handleOutputItemAdded(in.OfOutputItemAdded)
+	case in.OfCodeInterpreterCallCodeDone != nil:
+		return c.handleCodeInterpreterCallCodeDone(in.OfCodeInterpreterCallCodeDone)
+	case in.OfOutputItemDone != nil:
+		return c.handleOutputItemDone(in.OfOutputItemDone)
+	case in.OfResponseCompleted != nil:
+		return c.handleResponseCompleted(in.OfResponseCompleted)
 	}
 
 	// Most native events don't map to Gemini output:
 	// - response.in_progress, output_text.done, content_part.added/done,
-	// - function_call_arguments.delta/done, output_item.done, response.completed
+	// - function_call_arguments.delta/done, response.completed
 	// - reasoning events (Gemini handles thinking differently)
 	return nil
 }
@@ -392,6 +449,21 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleReasoningSummaryText
 	}
 }
 
+func (c *NativeResponseChunkToResponseChunkConverter) handleCodeInterpreterCallCodeDone(code *responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDone]) []Response {
+	if c.responseCreated == nil {
+		return nil
+	}
+
+	return []Response{
+		c.buildResponse([]Part{
+			{
+				ExecutableCode:   &ExecutableCodePart{Code: *code.Code},
+				ThoughtSignature: code.ThoughtSignature,
+			},
+		}),
+	}
+}
+
 // handleOutputItemAdded emits a Gemini response for function calls only
 // (text items don't emit here - they use output_text.delta)
 func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemAdded(item *responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]) []Response {
@@ -399,17 +471,69 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemAdded(item
 		return nil
 	}
 
-	if item.Item.Type != "function_call" {
+	if item.Item.Type == "function_call" {
+		return []Response{
+			c.buildResponse([]Part{{
+				FunctionCall: &FunctionCall{
+					Name: *item.Item.Name,
+					Args: item.Item.Arguments,
+				},
+				ThoughtSignature: item.Item.ThoughtSignature,
+			}}),
+		}
+	}
+
+	return nil
+}
+
+func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemDone(item *responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]) []Response {
+	if c.responseCreated == nil {
+		return nil
+	}
+
+	if item.Item.Type == "code_interpreter" {
+		outputs := []string{}
+		for _, o := range item.Item.Outputs {
+			outputs = append(outputs, o.Logs)
+		}
+
+		return []Response{
+			c.buildResponse([]Part{{CodeExecutionResult: &CodeExecutionResultPart{Outcome: "OUTCOME_OK", Output: strings.Join(outputs, "\n")}}}),
+		}
+	}
+
+	return nil
+}
+
+func (c *NativeResponseChunkToResponseChunkConverter) handleResponseCompleted(item *responses.ChunkResponse[constants.ChunkTypeResponseCompleted]) []Response {
+	if c.responseCreated == nil {
 		return nil
 	}
 
 	return []Response{
-		c.buildResponse([]Part{{
-			FunctionCall: &FunctionCall{
-				Name: *item.Item.Name,
-				Args: item.Item.Arguments,
+		{
+			Candidates: []Candidate{{
+				Content: Content{
+					Role: RoleModel,
+					Parts: []Part{
+						{
+							Text: utils.Ptr(""),
+						},
+					},
+				},
+				FinishReason: "STOP",
+			}},
+			UsageMetadata: &UsageMetadata{
+				PromptTokenCount:     item.Response.Usage.InputTokens,
+				CandidatesTokenCount: item.Response.Usage.OutputTokens,
+				TotalTokenCount:      item.Response.Usage.TotalTokens,
+				PromptTokensDetails:  nil,
+				ThoughtsTokenCount:   item.Response.Usage.OutputTokensDetails.ReasoningTokens,
 			},
-		}}),
+			ModelVersion: c.responseCreated.Response.Model,
+			ResponseID:   c.responseCreated.Response.Id,
+			Error:        nil,
+		},
 	}
 }
 

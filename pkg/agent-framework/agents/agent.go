@@ -75,13 +75,13 @@ type AgentOptions struct {
 	Tools      []core.Tool
 	McpServers []MCPToolset
 	Runtime    AgentRuntime
-	MaxLoops   int
+	MaxLoops   *int
 }
 
 func NewAgent(opts *AgentOptions) *Agent {
-	maxLoops := opts.MaxLoops
-	if maxLoops <= 0 {
-		maxLoops = 50
+	maxLoops := 50
+	if opts.MaxLoops != nil && *opts.MaxLoops > 0 {
+		maxLoops = *opts.MaxLoops
 	}
 
 	if opts.Output != nil {

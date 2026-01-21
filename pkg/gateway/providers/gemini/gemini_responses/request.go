@@ -59,6 +59,9 @@ type Part struct {
 	ThoughtSignature *string `json:"thoughtSignature,omitempty"`
 
 	InlineData *InlinePartData `json:"inlineData,omitempty"`
+
+	ExecutableCode      *ExecutableCodePart      `json:"executableCode,omitempty"`
+	CodeExecutionResult *CodeExecutionResultPart `json:"codeExecutionResult,omitempty"`
 }
 
 type InlinePartData struct {
@@ -84,8 +87,19 @@ type FunctionResponse struct {
 	Response map[string]any `json:"response,omitempty"`
 }
 
+type ExecutableCodePart struct {
+	Language string `json:"language"`
+	Code     string `json:"code"`
+}
+
+type CodeExecutionResultPart struct {
+	Outcome string `json:"outcome"` // "OUTCOME_OK"
+	Output  string `json:"output"`
+}
+
 type Tool struct {
-	FunctionDeclarations []FunctionTool `json:"functionDeclarations,omitempty"`
+	FunctionDeclarations []FunctionTool     `json:"functionDeclarations,omitempty"`
+	CodeExecution        *CodeExecutionTool `json:"code_execution,omitempty"`
 }
 
 type FunctionTool struct {
@@ -93,4 +107,7 @@ type FunctionTool struct {
 	Description          string         `json:"description"`
 	ParametersJsonSchema map[string]any `json:"parametersJsonSchema,omitempty"`
 	ResponseJsonSchema   any            `json:"responseJsonSchema,omitempty"`
+}
+
+type CodeExecutionTool struct {
 }

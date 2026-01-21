@@ -2,6 +2,7 @@ package anthropic_responses
 
 import (
 	"log/slog"
+	"strings"
 
 	"github.com/bytedance/sonic"
 	"github.com/curaious/uno/internal/utils"
@@ -116,6 +117,17 @@ func NativeToolsToTools(nativeTools []responses.ToolUnion) []ToolUnion {
 
 			out = append(out, ToolUnion{
 				OfWebSearchTool: webSearchTool,
+			})
+		}
+
+		if nativeTool.OfCodeExecution != nil {
+			codeExecutionTool := &CodeExecutionTool{
+				Type: "code_execution_20250825",
+				Name: "code_execution",
+			}
+
+			out = append(out, ToolUnion{
+				OfCodeExecutionTool: codeExecutionTool,
 			})
 		}
 	}
@@ -346,7 +358,8 @@ func NativeMessagesToMessage(in responses.InputUnion) []MessageUnion {
 								Id:   nativeMessage.OfWebSearchCall.ID,
 								Name: "web_search",
 								Input: struct {
-									Query string `json:"query"`
+									Query   string `json:"query"`
+									Command string `json:"command"`
 								}{
 									Query: query,
 								},
@@ -388,6 +401,45 @@ func NativeMessagesToMessage(in responses.InputUnion) []MessageUnion {
 				}
 			}
 
+			if nativeMessage.OfCodeInterpreterCall != nil {
+				var contents Contents
+
+				// server_tool_use
+				contents = append(contents, ContentUnion{
+					OfServerToolUse: &ServerToolUseContent{
+						Id:   nativeMessage.OfCodeInterpreterCall.ID,
+						Name: "bash_code_execution",
+						Input: struct {
+							Query   string `json:"query"`
+							Command string `json:"command"`
+						}{Command: nativeMessage.OfCodeInterpreterCall.Code},
+					},
+				})
+
+				// bash_code_execution_tool_result
+				var stdout []string
+				for _, o := range nativeMessage.OfCodeInterpreterCall.Outputs {
+					stdout = append(stdout, o.Logs)
+				}
+
+				contents = append(contents, ContentUnion{
+					OfBashCodeExecutionToolResult: &BashCodeExecutionResultContent{
+						ToolUseId: nativeMessage.OfCodeInterpreterCall.ID,
+						Content: BashCodeExecutionResultParam{
+							Type:       "bash_code_execution_result",
+							Stdout:     strings.Join(stdout, "\n"),
+							Stderr:     "",
+							ReturnCode: 0,
+							Content:    nil,
+						},
+					},
+				})
+
+				out = append(out, MessageUnion{
+					Role:    RoleAssistant,
+					Content: contents,
+				})
+			}
 		}
 	}
 
@@ -456,7 +508,8 @@ func NativeResponseToResponse(in *responses.Response) *Response {
 							Id:   nativeOutput.OfWebSearchCall.ID,
 							Name: "web_search",
 							Input: struct {
-								Query string `json:"query"`
+								Query   string `json:"query"`
+								Command string `json:"command"`
 							}{
 								Query: query,
 							},
@@ -491,6 +544,39 @@ func NativeResponseToResponse(in *responses.Response) *Response {
 					})
 				}
 			}
+		}
+
+		if nativeOutput.OfCodeInterpreterCall != nil {
+			// server_tool_use
+			contents = append(contents, ContentUnion{
+				OfServerToolUse: &ServerToolUseContent{
+					Id:   nativeOutput.OfCodeInterpreterCall.ID,
+					Name: "bash_code_execution",
+					Input: struct {
+						Query   string `json:"query"`
+						Command string `json:"command"`
+					}{Command: nativeOutput.OfCodeInterpreterCall.Code},
+				},
+			})
+
+			// bash_code_execution_tool_result
+			var stdout []string
+			for _, o := range nativeOutput.OfCodeInterpreterCall.Outputs {
+				stdout = append(stdout, o.Logs)
+			}
+
+			contents = append(contents, ContentUnion{
+				OfBashCodeExecutionToolResult: &BashCodeExecutionResultContent{
+					ToolUseId: nativeOutput.OfCodeInterpreterCall.ID,
+					Content: BashCodeExecutionResultParam{
+						Type:       "bash_code_execution_result",
+						Stdout:     strings.Join(stdout, "\n"),
+						Stderr:     "",
+						ReturnCode: 0,
+						Content:    nil,
+					},
+				},
+			})
 		}
 	}
 
@@ -534,6 +620,7 @@ func NativeResponseToResponse(in *responses.Response) *Response {
 // This converter is stateless since native format contains all necessary information in each chunk.
 type NativeResponseChunkToResponseChunkConverter struct {
 	OfResponseCreated *responses.ChunkResponse[constants.ChunkTypeResponseCreated]
+	outputIndex       int
 }
 
 // NativeResponseChunkToResponseChunk converts a single native chunk to zero or more Anthropic chunks.
@@ -577,6 +664,16 @@ func (c *NativeResponseChunkToResponseChunkConverter) NativeResponseChunkToRespo
 		return nil // No Anthropic equivalent
 	case in.OfWebSearchCallCompleted != nil:
 		return nil // No Anthropic equivalent
+	case in.OfCodeInterpreterCallInProgress != nil:
+		return nil // No Anthropic equivalent
+	case in.OfCodeInterpreterCallCodeDelta != nil:
+		return c.handleCodeInterpreterCallCodeDelta(in.OfCodeInterpreterCallCodeDelta)
+	case in.OfCodeInterpreterCallCodeDone != nil:
+		return c.handleCodeInterpreterCallCodeDone(in.OfCodeInterpreterCallCodeDone)
+	case in.OfCodeInterpreterCallInterpreting != nil:
+		return nil // No Anthropic equivalent
+	case in.OfCodeInterpreterCallCompleted != nil:
+		return nil // No Anthropic equivalent
 	case in.OfOutputItemDone != nil:
 		return c.handleOutputItemDone(in.OfOutputItemDone)
 	case in.OfResponseCompleted != nil:
@@ -609,7 +706,13 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemAdded(item
 
 	if item.Item.Type == "web_search_call" {
 		return []ResponseChunk{
-			c.buildContentBlockStartServerToolUse(item.OutputIndex, item.Item.Id),
+			c.buildContentBlockStartServerToolUse("web_search", item.OutputIndex, item.Item.Id),
+		}
+	}
+
+	if item.Item.Type == "code_interpreter" {
+		return []ResponseChunk{
+			c.buildContentBlockStartServerToolUse("bash_code_execution", item.OutputIndex, item.Item.Id),
 		}
 	}
 
@@ -622,20 +725,20 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleContentPartAdded(par
 		return nil
 	}
 	return []ResponseChunk{
-		c.buildContentBlockStartText(part.ContentIndex, part.Part.OfOutputText.Text),
+		c.buildContentBlockStartText(part.OutputIndex, part.Part.OfOutputText.Text),
 	}
 }
 
 // handleOutputTextDelta emits content_block_delta with text_delta
 func (c *NativeResponseChunkToResponseChunkConverter) handleOutputTextDelta(delta *responses.ChunkOutputText[constants.ChunkTypeOutputTextDelta]) []ResponseChunk {
 	return []ResponseChunk{
-		c.buildContentBlockDeltaText(delta.ContentIndex, delta.Delta),
+		c.buildContentBlockDeltaText(delta.OutputIndex, delta.Delta),
 	}
 }
 
 func (c *NativeResponseChunkToResponseChunkConverter) handleOutputTextAnnotationAdded(delta *responses.ChunkOutputText[constants.ChunkTypeOutputTextAnnotationAdded]) []ResponseChunk {
 	return []ResponseChunk{
-		c.buildContentBlockDeltaCitation(delta.ContentIndex, delta.Annotation),
+		c.buildContentBlockDeltaCitation(delta.OutputIndex, delta.Annotation),
 	}
 }
 
@@ -659,6 +762,22 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleReasoningSummaryText
 		return []ResponseChunk{c.buildContentBlockDeltaSignature(delta.SummaryIndex, *delta.EncryptedContent)}
 	}
 	return []ResponseChunk{c.buildContentBlockDeltaThinking(delta.SummaryIndex, delta.Delta)}
+}
+
+func (c *NativeResponseChunkToResponseChunkConverter) handleCodeInterpreterCallCodeDelta(delta *responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDelta]) []ResponseChunk {
+	return []ResponseChunk{
+		c.buildContentBlockDeltaInputJSON(delta.OutputIndex, *delta.Delta),
+	}
+}
+
+func (c *NativeResponseChunkToResponseChunkConverter) handleCodeInterpreterCallCodeDone(code *responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDone]) []ResponseChunk {
+	return []ResponseChunk{
+		c.buildContentBlockStop(code.OutputIndex),
+	}
+}
+
+func (c *NativeResponseChunkToResponseChunkConverter) handleCodeInterpreterCallCompleted(codeInterpreterCall *responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCompleted]) []ResponseChunk {
+	return []ResponseChunk{}
 }
 
 // handleOutputItemDone emits content_block_stop
@@ -697,7 +816,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemDone(item 
 		}
 		chunks = append(chunks, ResponseChunk{
 			OfContentBlockStart: &ChunkContentBlock[ChunkTypeContentBlockStart]{
-				Index: item.OutputIndex,
+				Index: c.outputIndex,
 				ContentBlock: &ContentUnion{
 					OfWebSearchResult: &WebSearchResultContent{
 						ToolUseId: item.Item.Id,
@@ -707,6 +826,31 @@ func (c *NativeResponseChunkToResponseChunkConverter) handleOutputItemDone(item 
 			},
 		})
 		chunks = append(chunks, c.buildContentBlockStop(item.OutputIndex))
+		return chunks
+	}
+
+	if item.Item.Type == "code_interpreter" {
+		chunks := []ResponseChunk{}
+
+		chunks = append(chunks, ResponseChunk{
+			OfContentBlockStart: &ChunkContentBlock[ChunkTypeContentBlockStart]{
+				Index: c.outputIndex,
+				ContentBlock: &ContentUnion{
+					OfBashCodeExecutionToolResult: &BashCodeExecutionResultContent{
+						ToolUseId: item.Item.Id,
+						Content: BashCodeExecutionResultParam{
+							Type:       "bash_code_execution_result",
+							Stdout:     item.Item.Outputs[0].Logs,
+							Stderr:     "",
+							ReturnCode: 0,
+							Content:    nil,
+						},
+					},
+				},
+			},
+		})
+		chunks = append(chunks, c.buildContentBlockStop(item.OutputIndex))
+
 		return chunks
 	}
 
@@ -752,7 +896,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStartText
 	return ResponseChunk{
 		OfContentBlockStart: &ChunkContentBlock[ChunkTypeContentBlockStart]{
 			Type:         ChunkTypeContentBlockStart("content_block_start"),
-			Index:        index,
+			Index:        c.outputIndex,
 			ContentBlock: &ContentUnion{OfText: &TextContent{Text: text}},
 		},
 	}
@@ -762,7 +906,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStartTool
 	return ResponseChunk{
 		OfContentBlockStart: &ChunkContentBlock[ChunkTypeContentBlockStart]{
 			Type:  ChunkTypeContentBlockStart("content_block_start"),
-			Index: index,
+			Index: c.outputIndex,
 			ContentBlock: &ContentUnion{
 				OfToolUse: &ToolUseContent{ID: callID, Name: name, Input: args},
 			},
@@ -774,7 +918,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStartThin
 	return ResponseChunk{
 		OfContentBlockStart: &ChunkContentBlock[ChunkTypeContentBlockStart]{
 			Type:  ChunkTypeContentBlockStart("content_block_start"),
-			Index: index,
+			Index: c.outputIndex,
 			ContentBlock: &ContentUnion{
 				OfThinking: &ThinkingContent{Thinking: "", Signature: ""},
 			},
@@ -782,18 +926,41 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStartThin
 	}
 }
 
-func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStartServerToolUse(index int, id string) ResponseChunk {
+func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStartServerToolUse(name string, index int, id string) ResponseChunk {
 	return ResponseChunk{
 		OfContentBlockStart: &ChunkContentBlock[ChunkTypeContentBlockStart]{
 			Type:  ChunkTypeContentBlockStart("content_block_start"),
-			Index: index,
+			Index: c.outputIndex,
 			ContentBlock: &ContentUnion{
 				OfServerToolUse: &ServerToolUseContent{
 					Id:   id,
-					Name: "web_search",
+					Name: name,
 					Input: struct {
-						Query string `json:"query"`
+						Query   string `json:"query"`
+						Command string `json:"command"`
 					}{Query: ""},
+				},
+			},
+		},
+	}
+}
+
+func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStartBashCodeExecutionToolResult(index int, id string, output string) ResponseChunk {
+	return ResponseChunk{
+		OfContentBlockStart: &ChunkContentBlock[ChunkTypeContentBlockStart]{
+			Type:  ChunkTypeContentBlockStart("content_block_start"),
+			Index: c.outputIndex,
+			ContentBlock: &ContentUnion{
+				OfBashCodeExecutionToolResult: &BashCodeExecutionResultContent{
+					Type:      ContentTypeBashCodeExecutionToolResultContent(""),
+					ToolUseId: id,
+					Content: BashCodeExecutionResultParam{
+						Type:       "bash_code_execution_result",
+						Stdout:     output,
+						Stderr:     "",
+						ReturnCode: 0,
+						Content:    nil,
+					},
 				},
 			},
 		},
@@ -804,7 +971,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockDeltaText
 	return ResponseChunk{
 		OfContentBlockDelta: &ChunkContentBlock[ChunkTypeContentBlockDelta]{
 			Type:  ChunkTypeContentBlockDelta("content_block_delta"),
-			Index: index,
+			Index: c.outputIndex,
 			Delta: &ChunkContentBlockDeltaUnion{
 				OfText: &DeltaTextContent{Type: "text_delta", Text: text},
 			},
@@ -818,7 +985,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockDeltaCita
 	return ResponseChunk{
 		OfContentBlockDelta: &ChunkContentBlock[ChunkTypeContentBlockDelta]{
 			Type:  ChunkTypeContentBlockDelta("content_block_delta"),
-			Index: index,
+			Index: c.outputIndex,
 			Delta: &ChunkContentBlockDeltaUnion{
 				OfCitation: &DeltaCitation{
 					Citation: citations[0],
@@ -832,7 +999,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockDeltaInpu
 	return ResponseChunk{
 		OfContentBlockDelta: &ChunkContentBlock[ChunkTypeContentBlockDelta]{
 			Type:  ChunkTypeContentBlockDelta("content_block_delta"),
-			Index: index,
+			Index: c.outputIndex,
 			Delta: &ChunkContentBlockDeltaUnion{
 				OfInputJSON: &DeltaInputJSONContent{Type: "input_json_delta", PartialJSON: json},
 			},
@@ -844,7 +1011,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockDeltaThin
 	return ResponseChunk{
 		OfContentBlockDelta: &ChunkContentBlock[ChunkTypeContentBlockDelta]{
 			Type:  ChunkTypeContentBlockDelta("content_block_delta"),
-			Index: index,
+			Index: c.outputIndex,
 			Delta: &ChunkContentBlockDeltaUnion{
 				OfThinking: &DeltaThinkingContent{Thinking: thinking},
 			},
@@ -856,7 +1023,7 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockDeltaSign
 	return ResponseChunk{
 		OfContentBlockDelta: &ChunkContentBlock[ChunkTypeContentBlockDelta]{
 			Type:  ChunkTypeContentBlockDelta("content_block_delta"),
-			Index: index,
+			Index: c.outputIndex,
 			Delta: &ChunkContentBlockDeltaUnion{
 				OfThinkingSignature: &DeltaThinkingSignatureContent{Signature: sig},
 			},
@@ -865,12 +1032,16 @@ func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockDeltaSign
 }
 
 func (c *NativeResponseChunkToResponseChunkConverter) buildContentBlockStop(index int) ResponseChunk {
-	return ResponseChunk{
+	out := ResponseChunk{
 		OfContentBlockStop: &ChunkContentBlock[ChunkTypeContentBlockStop]{
 			Type:  ChunkTypeContentBlockStop("content_block_stop"),
-			Index: index,
+			Index: c.outputIndex,
 		},
 	}
+
+	c.outputIndex++
+
+	return out
 }
 
 func (c *NativeResponseChunkToResponseChunkConverter) buildMessageDelta(stopReason string, usage responses.Usage) ResponseChunk {

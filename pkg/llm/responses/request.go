@@ -107,10 +107,10 @@ type InputMessageUnion struct {
 	OfReasoning                    *ReasoningMessage                    `json:",omitempty"`
 	OfImageGenerationCall          *ImageGenerationCallMessage          `json:",omitempty,inline"`
 	OfWebSearchCall                *WebSearchCallMessage                `json:",omitempty,inline"`
+	OfCodeInterpreterCall          *CodeInterpreterCallMessage          `json:",omitempty,inline"`
 	//OfFileSearchCall       *ResponseFileSearchToolCallParam            `json:",omitempty,inline"`
 	//OfComputerCall         *ResponseComputerToolCallParam              `json:",omitempty,inline"`
 	//OfComputerCallOutput   *ResponseInputItemComputerCallOutputParam   `json:",omitempty,inline"`
-	//OfCodeInterpreterCall  *ResponseCodeInterpreterToolCallParam       `json:",omitempty,inline"`
 	//OfLocalShellCall       *ResponseInputItemLocalShellCallParam       `json:",omitempty,inline"`
 	//OfLocalShellCallOutput *ResponseInputItemLocalShellCallOutputParam `json:",omitempty,inline"`
 	//OfMcpListTools         *ResponseInputItemMcpListToolsParam         `json:",omitempty,inline"`
@@ -157,6 +157,10 @@ func (u *InputMessageUnion) ID() string {
 
 	if u.OfWebSearchCall != nil {
 		return u.OfWebSearchCall.ID
+	}
+
+	if u.OfCodeInterpreterCall != nil {
+		return u.OfCodeInterpreterCall.ID
 	}
 
 	return ""
@@ -217,6 +221,12 @@ func (u *InputMessageUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var codeInterpreterMsg CodeInterpreterCallMessage
+	if err := sonic.Unmarshal(data, &codeInterpreterMsg); err == nil {
+		u.OfCodeInterpreterCall = &codeInterpreterMsg
+		return nil
+	}
+
 	return errors.New("invalid input message union")
 }
 
@@ -255,6 +265,10 @@ func (u *InputMessageUnion) MarshalJSON() ([]byte, error) {
 
 	if u.OfWebSearchCall != nil {
 		return sonic.Marshal(u.OfWebSearchCall)
+	}
+
+	if u.OfCodeInterpreterCall != nil {
+		return sonic.Marshal(u.OfCodeInterpreterCall)
 	}
 
 	return nil, nil
@@ -320,6 +334,20 @@ type WebSearchCallMessage struct {
 	ID     string                             `json:"id"`
 	Action WebSearchCallActionUnion           `json:"action"`
 	Status string                             `json:"status"` // "in_progress", "searching", "completed", "failed"
+}
+
+type CodeInterpreterCallMessage struct {
+	Type        constants.MessageTypeCodeInterpreterCall `json:"type"`
+	ID          string                                   `json:"id"`
+	Status      string                                   `json:"status"`
+	Code        string                                   `json:"code"`
+	ContainerID string                                   `json:"container_id"`
+	Outputs     []CodeInterpreterCallOutputParam         `json:"outputs,omitempty"`
+}
+
+type CodeInterpreterCallOutputParam struct {
+	Type string `json:"type"` // "logs"
+	Logs string `json:"logs"`
 }
 
 type EasyInputContentUnion struct {
@@ -478,6 +506,7 @@ type ToolUnion struct {
 	OfFunction        *FunctionTool        `json:",omitempty"`
 	OfImageGeneration *ImageGenerationTool `json:",omitempty"`
 	OfWebSearch       *WebSearchTool       `json:",omitempty"`
+	OfCodeExecution   *CodeExecutionTool   `json:",omitempty"`
 }
 
 func (u *ToolUnion) UnmarshalJSON(data []byte) error {
@@ -499,6 +528,12 @@ func (u *ToolUnion) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 
+	var codeExecutionTool CodeExecutionTool
+	if err := sonic.Unmarshal(data, &codeExecutionTool); err == nil {
+		u.OfCodeExecution = &codeExecutionTool
+		return nil
+	}
+
 	return errors.New("invalid tool union")
 }
 
@@ -513,6 +548,10 @@ func (u *ToolUnion) MarshalJSON() ([]byte, error) {
 
 	if u.OfWebSearch != nil {
 		return sonic.Marshal(u.OfWebSearch)
+	}
+
+	if u.OfCodeExecution != nil {
+		return sonic.Marshal(u.OfCodeExecution)
 	}
 
 	return nil, nil
@@ -616,4 +655,48 @@ type WebSearchCallActionOfSearchSource struct {
 	Type        string         `json:"type"` // always "url"
 	URL         string         `json:"url"`
 	ExtraParams map[string]any `json:"extra_params"`
+}
+
+type CodeExecutionTool struct {
+	Type      constants.ToolTypeCodeExecution  `json:"type"` // code_interpreter
+	Container *CodeExecutionToolContainerUnion `json:"container,omitempty"`
+}
+
+type CodeExecutionToolContainerUnion struct {
+	ContainerID     *string                           `json:",omitempty"`
+	ContainerConfig *CodeExecutionToolContainerConfig `json:",omitempty"`
+}
+
+func (u *CodeExecutionToolContainerUnion) UnmarshalJSON(data []byte) error {
+	var containerId string
+	if err := sonic.Unmarshal(data, &containerId); err == nil {
+		u.ContainerID = &containerId
+		return nil
+	}
+
+	var containerConfig CodeExecutionToolContainerConfig
+	if err := sonic.Unmarshal(data, &containerConfig); err == nil {
+		u.ContainerConfig = &containerConfig
+		return nil
+	}
+
+	return errors.New("invalid code execution tool container union")
+}
+
+func (u *CodeExecutionToolContainerUnion) MarshalJSON() ([]byte, error) {
+	if u.ContainerID != nil {
+		return sonic.Marshal(u.ContainerID)
+	}
+
+	if u.ContainerConfig != nil {
+		return sonic.Marshal(u.ContainerConfig)
+	}
+
+	return nil, nil
+}
+
+type CodeExecutionToolContainerConfig struct {
+	Type        string   `json:"type"` // "auto"
+	FileIds     []string `json:"file_ids"`
+	MemoryLimit string   `json:"memory_limit"`
 }

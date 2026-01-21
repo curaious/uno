@@ -105,6 +105,12 @@ func (in *Tool) ToNative() []responses.ToolUnion {
 		}
 	}
 
+	if in.CodeExecution != nil {
+		out = append(out, responses.ToolUnion{
+			OfCodeExecution: &responses.CodeExecutionTool{},
+		})
+	}
+
 	return out
 }
 
@@ -124,6 +130,7 @@ func MessagesToNativeMessages(msgs []Content) responses.InputUnion {
 func (content *Content) ToNativeMessage() []responses.InputMessageUnion {
 	out := []responses.InputMessageUnion{}
 
+	var previousExecutableCodePart *ExecutableCodePart
 	for _, part := range content.Parts {
 		if part.Text != nil {
 			out = append(out, responses.InputMessageUnion{
@@ -169,6 +176,26 @@ func (content *Content) ToNativeMessage() []responses.InputMessageUnion {
 				})
 			}
 		}
+
+		if part.ExecutableCode != nil {
+			previousExecutableCodePart = part.ExecutableCode
+		}
+
+		if previousExecutableCodePart != nil && part.CodeExecutionResult != nil {
+			out = append(out, responses.InputMessageUnion{
+				OfCodeInterpreterCall: &responses.CodeInterpreterCallMessage{
+					Status: "completed",
+					Code:   previousExecutableCodePart.Code,
+					Outputs: []responses.CodeInterpreterCallOutputParam{
+						{
+							Type: "logs",
+							Logs: part.CodeExecutionResult.Output,
+						},
+					},
+				},
+			})
+			previousExecutableCodePart = nil
+		}
 	}
 
 	return out
@@ -177,6 +204,7 @@ func (content *Content) ToNativeMessage() []responses.InputMessageUnion {
 func (in *Response) ToNativeResponse() *responses.Response {
 	output := []responses.OutputMessageUnion{}
 
+	var previousExecutableCodePart *ExecutableCodePart
 	for _, part := range in.Candidates[0].Content.Parts {
 		if part.Text != nil {
 			output = append(output, responses.OutputMessageUnion{
@@ -208,6 +236,25 @@ func (in *Response) ToNativeResponse() *responses.Response {
 					Arguments: string(args),
 				},
 			})
+		}
+
+		if part.ExecutableCode != nil {
+			previousExecutableCodePart = part.ExecutableCode
+		}
+
+		if part.CodeExecutionResult != nil && previousExecutableCodePart != nil {
+			output = append(output, responses.OutputMessageUnion{
+				OfCodeInterpreterCall: &responses.CodeInterpreterCallMessage{
+					Code: previousExecutableCodePart.Code,
+					Outputs: []responses.CodeInterpreterCallOutputParam{
+						{
+							Type: "logs",
+							Logs: part.CodeExecutionResult.Output,
+						},
+					},
+				},
+			})
+			previousExecutableCodePart = nil
 		}
 	}
 
@@ -289,6 +336,8 @@ func (c *ResponseChunkToNativeResponseChunkConverter) getPartType(part *Part) st
 		if strings.HasPrefix(part.InlineData.MimeType, "image") {
 			return "image_generation_call"
 		}
+	case part.ExecutableCode != nil && part.CodeExecutionResult != nil:
+		return "code_execution"
 	}
 
 	return ""
@@ -396,6 +445,12 @@ func (c *ResponseChunkToNativeResponseChunkConverter) handlePart(part *Part) []*
 		if strings.HasPrefix(part.InlineData.MimeType, "image") {
 			out = append(out, c.handleInlineImageDataPart(part)...)
 		}
+
+	case part.ExecutableCode != nil:
+		out = append(out, c.handleExecutableCodePart(part)...)
+
+	case part.CodeExecutionResult != nil:
+		out = append(out, c.handleCodeExecutionResultPart(part)...)
 	}
 
 	c.outputItemActive = true
@@ -430,6 +485,9 @@ func (c *ResponseChunkToNativeResponseChunkConverter) completeCurrentPart() []*r
 		if strings.HasPrefix(c.previousPart.InlineData.MimeType, "image") {
 			return c.completeInlineImageDataPart()
 		}
+
+	case c.previousPart.CodeExecutionResult != nil:
+		return c.completeCodeExecutionResult()
 	}
 
 	return nil
@@ -617,6 +675,59 @@ func (c *ResponseChunkToNativeResponseChunkConverter) completeInlineImageDataPar
 	return []*responses.ResponseChunk{
 		c.buildOutputItemDoneImageGenerationCall(c.currentBlock.InlineData.MimeType, c.currentBlock.InlineData.Data),
 	}
+}
+
+// =============================================================================
+// Code Execution Handling
+// =============================================================================
+
+func (c *ResponseChunkToNativeResponseChunkConverter) handleExecutableCodePart(part *Part) []*responses.ResponseChunk {
+	var out []*responses.ResponseChunk
+
+	// output_item.added
+	out = append(out, c.buildOutputItemAddedCodeInterpreterCall(""))
+	// code_interpreter_call.in_progress
+	out = append(out, c.buildCodeInterpreterCallInProgress())
+	// code_interpreter_call_code.delta
+	out = append(out, c.buildCodeInterpreterCallCodeDelta(part.ExecutableCode.Code))
+	// code_interpreter_call_code.done
+	out = append(out, c.buildCodeInterpreterCallCodeDone(part.ExecutableCode.Code, part.ThoughtSignature))
+	// code_interpreter_call.interpreting
+	out = append(out, c.buildCodeInterpreterCallInterpreting())
+
+	// Store the code
+	c.accumulatedData = part.ExecutableCode.Code
+
+	return out
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) completeExecutableCodePart() []*responses.ResponseChunk {
+	var out []*responses.ResponseChunk
+
+	// Store the code
+	c.accumulatedData = c.currentBlock.ExecutableCode.Code
+
+	return out
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) handleCodeExecutionResultPart(_ *Part) []*responses.ResponseChunk {
+	var out []*responses.ResponseChunk
+
+	// Do nothing
+
+	return out
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) completeCodeExecutionResult() []*responses.ResponseChunk {
+	var out []*responses.ResponseChunk
+
+	// code_interpreter_call.completed
+	out = append(out, c.buildCodeInterpreterCallCompleted(c.accumulatedData))
+
+	// output_item.done
+	out = append(out, c.buildOutputItemDoneCodeInterpreterCall(c.accumulatedData, c.previousPart.CodeExecutionResult.Output))
+
+	return out
 }
 
 // =============================================================================
@@ -1009,6 +1120,98 @@ func (c *ResponseChunkToNativeResponseChunkConverter) buildResponseCompleted() *
 					}{ReasoningTokens: c.usage.ThoughtsTokenCount},
 				},
 				Request: responses.Request{Model: c.model},
+			},
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemAddedCodeInterpreterCall(code string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemAdded: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemAdded]{
+			Type:           constants.ChunkTypeOutputItemAdded(""),
+			SequenceNumber: c.nextSeqNum(),
+			OutputIndex:    c.outputIndex,
+			Item: responses.ChunkOutputItemData{
+				Type:   "code_interpreter",
+				Id:     c.outputItemID,
+				Status: "in_progress",
+				Code:   &code,
+			},
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallInProgress() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallInProgress: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInProgress]{
+			Type:           constants.ChunkTypeCodeInterpreterCallInProgress(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.outputItemID,
+			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallCodeDelta(delta string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallCodeDelta: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDelta]{
+			Type:           constants.ChunkTypeCodeInterpreterCallCodeDelta(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.outputItemID,
+			OutputIndex:    c.outputIndex,
+			Delta:          &delta,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallCodeDone(code string, thoughtSignature *string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallCodeDone: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCodeDone]{
+			Type:             constants.ChunkTypeCodeInterpreterCallCodeDone(""),
+			SequenceNumber:   c.nextSeqNum(),
+			ItemId:           c.outputItemID,
+			OutputIndex:      c.outputIndex,
+			Code:             &code,
+			ThoughtSignature: thoughtSignature,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallInterpreting() *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallInterpreting: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallInterpreting]{
+			Type:           constants.ChunkTypeCodeInterpreterCallInterpreting(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.outputItemID,
+			OutputIndex:    c.outputIndex,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildCodeInterpreterCallCompleted(code string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfCodeInterpreterCallCompleted: &responses.ChunkCodeInterpreterCall[constants.ChunkTypeCodeInterpreterCallCompleted]{
+			Type:           constants.ChunkTypeCodeInterpreterCallCompleted(""),
+			SequenceNumber: c.nextSeqNum(),
+			ItemId:         c.outputItemID,
+			OutputIndex:    c.outputIndex,
+			Code:           &code,
+		},
+	}
+}
+
+func (c *ResponseChunkToNativeResponseChunkConverter) buildOutputItemDoneCodeInterpreterCall(code string, output string) *responses.ResponseChunk {
+	return &responses.ResponseChunk{
+		OfOutputItemDone: &responses.ChunkOutputItem[constants.ChunkTypeOutputItemDone]{
+			Type:           constants.ChunkTypeOutputItemDone(""),
+			SequenceNumber: c.nextSeqNum(),
+			OutputIndex:    c.outputIndex,
+			Item: responses.ChunkOutputItemData{
+				Type:    "code_interpreter",
+				Id:      c.outputItemID,
+				Status:  "completed",
+				Code:    &code,
+				Outputs: []responses.CodeInterpreterCallOutputParam{{Type: "logs", Logs: output}},
 			},
 		},
 	}

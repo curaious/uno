@@ -59,14 +59,38 @@ type HistoryConfig struct {
 	Summarizer *SummarizerConfig `json:"summarizer,omitempty"` // Required when enabled is true
 }
 
+// ToolConfig represents tools enabled and their parameters
+type ToolConfig struct {
+	ImageGeneration *ImageGenerationToolConfig `json:"image_generation,omitempty"`
+	WebSearch       *WebSearchToolConfig       `json:"web_search,omitempty"`
+	CodeExecution   *CodeExecutionToolConfig   `json:"code_execution,omitempty"`
+}
+
+// ImageGenerationToolConfig represents parameters for the image generation tool
+type ImageGenerationToolConfig struct {
+	Enabled bool `json:"enabled"`
+}
+
+// WebSearchToolConfig represents parameters for the web search tool
+type WebSearchToolConfig struct {
+	Enabled bool `json:"enabled"`
+}
+
+// CodeExecutionToolConfig represents parameters for the code execution tool
+type CodeExecutionToolConfig struct {
+	Enabled bool `json:"enabled"`
+}
+
 // AgentConfigData represents the complete JSON configuration stored in the config column
 type AgentConfigData struct {
-	Runtime    *string           `json:"runtime,omitempty"` // "Local", "Restate", or "Temporal"
-	Model      *ModelConfig      `json:"model,omitempty"`
-	Prompt     *PromptConfig     `json:"prompt,omitempty"`
-	Schema     *SchemaConfig     `json:"schema,omitempty"`
-	MCPServers []MCPServerConfig `json:"mcp_servers,omitempty"`
-	History    *HistoryConfig    `json:"history,omitempty"`
+	MaxIteration *int              `json:"max_iteration,omitempty"`
+	Runtime      *string           `json:"runtime,omitempty"` // "Local", "Restate", or "Temporal"
+	Model        *ModelConfig      `json:"model,omitempty"`
+	Prompt       *PromptConfig     `json:"prompt,omitempty"`
+	Schema       *SchemaConfig     `json:"schema,omitempty"`
+	MCPServers   []MCPServerConfig `json:"mcp_servers,omitempty"`
+	History      *HistoryConfig    `json:"history,omitempty"`
+	Tools        *ToolConfig       `json:"tools,omitempty"`
 }
 
 // Scan implements the sql.Scanner interface for database/sql

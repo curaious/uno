@@ -32,6 +32,7 @@ type AgentOptions struct {
 	Parameters  responses.Parameters
 	Instruction core.SystemPromptProvider
 	McpServers  []agents.MCPToolset
+	MaxLoops    *int
 }
 
 func (c *SDK) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -108,6 +109,7 @@ func (c *SDK) NewRestateAgent(options *AgentOptions) *agents.Agent {
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
 		Runtime:     restate_runtime.NewRestateRuntime(c.restateConfig.Endpoint, c.redisBroker),
+		MaxLoops:    options.MaxLoops,
 	})
 
 	c.agents[options.Name] = agent
@@ -120,6 +122,7 @@ func (c *SDK) NewRestateAgent(options *AgentOptions) *agents.Agent {
 		Tools:       options.Tools,
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
+		MaxLoops:    options.MaxLoops,
 	}
 
 	return agent
@@ -148,6 +151,7 @@ func (c *SDK) NewTemporalAgent(options *AgentOptions) *agents.Agent {
 		Instruction: options.Instruction,
 		McpServers:  options.McpServers,
 		Runtime:     temporal_runtime.NewTemporalRuntime(c.temporalConfig.Endpoint, c.redisBroker),
+		MaxLoops:    options.MaxLoops,
 	})
 
 	c.agents[options.Name] = agent

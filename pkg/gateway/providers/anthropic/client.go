@@ -59,9 +59,20 @@ func (c *Client) NewResponses(ctx context.Context, inp *responses.Request) (*res
 
 	req.Header.Set("x-api-key", c.opts.ApiKey)
 	req.Header.Set("Anthropic-Version", "2023-06-01")
+
+	var betaHeaders []string
 	if anthropicRequest.OutputFormat != nil {
-		req.Header.Set("Anthropic-Beta", "structured-outputs-2025-11-13")
+		betaHeaders = append(betaHeaders, "structured-outputs-2025-11-13")
 	}
+	for _, t := range anthropicRequest.Tools {
+		if t.OfCodeExecutionTool != nil {
+			betaHeaders = append(betaHeaders, "code-execution-2025-08-25")
+		}
+	}
+	if betaHeaders != nil && len(betaHeaders) > 0 {
+		req.Header.Set("anthropic-beta", strings.Join(betaHeaders, ","))
+	}
+
 	for k, v := range c.opts.Headers {
 		req.Header.Set(k, v)
 	}
@@ -101,8 +112,17 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", c.opts.ApiKey)
 	req.Header.Set("Anthropic-Version", "2023-06-01")
+	var betaHeaders []string
 	if anthropicRequest.OutputFormat != nil {
-		req.Header.Set("Anthropic-Beta", "structured-outputs-2025-11-13")
+		betaHeaders = append(betaHeaders, "structured-outputs-2025-11-13")
+	}
+	for _, t := range anthropicRequest.Tools {
+		if t.OfCodeExecutionTool != nil {
+			betaHeaders = append(betaHeaders, "code-execution-2025-08-25")
+		}
+	}
+	if betaHeaders != nil && len(betaHeaders) > 0 {
+		req.Header.Set("anthropic-beta", strings.Join(betaHeaders, ","))
 	}
 	for k, v := range c.opts.Headers {
 		req.Header.Set(k, v)

@@ -70,6 +70,9 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 		mcpProxies = append(mcpProxies, mcpClient)
 	}
 
+	// Tools
+	toolList := BuildToolsList(agentConfig.Config.Tools)
+
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{
 		Name:        agentConfig.Name,
@@ -79,7 +82,8 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 		Output:      outputFormat,
 		History:     cm,
 		McpServers:  mcpProxies,
-		Tools:       nil,
+		Tools:       toolList,
 		Runtime:     nil,
+		MaxLoops:    agentConfig.Config.MaxIteration,
 	}).Execute(ctx, in)
 }
