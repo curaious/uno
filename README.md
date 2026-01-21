@@ -4,7 +4,7 @@ This project provides primarily two things:
     * [Make LLM calls](https://github.com/curaious/uno?tab=readme-ov-file#making-llm-calls) to various provide using an unified interface.
     * [Build agents](https://github.com/curaious/uno?tab=readme-ov-file#building-agents) with custom tools, mcp servers, memory, and durable execution.
 
-* [AI Gateway](https://github.com/curaious/uno?tab=readme-ov-file#gateway-server) for managing access and rate limiting LLM calls with observability, and building and deploying agents without writing code with observability.
+* [AI Gateway](https://github.com/curaious/uno?tab=readme-ov-file#ai-gateway) for managing access and rate limiting LLM calls with observability, and building and deploying agents without writing code with observability.
 
 ## Golang SDK
 
