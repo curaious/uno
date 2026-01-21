@@ -183,8 +183,10 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 						geminiChunk := &gemini_responses.Response{}
 						err = sonic.Unmarshal([]byte(data.String()), &geminiChunk)
 						if err == nil {
-							fmt.Println(data.String())
+							//fmt.Println("---\nGemini chunk -> " + strings.TrimPrefix(data.String(), "data:"))
 							for _, nativeChunk := range converter.ResponseChunkToNativeResponseChunk(geminiChunk) {
+								//d, _ := sonic.Marshal(nativeChunk)
+								//fmt.Println("\t\t <- Native Chunk" + string(d))
 								out <- nativeChunk
 							}
 						}
@@ -196,6 +198,8 @@ func (c *Client) NewStreamingResponses(ctx context.Context, inp *responses.Reque
 
 			if err != nil {
 				for _, nativeChunk := range converter.ResponseChunkToNativeResponseChunk(nil) {
+					//d, _ := sonic.Marshal(nativeChunk)
+					//fmt.Println("\t\t <- Native Chunk" + string(d))
 					out <- nativeChunk
 				}
 				return
@@ -393,8 +397,10 @@ func (c *Client) NewStreamingSpeech(ctx context.Context, inp *speech.Request) (c
 						geminiChunk := &gemini_speech.Response{}
 						err = sonic.Unmarshal([]byte(data.String()), &geminiChunk)
 						if err == nil {
-							fmt.Println(data.String())
+							//fmt.Println("---\nGemini chunk -> " + strings.TrimPrefix(data.String(), "data:"))
 							for _, nativeChunk := range converter.ResponseChunkToNativeResponseChunk(geminiChunk) {
+								//d, _ := sonic.Marshal(nativeChunk)
+								//fmt.Println("\t\t <- Native Chunk" + string(d))
 								out <- nativeChunk
 							}
 						}

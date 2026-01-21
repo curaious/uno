@@ -704,7 +704,8 @@ type ChunkCodeInterpreterCall[T any] struct {
 	Obfuscation *string `json:"obfuscation,omitempty"`
 
 	// Only on response.code_interpreter_call_code.done
-	Code *string `json:"code,omitempty"`
+	Code             *string `json:"code,omitempty"`
+	ThoughtSignature *string `json:"thought_signature,omitempty"` // Only for Gemini
 }
 
 type ChunkResponseUsage struct {
