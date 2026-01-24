@@ -236,7 +236,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 
 		case "Temporal":
 			if temporalClient == nil {
-				err = errors.New("restate runtime is not enabled")
+				err = errors.New("temporal runtime is not enabled")
 				RecordSpanError(span, err)
 				writeError(reqCtx, ctx, err.Error(), perrors.NewErrInternalServerError(err.Error(), err))
 				return

@@ -44,8 +44,8 @@ var ProviderModels = map[llm.ProviderName][]string{
 	llm.ProviderNameXAI: {
 		"grok-4",
 		"grok-4-heavy",
-		"grok-4.1-fast-reasoning",
-		"grok-4.1-fast-non-reasoning",
+		"grok-4-1-fast-reasoning",
+		"grok-4-1-fast-non-reasoning",
 		"grok-4-fast-reasoning",
 		"grok-4-fast-non-reasoning",
 		"grok-3",
