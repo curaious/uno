@@ -1,0 +1,65 @@
+replicaCount: 1
+
+image:
+  repository: praveenraj9495/uno-gateway
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 6060
+
+podAnnotations: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Connection to infra (override if release/name differ)
+infra:
+  postgresql: "uno-infra-postgresql:5432"
+  redis: "uno-infra-redis:6379"
+  clickhouse: "uno-infra-clickhouse:8123"
+  otelCollector: "uno-infra-otel-collector:4318"
+
+config:
+  db:
+    name: "uno"
+    username: "postgres"
+    password: "postgres"
+    disableTLS: "true"
+  clickhouse:
+    database: "otel"
+    username: "default"
+    password: ""
+    useTLS: false
+
+# Sandbox configuration
+sandbox:
+  enabled: true
+  namespace: "uno-sandbox"
+  image: "praveenraj9495/uno-sandbox:latest"
+  resources:
+    cpu: "1"
+    memory: "2Gi"
+

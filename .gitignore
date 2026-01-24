@@ -1,6 +1,6 @@
 .env
 /node_modules/
-/deployments/helm
+/deployments/helm/uno-infra
 traces.txt
 .idea
 /playground/

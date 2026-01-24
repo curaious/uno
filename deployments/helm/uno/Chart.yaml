@@ -1,0 +1,7 @@
+apiVersion: v2
+name: uno
+description: Application chart for uno agent-server
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+

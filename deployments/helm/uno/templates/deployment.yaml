@@ -1,0 +1,126 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "uno.fullname" . }}
+  labels:
+    {{- include "uno.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "uno.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "uno.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "uno.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: {{ .Chart.Name }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 6060
+              protocol: TCP
+          env:
+            {{- $pg := splitList ":" .Values.infra.postgresql }}
+            {{- $pgHost := index $pg 0 }}
+            {{- $pgPort := default "5432" (index $pg 1) }}
+            {{- $ch := splitList ":" .Values.infra.clickhouse }}
+            {{- $chHost := index $ch 0 }}
+            {{- $chPort := default "8123" (index $ch 1) }}
+            {{- $redis := splitList ":" .Values.infra.redis }}
+            {{- $redisHost := index $redis 0 }}
+            {{- $redisPort := default "6379" (index $redis 1) }}
+            - name: DB_HOST
+              value: {{ $pgHost | quote }}
+            - name: DB_PORT
+              value: {{ $pgPort | quote }}
+            - name: DB_NAME
+              value: {{ .Values.config.db.name | quote }}
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "uno.secretName" . }}
+                  key: db-username
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "uno.secretName" . }}
+                  key: db-password
+            - name: DISABLE_TLS
+              value: {{ .Values.config.db.disableTLS | quote }}
+            - name: REDIS_HOST
+              value: {{ $redisHost | quote }}
+            - name: REDIS_PORT
+              value: {{ $redisPort | quote }}
+            - name: CLICKHOUSE_HOST
+              value: {{ $chHost | quote }}
+            - name: CLICKHOUSE_PORT
+              value: {{ $chPort | quote }}
+            - name: CLICKHOUSE_DATABASE
+              value: {{ .Values.config.clickhouse.database | quote }}
+            - name: CLICKHOUSE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "uno.secretName" . }}
+                  key: clickhouse-username
+            - name: CLICKHOUSE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "uno.secretName" . }}
+                  key: clickhouse-password
+            - name: CLICKHOUSE_USE_TLS
+              value: {{ .Values.config.clickhouse.useTLS | toString | quote }}
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ printf "http://%s" .Values.infra.otelCollector | quote }}
+            - name: SANDBOX_ENABLED
+              value: {{ .Values.sandbox.enabled | toString | quote }}
+            - name: SANDBOX_NAMESPACE
+              value: {{ .Values.sandbox.namespace | quote }}
+            - name: SANDBOX_IMAGE
+              value: {{ .Values.sandbox.image | quote }}
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+
