@@ -144,6 +144,15 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			return
 		}
 
+		if reqPayload.PreviousMessageID == "" {
+			_, err = svc.Sandbox.CreateSandbox(ctx, "praveenraj9495/uno-gateway:latest", uuid.NewString())
+			if err != nil {
+				RecordSpanError(span, err)
+				writeError(reqCtx, ctx, "unable to create new sandbox", perrors.NewErrInternalServerError(err.Error(), err))
+				return
+			}
+		}
+
 		span.SetAttributes(
 			attribute.String("project_id", projectIDStr),
 			attribute.String("agent_id", agentIDStr),

@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .Values.sandbox.namespace }}
+  labels:
+    app.kubernetes.io/name: {{ include "uno.name" . }}-sandbox
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "uno.fullname" . }}-sandbox-manager
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "uno.labels" . | nindent 4 }}
+    component: sandbox
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "uno.fullname" . }}-sandbox-manager
+  namespace: {{ .Values.sandbox.namespace }}
+  labels:
+    {{- include "uno.labels" . | nindent 4 }}
+    component: sandbox
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "uno.fullname" . }}-sandbox-manager
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "uno.serviceAccountName" . }}
+    namespace: {{ .Release.Namespace }}
+

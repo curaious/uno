@@ -13,6 +13,8 @@ import (
 	traces2 "github.com/curaious/uno/internal/services/traces"
 	user2 "github.com/curaious/uno/internal/services/user"
 	virtual_key2 "github.com/curaious/uno/internal/services/virtual_key"
+	"github.com/curaious/uno/pkg/sandbox"
+	"github.com/curaious/uno/pkg/sandbox/docker_sandbox"
 )
 
 type Services struct {
@@ -23,6 +25,7 @@ type Services struct {
 	Conversation *conversation2.ConversationService
 	VirtualKey   *virtual_key2.VirtualKeyService
 	Traces       *traces2.TracesService
+	Sandbox      sandbox.Manager
 	User         *user2.UserService
 }
 
@@ -47,7 +50,7 @@ func NewServices(conf *config.Config) *Services {
 		}
 	}
 
-	return &Services{
+	svc := &Services{
 		Provider:     provider2.NewProviderService(provider2.NewProviderRepo(dbconn)),
 		VirtualKey:   virtual_key2.NewVirtualKeyService(virtual_key2.NewVirtualKeyRepo(dbconn)),
 		Project:      project2.NewProjectService(project2.NewProjectRepo(dbconn)),
@@ -57,4 +60,20 @@ func NewServices(conf *config.Config) *Services {
 		Traces:       tracesSvc,
 		User:         user2.NewUserService(user2.NewUserRepo(dbconn)),
 	}
+
+	// Initialize sandbox manager if explicitly enabled via environment / helm values.
+	if config.GetEnvOrDefault("SANDBOX_ENABLED", "false") == "true" {
+
+		sMgr := docker_sandbox.NewManager(docker_sandbox.Config{
+			Port: 8080,
+		})
+		svc.Sandbox = sMgr
+
+		slog.Info("Sandbox manager initialized")
+	}
+
+	return svc
 }
+
+// Note: additional helper functions should live in dedicated files to keep
+// this constructor focused on wiring services together.

@@ -101,3 +101,9 @@ func getEnvOrDefault(key, defaultValue string) string {
 	}
 	return defaultValue
 }
+
+// GetEnvOrDefault is an exported helper for other packages that need simple
+// environment access while still being easy to mock in tests.
+func GetEnvOrDefault(key, defaultValue string) string {
+	return getEnvOrDefault(key, defaultValue)
+}
