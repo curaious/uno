@@ -181,6 +181,8 @@ export const AgentBuilderDetail: React.FC = () => {
   const [imageGenerationEnabled, setImageGenerationEnabled] = useState(false);
   const [webSearchEnabled, setWebSearchEnabled] = useState(false);
   const [codeExecutionEnabled, setCodeExecutionEnabled] = useState(false);
+  const [sandboxEnabled, setSandboxEnabled] = useState(false);
+  const [sandboxDockerImage, setSandboxDockerImage] = useState<string>('');
 
   const loadConfig = useCallback(async () => {
     if (!id || isNew) return;
@@ -250,6 +252,8 @@ export const AgentBuilderDetail: React.FC = () => {
       setImageGenerationEnabled(tools.image_generation?.enabled || false);
       setWebSearchEnabled(tools.web_search?.enabled || false);
       setCodeExecutionEnabled(tools.code_execution?.enabled || false);
+      setSandboxEnabled(tools.sandbox?.enabled || false);
+      setSandboxDockerImage(tools.sandbox?.docker_image || '');
     } catch (err: any) {
       const errorMessage = err.response?.data?.message ||
         err.response?.data?.errorDetails?.message ||
@@ -374,17 +378,19 @@ export const AgentBuilderDetail: React.FC = () => {
     const toolsChanged = 
       imageGenerationEnabled !== (originalTools.image_generation?.enabled || false) ||
       webSearchEnabled !== (originalTools.web_search?.enabled || false) ||
-      codeExecutionEnabled !== (originalTools.code_execution?.enabled || false);
+      codeExecutionEnabled !== (originalTools.code_execution?.enabled || false) ||
+      sandboxEnabled !== (originalTools.sandbox?.enabled || false) ||
+      sandboxDockerImage.trim() !== (originalTools.sandbox?.docker_image || '');
 
     if (isNew) {
       // For new agents, has changes if name or config is set or any tool is enabled
-      const hasToolEnabled = imageGenerationEnabled || webSearchEnabled || codeExecutionEnabled;
-      setHasChanges(agentName.trim() !== '' || JSON.stringify(formData) !== '{}' || hasToolEnabled);
+      const hasToolEnabled = imageGenerationEnabled || webSearchEnabled || codeExecutionEnabled || sandboxEnabled;
+      setHasChanges(agentName.trim() !== '' || JSON.stringify(formData) !== '{}' || hasToolEnabled || sandboxDockerImage.trim() !== '');
     } else {
       const changed = JSON.stringify(formData) !== JSON.stringify(originalData) || toolsChanged;
       setHasChanges(changed);
     }
-  }, [formData, originalData, isNew, agentName, imageGenerationEnabled, webSearchEnabled, codeExecutionEnabled]);
+  }, [formData, originalData, isNew, agentName, imageGenerationEnabled, webSearchEnabled, codeExecutionEnabled, sandboxEnabled, sandboxDockerImage]);
 
   // Sync model parameters to formData
   useEffect(() => {
@@ -483,6 +489,15 @@ export const AgentBuilderDetail: React.FC = () => {
           enabled: true
         };
       }
+      
+      if (sandboxEnabled) {
+        tools.sandbox = {
+          // Preserve existing config if it exists, then override enabled
+          ...(prev.tools?.sandbox || {}),
+          enabled: true,
+          docker_image: sandboxDockerImage.trim() || undefined
+        };
+      }
 
       // Only add tools to formData if at least one is enabled
       return {
@@ -490,7 +505,7 @@ export const AgentBuilderDetail: React.FC = () => {
         tools: Object.keys(tools).length > 0 ? tools : undefined
       };
     });
-  }, [imageGenerationEnabled, webSearchEnabled, codeExecutionEnabled]);
+  }, [imageGenerationEnabled, webSearchEnabled, codeExecutionEnabled, sandboxEnabled, sandboxDockerImage]);
 
   const handleSave = async () => {
     // Build tools config from current state
@@ -517,6 +532,15 @@ export const AgentBuilderDetail: React.FC = () => {
         // Preserve existing config if it exists, then override enabled
         ...(formData.tools?.code_execution || {}),
         enabled: true
+      };
+    }
+    
+    if (sandboxEnabled) {
+      tools.sandbox = {
+        // Preserve existing config if it exists, then override enabled
+        ...(formData.tools?.sandbox || {}),
+        enabled: true,
+        docker_image: sandboxDockerImage.trim() || undefined
       };
     }
 
@@ -2058,6 +2082,42 @@ export const AgentBuilderDetail: React.FC = () => {
                 />
               </Box>
             </ConfigSection>
+
+            <ConfigSection>
+              <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                <Box>
+                  <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+                    Sandbox Tool
+                  </Typography>
+                  <Typography variant="body2" sx={{ color: 'var(--text-secondary)', fontSize: '12px' }}>
+                    Enable sandbox environment for running bash commands
+                  </Typography>
+                </Box>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={sandboxEnabled}
+                      onChange={(e) => setSandboxEnabled(e.target.checked)}
+                    />
+                  }
+                  label={sandboxEnabled ? 'Enabled' : 'Disabled'}
+                />
+              </Box>
+              {sandboxEnabled && (
+                <Box sx={{ mt: 2 }}>
+                  <InputGroup>
+                    <InputLabel>Docker Container Image (Optional)</InputLabel>
+                    <Input
+                      value={sandboxDockerImage}
+                      onChange={(e) => setSandboxDockerImage(e.target.value)}
+                      placeholder="e.g., ubuntu:22.04, python:3.11"
+                      fullWidth
+                      helperText="Specify a Docker container image to use for the sandbox. Leave empty to use the default image."
+                    />
+                  </InputGroup>
+                </Box>
+              )}
+            </ConfigSection>
           </Box>
         </CustomTabPanel>
 
@@ -2203,6 +2263,8 @@ export const AgentBuilderDetail: React.FC = () => {
                         setImageGenerationEnabled(tools.image_generation?.enabled || false);
                         setWebSearchEnabled(tools.web_search?.enabled || false);
                         setCodeExecutionEnabled(tools.code_execution?.enabled || false);
+                        setSandboxEnabled(tools.sandbox?.enabled || false);
+                        setSandboxDockerImage(tools.sandbox?.docker_image || '');
                         
                         setTabValue(0); // Switch to Agent Info tab
                       } catch (err: any) {

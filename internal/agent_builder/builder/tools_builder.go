@@ -22,7 +22,16 @@ func BuildToolsList(config *agent_config.ToolConfig, svc sandbox.Manager) []core
 	}
 
 	if config.CodeExecution != nil && config.CodeExecution.Enabled {
-		toolList = append(toolList, tools.NewSandboxTool(svc, "uno-sandbox:v6"))
+		toolList = append(toolList, tools.NewCodeExecutionTool())
+	}
+
+	if config.Sandbox != nil && config.Sandbox.Enabled {
+		image := "uno-sandbox:v6"
+		if config.Sandbox.DockerImage != nil {
+			image = *config.Sandbox.DockerImage
+		}
+
+		toolList = append(toolList, tools.NewSandboxTool(svc, image))
 	}
 
 	return toolList

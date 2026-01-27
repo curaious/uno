@@ -61,10 +61,18 @@ export interface CodeExecutionToolConfig {
   [key: string]: any;
 }
 
+export interface SandboxToolConfig {
+  enabled: boolean;
+  docker_image?: string;
+  // Future config options can be added here
+  [key: string]: any;
+}
+
 export interface ToolsConfig {
   image_generation?: ImageGenerationToolConfig;
   web_search?: WebSearchToolConfig;
   code_execution?: CodeExecutionToolConfig;
+  sandbox?: SandboxToolConfig;
 }
 
 export interface AgentConfigData {

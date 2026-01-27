@@ -64,6 +64,7 @@ type ToolConfig struct {
 	ImageGeneration *ImageGenerationToolConfig `json:"image_generation,omitempty"`
 	WebSearch       *WebSearchToolConfig       `json:"web_search,omitempty"`
 	CodeExecution   *CodeExecutionToolConfig   `json:"code_execution,omitempty"`
+	Sandbox         *SandboxToolConfig         `json:"sandbox,omitempty"`
 }
 
 // ImageGenerationToolConfig represents parameters for the image generation tool
@@ -79,6 +80,12 @@ type WebSearchToolConfig struct {
 // CodeExecutionToolConfig represents parameters for the code execution tool
 type CodeExecutionToolConfig struct {
 	Enabled bool `json:"enabled"`
+}
+
+// SandboxToolConfig represents parameters for the sandbox tool
+type SandboxToolConfig struct {
+	Enabled     bool    `json:"enabled"`
+	DockerImage *string `json:"docker_image,omitempty"` // Optional Docker container image
 }
 
 // AgentConfigData represents the complete JSON configuration stored in the config column
