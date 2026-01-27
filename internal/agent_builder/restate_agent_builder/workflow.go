@@ -1,6 +1,7 @@
 package restate_agent_builder
 
 import (
+	"fmt"
 	"log/slog"
 
 	"github.com/bytedance/sonic"
@@ -115,11 +116,11 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 	}
 
 	// Tools
-	toolList := builder.BuildToolsList(in.AgentConfig.Config.Tools)
+	toolList := builder.BuildToolsList(in.AgentConfig.Config.Tools, b.svc.Sandbox)
 
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{
-		Name:        in.AgentConfig.Name,
+		Name:        fmt.Sprintf("%s_%v", in.AgentConfig.Name, in.AgentConfig.Version),
 		Instruction: instruction,
 		Parameters:  modelParams,
 		Output:      outputFormat,

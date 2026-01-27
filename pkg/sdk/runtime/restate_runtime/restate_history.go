@@ -21,6 +21,11 @@ func NewRestateConversationPersistence(restateCtx restate.WorkflowContext, wrapp
 	}
 }
 
+// NewConversationID generates a unique ID for a conversation
+func (t *RestateHistory) NewConversationID(ctx context.Context) string {
+	return restate.UUID(t.restateCtx).String()
+}
+
 func (t *RestateHistory) NewRunID(ctx context.Context) string {
 	return restate.UUID(t.restateCtx).String()
 }

@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/exec"
@@ -20,7 +21,7 @@ const (
 	defaultTimeoutSeconds = 60
 )
 
-type execRequest struct {
+type ExecRequest struct {
 	Command        string            `json:"command,omitempty"`         // for bash
 	Args           []string          `json:"args,omitempty"`            // for bash
 	Script         string            `json:"script,omitempty"`          // for python
@@ -29,7 +30,7 @@ type execRequest struct {
 	Env            map[string]string `json:"env,omitempty"`
 }
 
-type execResponse struct {
+type ExecResponse struct {
 	Stdout        string `json:"stdout"`
 	Stderr        string `json:"stderr"`
 	ExitCode      int    `json:"exit_code"`
@@ -59,7 +60,7 @@ func handleExecBash(w http.ResponseWriter, r *http.Request, root string) {
 		return
 	}
 
-	var req execRequest
+	var req ExecRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"invalid json: %v"}`, err), http.StatusBadRequest)
 		return
@@ -86,7 +87,22 @@ func handleExecBash(w http.ResponseWriter, r *http.Request, root string) {
 	defer cancel()
 
 	start := time.Now()
-	res, err := runCommand(ctx, req.Command, req.Args, workdir, req.Env)
+
+	// Execute through shell to support shell syntax (quotes, pipes, redirections, etc.)
+	// If Args are provided, combine them with the command; otherwise use command as-is
+	var shellCmd string
+	if len(req.Args) > 0 {
+		// Build command with args: "command arg1 arg2 ..."
+		allArgs := append([]string{req.Command}, req.Args...)
+		shellCmd = strings.Join(allArgs, " ")
+	} else {
+		// Use command as-is (may contain shell syntax)
+		shellCmd = req.Command
+	}
+
+	// Use /bin/sh which is available in virtually all containers (POSIX-compliant)
+	// This will work for most shell commands including date with format strings
+	res, err := runCommand(ctx, "/bin/sh", []string{"-c", shellCmd}, workdir, req.Env)
 	if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 		log.Printf("bash exec error: %v", err)
 	}
@@ -107,7 +123,7 @@ func handleExecPython(w http.ResponseWriter, r *http.Request, root string) {
 		return
 	}
 
-	var req execRequest
+	var req ExecRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, fmt.Sprintf(`{"error":"invalid json: %v"}`, err), http.StatusBadRequest)
 		return
@@ -174,9 +190,10 @@ func handleExecPython(w http.ResponseWriter, r *http.Request, root string) {
 	_ = json.NewEncoder(w).Encode(res)
 }
 
-func runCommand(ctx context.Context, name string, args []string, workdir string, env map[string]string) (*execResponse, error) {
+func runCommand(ctx context.Context, name string, args []string, workdir string, env map[string]string) (*ExecResponse, error) {
 	cmd := exec.CommandContext(ctx, name, args...)
 	cmd.Dir = workdir
+	slog.InfoContext(ctx, "working directory:"+workdir)
 
 	cmd.Env = os.Environ()
 	for k, v := range env {
@@ -192,6 +209,7 @@ func runCommand(ctx context.Context, name string, args []string, workdir string,
 		return nil, fmt.Errorf("stderr pipe: %w", err)
 	}
 
+	slog.InfoContext(ctx, "Executing command: "+cmd.String())
 	if err := cmd.Start(); err != nil {
 		return nil, fmt.Errorf("start: %w", err)
 	}
@@ -223,7 +241,7 @@ func runCommand(ctx context.Context, name string, args []string, workdir string,
 			exitCode = exitErr.ExitCode()
 		} else if errors.Is(err, context.DeadlineExceeded) {
 			// distinguish timeout
-			return &execResponse{
+			return &ExecResponse{
 				Stdout:   stdoutBuf.String(),
 				Stderr:   stderrBuf.String(),
 				ExitCode: -1,
@@ -233,7 +251,7 @@ func runCommand(ctx context.Context, name string, args []string, workdir string,
 		}
 	}
 
-	return &execResponse{
+	return &ExecResponse{
 		Stdout:   stdoutBuf.String(),
 		Stderr:   stderrBuf.String(),
 		ExitCode: exitCode,

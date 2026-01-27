@@ -15,7 +15,7 @@ func NewWebSearchTool() *WebSearchTool {
 	return &WebSearchTool{}
 }
 
-func (t *WebSearchTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *WebSearchTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	return nil, nil
 }
 

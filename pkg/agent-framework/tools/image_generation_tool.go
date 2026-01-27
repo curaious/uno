@@ -15,7 +15,7 @@ func NewImageGenerationTool() *ImageGenerationTool {
 	return &ImageGenerationTool{}
 }
 
-func (t *ImageGenerationTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *ImageGenerationTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	return nil, nil
 }
 

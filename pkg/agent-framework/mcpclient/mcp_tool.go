@@ -57,7 +57,7 @@ func NewMcpTool(t mcp.Tool, cli *client.Client, Meta *mcp.Meta, requiresApproval
 	}
 }
 
-func (c *McpTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (c *McpTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	ctx, span := tracer.Start(ctx, "McpTool: "+params.Name)
 	defer span.End()
 

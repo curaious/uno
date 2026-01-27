@@ -10,7 +10,7 @@ import "context"
 // Manager defines the lifecycle operations for sandboxes.
 type Manager interface {
 	// CreateSandbox ensures a sandbox exists for the given session, creating one if needed.
-	CreateSandbox(ctx context.Context, image string, sessionID string) (*SandboxHandle, error)
+	CreateSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*SandboxHandle, error)
 	// GetSandbox returns the handle for an existing sandbox.
 	GetSandbox(ctx context.Context, sessionID string) (*SandboxHandle, error)
 	// DeleteSandbox tears down the sandbox for the given session.

@@ -343,7 +343,12 @@ func (e *Agent) ExecuteWithExecutor(ctx context.Context, in *AgentInput, cb func
 						},
 					}
 				} else {
-					toolResult, err = tool.Execute(ctx, &toolCall)
+					toolResult, err = tool.Execute(ctx, &core.ToolCall{
+						FunctionCallMessage: &toolCall,
+						AgentName:           e.Name,
+						Namespace:           in.Namespace,
+						ConversationID:      run.GetConversationID(),
+					})
 					if err != nil {
 						return &AgentOutput{Status: core.RunStatusError, RunID: runId}, err
 					}

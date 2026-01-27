@@ -23,7 +23,7 @@ func NewAgentTool(t *responses.ToolUnion, agent *agents.Agent) *AgentTool {
 	}
 }
 
-func (t *AgentTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *AgentTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	result, err := t.agent.Execute(ctx, &agents.AgentInput{
 		Messages: []responses.InputMessageUnion{
 			{

@@ -4,9 +4,10 @@ import (
 	"github.com/curaious/uno/internal/services/agent_config"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/tools"
+	"github.com/curaious/uno/pkg/sandbox"
 )
 
-func BuildToolsList(config *agent_config.ToolConfig) []core.Tool {
+func BuildToolsList(config *agent_config.ToolConfig, svc sandbox.Manager) []core.Tool {
 	var toolList []core.Tool
 	if config == nil {
 		return toolList
@@ -21,7 +22,7 @@ func BuildToolsList(config *agent_config.ToolConfig) []core.Tool {
 	}
 
 	if config.CodeExecution != nil && config.CodeExecution.Enabled {
-		toolList = append(toolList, tools.NewCodeExecutionTool())
+		toolList = append(toolList, tools.NewSandboxTool(svc, "uno-sandbox:v6"))
 	}
 
 	return toolList

@@ -4,7 +4,9 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"net/http"
 	"os/exec"
+	"path"
 	"strings"
 	"sync"
 	"time"
@@ -12,11 +14,17 @@ import (
 	"github.com/curaious/uno/pkg/sandbox"
 )
 
+// MountConfig represents a volume mount configuration.
+type MountConfig struct {
+	// Source is the host path to mount.
+	Source string
+	// Destination is the container path where the source will be mounted.
+	Destination string
+}
+
 type Config struct {
 	Network string
-
-	// Port the sandbox daemon listens on inside the pod.
-	Port int
+	RootDir string
 }
 
 type DockerSandboxManager struct {
@@ -27,17 +35,13 @@ type DockerSandboxManager struct {
 }
 
 func NewManager(cfg Config) *DockerSandboxManager {
-	if cfg.Port == 0 {
-		cfg.Port = 8080
-	}
-
 	return &DockerSandboxManager{
 		cfg:       cfg,
 		bySession: make(map[string]*sandbox.SandboxHandle),
 	}
 }
 
-func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, sessionID string) (*sandbox.SandboxHandle, error) {
+func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("sessionID is required")
 	}
@@ -55,23 +59,46 @@ func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, 
 			SessionID: sessionID,
 			PodName:   name,
 			PodIP:     ip,
-			Port:      m.cfg.Port,
 		}
 		m.setCached(h)
 		return h, nil
 	}
 
+	mounts := []MountConfig{
+		{
+			Source:      path.Join(m.cfg.RootDir, agentName, "workspace"),
+			Destination: "/global-workspace",
+		},
+		{
+			Source:      path.Join(m.cfg.RootDir, agentName, "namespaces", namespace, "workspace"),
+			Destination: "/named-workspace",
+		},
+		{
+			Source:      path.Join(m.cfg.RootDir, agentName, "namespaces", namespace, "sessions", sessionID),
+			Destination: "/workspace",
+		},
+	}
+
 	// Build docker run args
-	args := []string{"run", "-d", "--name", name}
+	args := []string{"run", "-w", "/sandbox", "-d", "--name", name}
 	if m.cfg.Network != "" {
 		args = append(args, "--network", m.cfg.Network)
 	}
+
+	// Add volume mounts
+	for _, mount := range mounts {
+		if mount.Source != "" && mount.Destination != "" {
+			args = append(args, "-v", fmt.Sprintf("%s:%s", mount.Source, path.Join("/sandbox", mount.Destination)))
+		}
+	}
+
 	// optional envs
 	args = append(args,
-		"-e", fmt.Sprintf("SANDBOX_PORT=%d", m.cfg.Port),
-		"-e", "SANDBOX_ROOT=/workspace",
+		"-e", "SANDBOX_ROOT=/sandbox/workspace",
 		image,
 	)
+
+	args = append(args, "sandbox-daemon")
 
 	if err := runDocker(ctx, args...); err != nil {
 		return nil, fmt.Errorf("docker run: %w", err)
@@ -100,9 +127,15 @@ func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, 
 		SessionID: sessionID,
 		PodName:   name,
 		PodIP:     ip,
-		Port:      m.cfg.Port,
 	}
 	m.setCached(h)
+
+	for time.Now().Before(deadline) {
+		if resp, err := http.DefaultClient.Get("http://" + ip + ":8080/health"); err == nil && resp.StatusCode == 200 {
+			break
+		}
+		time.Sleep(1 * time.Second)
+	}
 
 	return h, nil
 }

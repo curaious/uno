@@ -26,6 +26,11 @@ func NewInternalConversationPersistence(svc *conversation.ConversationService, p
 	}
 }
 
+// NewConversationID generates a unique ID for a conversation
+func (p *InternalConversationPersistence) NewConversationID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 // NewRunID generates a unique ID for a run
 func (p *InternalConversationPersistence) NewRunID(ctx context.Context) string {
 	return uuid.NewString()

@@ -72,7 +72,7 @@ func NewRestateMCPTool(restateCtx restate.WorkflowContext, wrappedMcpServer agen
 	}
 }
 
-func (t *RestateMCPTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *RestateMCPTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	return restate.Run(t.restateCtx, func(ctx restate.RunContext) (*responses.FunctionCallOutputMessage, error) {
 		mcpTools, err := t.wrappedMcpServer.ListTools(ctx, t.runContext)
 		if err != nil {

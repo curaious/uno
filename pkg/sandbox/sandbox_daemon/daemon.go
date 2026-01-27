@@ -9,16 +9,12 @@ import (
 
 const (
 	defaultPort       = "8080"
-	defaultSandboxDir = "/workspace"
+	defaultSandboxDir = "/sandbox/workspace"
 )
 
 func NewSandboxDaemon() {
 	port := getenv("SANDBOX_PORT", defaultPort)
 	root := getenv("SANDBOX_ROOT", defaultSandboxDir)
-
-	if err := os.MkdirAll(root, 0o755); err != nil {
-		log.Fatalf("failed to create sandbox root dir %s: %v", root, err)
-	}
 
 	mux := http.NewServeMux()
 
