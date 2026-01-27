@@ -3,11 +3,13 @@ package k8s_sandbox
 import (
 	"context"
 	"fmt"
+	"path"
 	"sync"
 	"time"
 
 	"github.com/curaious/uno/pkg/sandbox"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -18,12 +20,19 @@ type Config struct {
 	// Namespace where sandbox pods will be created.
 	Namespace string
 
+	// RootDir is the base directory path for workspace volumes.
+	RootDir string
+
 	// Resource hints (K8s quantities, e.g. "500m", "1Gi").
 	CPU    string
 	Memory string
 
 	// Port the sandbox daemon listens on inside the pod.
 	Port int
+
+	// Storage configuration for PersistentVolumeClaims
+	StorageClass string
+	StorageSize  string // e.g., "10Gi"
 
 	// Optional TTL controls how long to keep idle sandboxes.
 	TTL time.Duration
@@ -49,6 +58,10 @@ func NewManager(cfg Config) (sandbox.Manager, error) {
 		cfg.Port = 8080
 	}
 
+	if cfg.StorageSize == "" {
+		cfg.StorageSize = "50Mi"
+	}
+
 	restCfg, err := rest.InClusterConfig()
 	if err != nil {
 		restCfg, err = rest.InClusterConfig()
@@ -69,7 +82,7 @@ func NewManager(cfg Config) (sandbox.Manager, error) {
 	}, nil
 }
 
-func (m *kubeManager) CreateSandbox(ctx context.Context, image string, sessionID string) (*sandbox.SandboxHandle, error) {
+func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("sessionID is required")
 	}
@@ -94,6 +107,55 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, sessionID
 		return handle, nil
 	}
 
+	// Ensure session workspace PVC exists (only PVC managed by sandbox)
+	workspacePVCName, err := m.ensureSessionPVC(ctx, agentName, namespace, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("ensure session PVC: %w", err)
+	}
+
+	// Shared workspace PVC name (managed by agent orchestrator)
+	sharedWorkspacePVCName := fmt.Sprintf("pvc-%s-workspace", agentName)
+
+	// Create volumes and volume mounts
+	volumes := []corev1.Volume{
+		{
+			Name: "shared-workspace",
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: sharedWorkspacePVCName,
+					ReadOnly:  true,
+				},
+			},
+		},
+		{
+			Name: "workspace",
+			VolumeSource: corev1.VolumeSource{
+				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+					ClaimName: workspacePVCName,
+				},
+			},
+		},
+	}
+
+	volumeMounts := []corev1.VolumeMount{
+		{
+			Name:      "shared-workspace",
+			MountPath: "/sandbox/global-workspace",
+			SubPath:   "workspace",
+			ReadOnly:  true,
+		},
+		{
+			Name:      "shared-workspace",
+			MountPath: "/sandbox/named-workspace",
+			SubPath:   path.Join("namespaces", namespace, "workspace"),
+			ReadOnly:  true,
+		},
+		{
+			Name:      "workspace",
+			MountPath: "/sandbox/workspace",
+		},
+	}
+
 	// Create new pod
 	podSpec := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -108,12 +170,15 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, sessionID
 		},
 		Spec: corev1.PodSpec{
 			RestartPolicy: corev1.RestartPolicyNever,
+			Volumes:       volumes,
 			Containers: []corev1.Container{
 				{
-					Name:  "sandbox",
-					Image: image,
+					Name:         "sandbox",
+					Image:        image,
+					WorkingDir:   "/sandbox",
+					VolumeMounts: volumeMounts,
 					Env: []corev1.EnvVar{
-						{Name: "SANDBOX_ROOT", Value: "/workspace"},
+						{Name: "SANDBOX_ROOT", Value: "/sandbox/workspace"},
 						{Name: "SANDBOX_PORT", Value: fmt.Sprintf("%d", m.cfg.Port)},
 					},
 					Ports: []corev1.ContainerPort{
@@ -212,4 +277,67 @@ func (m *kubeManager) setCached(h *sandbox.SandboxHandle) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.bySession[h.SessionID] = h
+}
+
+// ensureSessionPVC creates or gets the session-specific workspace PVC.
+// The shared workspace PVC (for global and named workspaces) is managed by the agent orchestrator
+// and should already exist. Returns the PVC name for the session workspace.
+func (m *kubeManager) ensureSessionPVC(ctx context.Context, agentName string, namespace string, sessionID string) (string, error) {
+	// Session workspace PVC (unique per session, read-write)
+	workspacePVCName := fmt.Sprintf("pvc-%s-%s-%s-workspace", agentName, namespace, sessionID)
+	if err := m.createOrGetPVC(ctx, workspacePVCName, agentName, path.Join("namespaces", namespace, "sessions", sessionID)); err != nil {
+		return "", fmt.Errorf("workspace PVC: %w", err)
+	}
+
+	return workspacePVCName, nil
+}
+
+// createOrGetPVC creates a PVC if it doesn't exist, or returns the existing one.
+func (m *kubeManager) createOrGetPVC(ctx context.Context, pvcName string, agentName string, subPath string) error {
+	// Check if PVC already exists
+	_, err := m.client.CoreV1().PersistentVolumeClaims(m.cfg.Namespace).Get(ctx, pvcName, metav1.GetOptions{})
+	if err == nil {
+		// PVC exists, return success
+		return nil
+	}
+
+	// Create new PVC
+	storageQuantity, err := resource.ParseQuantity(m.cfg.StorageSize)
+	if err != nil {
+		return fmt.Errorf("invalid storage size %s: %w", m.cfg.StorageSize, err)
+	}
+
+	pvc := &corev1.PersistentVolumeClaim{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      pvcName,
+			Namespace: m.cfg.Namespace,
+			Labels: map[string]string{
+				"app":       "uno-sandbox",
+				"agent":     agentName,
+				"managed":   "uno",
+				"component": "workspace",
+			},
+		},
+		Spec: corev1.PersistentVolumeClaimSpec{
+			AccessModes: []corev1.PersistentVolumeAccessMode{
+				corev1.ReadWriteOnce,
+			},
+			Resources: corev1.VolumeResourceRequirements{
+				Requests: corev1.ResourceList{
+					corev1.ResourceStorage: storageQuantity,
+				},
+			},
+		},
+	}
+
+	if m.cfg.StorageClass != "" {
+		pvc.Spec.StorageClassName = &m.cfg.StorageClass
+	}
+
+	_, err = m.client.CoreV1().PersistentVolumeClaims(m.cfg.Namespace).Create(ctx, pvc, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("create PVC %s: %w", pvcName, err)
+	}
+
+	return nil
 }
