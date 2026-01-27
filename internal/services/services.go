@@ -2,6 +2,8 @@ package services
 
 import (
 	"log/slog"
+	"os"
+	"path"
 
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/db"
@@ -63,9 +65,14 @@ func NewServices(conf *config.Config) *Services {
 
 	// Initialize sandbox manager if explicitly enabled via environment / helm values.
 	if config.GetEnvOrDefault("SANDBOX_ENABLED", "false") == "true" {
+		wd, err := os.Getwd()
+		if err != nil {
+			slog.Warn("Failed to get working directory", slog.Any("error", err))
+			wd = "/"
+		}
 
 		sMgr := docker_sandbox.NewManager(docker_sandbox.Config{
-			Port: 8080,
+			RootDir: path.Join(wd, "sandbox-data"),
 		})
 		svc.Sandbox = sMgr
 
