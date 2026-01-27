@@ -88,6 +88,21 @@ type SandboxToolConfig struct {
 	DockerImage *string `json:"docker_image,omitempty"` // Optional Docker container image
 }
 
+// SkillConfig represents a skill's metadata stored in the agent config
+type SkillConfig struct {
+	Name         string `json:"name"`          // Skill name from SKILL.md frontmatter
+	Description  string `json:"description"`   // Skill description from SKILL.md frontmatter
+	FileLocation string `json:"file_location"` // Path to SKILL.md file relative to sandbox-data
+}
+
+// TempSkillUploadResponse represents the response when uploading a skill to temp folder
+type TempSkillUploadResponse struct {
+	Name        string `json:"name"`         // Skill name parsed from SKILL.md
+	Description string `json:"description"`  // Skill description parsed from SKILL.md
+	TempPath    string `json:"temp_path"`    // Path to the temp folder where skill was extracted
+	SkillFolder string `json:"skill_folder"` // Folder name of the skill (from zip name)
+}
+
 // AgentConfigData represents the complete JSON configuration stored in the config column
 type AgentConfigData struct {
 	MaxIteration *int              `json:"max_iteration,omitempty"`
@@ -98,6 +113,7 @@ type AgentConfigData struct {
 	MCPServers   []MCPServerConfig `json:"mcp_servers,omitempty"`
 	History      *HistoryConfig    `json:"history,omitempty"`
 	Tools        *ToolConfig       `json:"tools,omitempty"`
+	Skills       []SkillConfig     `json:"skills,omitempty"` // Skills attached to this agent
 }
 
 // Scan implements the sql.Scanner interface for database/sql
