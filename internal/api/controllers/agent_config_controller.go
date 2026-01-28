@@ -47,7 +47,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Create sandbox data directory structure for version 0
-		if err := createSandboxDataDirectory(created.Name, created.Version); err != nil {
+		if err := createSandboxDataDirectory(created); err != nil {
 			// Log error but don't fail the request - sandbox data can be created later
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s: %v\n", created.Name, err)
 		}
@@ -242,6 +242,11 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
+		// Ensure sandbox-data/{agentname}/skills exists when config is saved
+		if err := createSandboxDataDirectory(updated); err != nil {
+			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s: %v\n", updated.Name, err)
+		}
+
 		writeOK(ctx, stdCtx, "Agent config updated successfully", updated)
 	})
 
@@ -270,6 +275,11 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		if err != nil {
 			writeError(ctx, stdCtx, "Failed to update agent config", perrors.NewErrInternalServerError("Failed to update agent config", err))
 			return
+		}
+
+		// Ensure sandbox-data/{agentname}/skills exists when config is saved
+		if err := createSandboxDataDirectory(updated); err != nil {
+			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s: %v\n", updated.Name, err)
 		}
 
 		writeOK(ctx, stdCtx, "Agent config updated successfully", updated)
@@ -310,7 +320,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Create sandbox data directory structure for the new version
-		if err := createSandboxDataDirectory(created.Name, created.Version); err != nil {
+		if err := createSandboxDataDirectory(created); err != nil {
 			// Log error but don't fail the request - sandbox data can be created later
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s version %d: %v\n", created.Name, created.Version, err)
 		}
@@ -340,7 +350,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Create sandbox data directory structure for the new version
-		if err := createSandboxDataDirectory(created.Name, created.Version); err != nil {
+		if err := createSandboxDataDirectory(created); err != nil {
 			// Log error but don't fail the request - sandbox data can be created later
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s version %d: %v\n", created.Name, created.Version, err)
 		}
@@ -676,7 +686,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Create temp directory path: sandbox-data/{AgentName}_{AgentVersion}/temp
-		agentDirName := fmt.Sprintf("%s_%d", config.Name, config.Version)
+		agentDirName := config.GetName()
 		tempDir := filepath.Join(wd, "sandbox-data", agentDirName, "temp")
 		if err := os.MkdirAll(tempDir, 0755); err != nil {
 			writeError(ctx, stdCtx, "Failed to create temp directory", perrors.NewErrInternalServerError("Failed to create temp directory", err))
@@ -844,7 +854,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Build the temp skill path
-		agentDirName := fmt.Sprintf("%s_%d", config.Name, config.Version)
+		agentDirName := config.GetName()
 		tempSkillPath := filepath.Join(wd, "sandbox-data", agentDirName, "temp", cleanSkillFolder)
 
 		// Remove the temp skill directory
@@ -899,7 +909,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Build paths
-		agentDirName := fmt.Sprintf("%s_%d", config.Name, config.Version)
+		agentDirName := config.GetName()
 		tempSkillPath := filepath.Join(wd, "sandbox-data", agentDirName, "temp", cleanSkillFolder)
 		skillsDir := filepath.Join(wd, "sandbox-data", agentDirName, "skills")
 		destSkillPath := filepath.Join(skillsDir, cleanSkillFolder)
@@ -979,7 +989,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Build the skill path
-		agentDirName := fmt.Sprintf("%s_%d", config.Name, config.Version)
+		agentDirName := config.GetName()
 		skillPath := filepath.Join(wd, "sandbox-data", agentDirName, "skills", cleanSkillFolder)
 
 		// Remove the skill directory
@@ -994,7 +1004,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 
 // createSandboxDataDirectory creates the sandbox data directory structure for an agent
 // If version > 0, it copies the workspace content from version 0
-func createSandboxDataDirectory(agentName string, version int) error {
+func createSandboxDataDirectory(config *agent_config.AgentConfig) error {
 	// Get working directory
 	wd, err := os.Getwd()
 	if err != nil {
@@ -1002,7 +1012,7 @@ func createSandboxDataDirectory(agentName string, version int) error {
 	}
 
 	// Create agent directory name: {AgentName}_{Version}
-	agentDirName := fmt.Sprintf("%s_%d", agentName, version)
+	agentDirName := config.GetName()
 	agentDir := filepath.Join(wd, "sandbox-data", agentDirName)
 
 	// Create skills directory under workspace
@@ -1012,8 +1022,9 @@ func createSandboxDataDirectory(agentName string, version int) error {
 	}
 
 	// If this is a new version (version > 0), copy workspace and namespaces content from version 0
-	if version > 0 {
-		version0DirName := fmt.Sprintf("%s_0", agentName)
+	if config.Version > 0 {
+		// Use same naming as GetName(): "{name}-{version}" (e.g. "my-agent-0")
+		version0DirName := strings.ToLower(fmt.Sprintf("%s-0", config.Name))
 		version0Dir := filepath.Join(wd, "sandbox-data", version0DirName)
 
 		// Copy skills directory from version 0

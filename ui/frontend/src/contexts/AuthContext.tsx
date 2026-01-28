@@ -59,7 +59,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = () => {
     // Redirect to Auth0 login
-    window.location.href = 'http://localhost:6060/api/auth/login';
+    window.location.href = '/api/auth/login';
   };
 
   const loginWithCredentials = async (email: string, password: string) => {

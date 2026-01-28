@@ -195,7 +195,7 @@ func (s *Server) StartRestateWorker() {
 
 	if err := server.NewRestate().
 		Bind(restate.Reflect(agentBuilder)).
-		Start(context.Background(), s.conf.RESTATE_WORKER_HOST_PORT); err != nil {
+		Start(context.Background(), ":9080"); err != nil {
 		log.Fatal(err)
 	}
 }

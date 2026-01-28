@@ -67,4 +67,28 @@ Create the name of the secret to use
 {{- printf "%s-secret" (include "uno.fullname" .) }}
 {{- end }}
 
+{{/*
+Restate worker fullname and selector labels
+*/}}
+{{- define "uno.restateWorkerFullname" -}}
+{{- printf "%s-restate-worker" (include "uno.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "uno.restateWorkerSelectorLabels" -}}
+{{ include "uno.selectorLabels" . }}
+app.kubernetes.io/component: restate-worker
+{{- end }}
+
+{{/*
+Temporal worker fullname and selector labels
+*/}}
+{{- define "uno.temporalWorkerFullname" -}}
+{{- printf "%s-temporal-worker" (include "uno.fullname" .) | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{- define "uno.temporalWorkerSelectorLabels" -}}
+{{ include "uno.selectorLabels" . }}
+app.kubernetes.io/component: temporal-worker
+{{- end }}
+
 

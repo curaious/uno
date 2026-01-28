@@ -76,6 +76,12 @@ func NewServices(conf *config.Config) *Services {
 		})
 		svc.Sandbox = sMgr
 
+		//kMgr, err := k8s_sandbox.NewManager(k8s_sandbox.Config{})
+		//if err != nil {
+		//	log.Fatal("Failed to create k8s sandbox manager", slog.Any("error", err))
+		//}
+		//svc.Sandbox = kMgr
+
 		slog.Info("Sandbox manager initialized")
 	}
 

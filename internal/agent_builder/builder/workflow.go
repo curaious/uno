@@ -2,7 +2,6 @@ package builder
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/bytedance/sonic"
 	"github.com/curaious/uno/internal/services"
@@ -76,7 +75,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{
-		Name:        fmt.Sprintf("%s_%v", agentConfig.Name, agentConfig.Version),
+		Name:        agentConfig.GetName(),
 		Instruction: instruction,
 		Parameters:  modelParams,
 		LLM:         llmClient,

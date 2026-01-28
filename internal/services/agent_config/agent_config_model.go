@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/curaious/uno/internal/utils"
@@ -152,6 +153,10 @@ type AgentConfig struct {
 	Config    AgentConfigData `json:"config" db:"config"`
 	CreatedAt time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at" db:"updated_at"`
+}
+
+func (c *AgentConfig) GetName() string {
+	return strings.ToLower(fmt.Sprintf("%s-%v", c.Name, c.Version))
 }
 
 // CreateAgentConfigRequest represents the request to create a new agent config

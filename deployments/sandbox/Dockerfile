@@ -1,16 +1,21 @@
 # Multi-stage build for sandbox daemon with Python runtime
 
-FROM golang:1.22-bullseye AS builder
+FROM golang:1.25.3-alpine AS builder
 
-WORKDIR /src
+ARG TARGETOS
+ARG TARGETARCH
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache git ca-certificates
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
 
-WORKDIR /src/cmd/sandbox-daemon
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o /out/sandbox-daemon .
+RUN CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH} go build -ldflags="-w -s" -o /app/uno .
 
 FROM python:3.11-slim
 
@@ -42,9 +47,11 @@ RUN apt-get update && \
       jq && \
     rm -rf /var/lib/apt/lists/*
 
-COPY --from=builder /out/sandbox-daemon /usr/local/bin/sandbox-daemon
+# Copy backend binary
+COPY --from=builder /app/uno /app/uno
 
 EXPOSE 8080
 
-ENTRYPOINT ["/usr/local/bin/sandbox-daemon"]
+ENTRYPOINT ["/app/uno"]
+CMD ["sandbox-daemon"]
 

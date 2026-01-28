@@ -1,7 +1,5 @@
 package k8s_sandbox
 
-import "time"
-
 // ExecResult is the normalized result of a command execution in the sandbox.
 type ExecResult struct {
 	Stdout        string `json:"stdout"`

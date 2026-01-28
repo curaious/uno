@@ -2,7 +2,6 @@ package temporal_agent_builder
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/bytedance/sonic"
@@ -89,7 +88,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *a
 
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{
-		Name:        fmt.Sprintf("%s_%v", agentConfig.Name, agentConfig.Version),
+		Name:        agentConfig.GetName(),
 		Instruction: instruction,
 		Parameters:  modelParams,
 		Output:      outputFormat,

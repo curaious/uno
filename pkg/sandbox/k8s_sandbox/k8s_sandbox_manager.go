@@ -3,6 +3,7 @@ package k8s_sandbox
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"path"
 	"sync"
 	"time"
@@ -33,9 +34,6 @@ type Config struct {
 	// Storage configuration for PersistentVolumeClaims
 	StorageClass string
 	StorageSize  string // e.g., "10Gi"
-
-	// Optional TTL controls how long to keep idle sandboxes.
-	TTL time.Duration
 }
 
 // kubeManager is a Kubernetes-backed implementation of Manager.
@@ -51,7 +49,7 @@ type kubeManager struct {
 // configuration by default, falling back to the default rest config.
 func NewManager(cfg Config) (sandbox.Manager, error) {
 	if cfg.Namespace == "" {
-		cfg.Namespace = "uno-sandbox"
+		cfg.Namespace = "uno"
 	}
 
 	if cfg.Port == 0 {
@@ -114,7 +112,7 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 	}
 
 	// Shared workspace PVC name (managed by agent orchestrator)
-	sharedWorkspacePVCName := fmt.Sprintf("pvc-%s-workspace", agentName)
+	sharedWorkspacePVCName := fmt.Sprintf("pvc-shared-workspace")
 
 	// Create volumes and volume mounts
 	volumes := []corev1.Volume{
@@ -140,15 +138,8 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 	volumeMounts := []corev1.VolumeMount{
 		{
 			Name:      "shared-workspace",
-			MountPath: "/sandbox/global-workspace",
-			SubPath:   "workspace",
-			ReadOnly:  true,
-		},
-		{
-			Name:      "shared-workspace",
-			MountPath: "/sandbox/named-workspace",
-			SubPath:   path.Join("namespaces", namespace, "workspace"),
-			ReadOnly:  true,
+			MountPath: "/sandbox/skills",
+			SubPath:   agentName + "/skills",
 		},
 		{
 			Name:      "workspace",
@@ -248,6 +239,7 @@ func (m *kubeManager) waitForRunning(ctx context.Context, podName string) (*core
 	defer ticker.Stop()
 
 	timeout := time.After(2 * time.Minute)
+	deadline := time.Now().Add(2 * time.Minute)
 
 	for {
 		select {
@@ -261,6 +253,13 @@ func (m *kubeManager) waitForRunning(ctx context.Context, podName string) (*core
 				continue
 			}
 			if pod.Status.Phase == corev1.PodRunning && pod.Status.PodIP != "" {
+				for time.Now().Before(deadline) {
+					if resp, err := http.DefaultClient.Get("http://" + pod.Status.PodIP + ":8080/health"); err == nil && resp.StatusCode == 200 {
+						break
+					}
+					time.Sleep(1 * time.Second)
+				}
+
 				return pod, nil
 			}
 		}

@@ -80,12 +80,12 @@ func RecordSpanError(span trace.Span, err error) {
 
 func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
 	var temporalClient client.Client
-	if strings.Contains(conf.RUNTIME_ENABLED, "temporal") {
+	if conf.TEMPORAL_SERVER_HOST_PORT != "" {
 		temporalClient = getTemporalClient(conf)
 	}
 
 	var restateClient *ingress.Client
-	if strings.Contains(conf.RUNTIME_ENABLED, "restate") {
+	if conf.RESTATE_SERVER_ENDPOINT != "" {
 		restateClient = ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT, restate.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}))
 	}
 
