@@ -28,14 +28,14 @@ func NewSandboxTool(svc sandbox.Manager, image string) *SandboxTool {
 		BaseTool: &core.BaseTool{
 			ToolUnion: responses.ToolUnion{
 				OfFunction: &responses.FunctionTool{
-					Name:        "run_bash_code",
-					Description: utils.Ptr("Execute bash code and get the output"),
+					Name:        "execute_bash_commands",
+					Description: utils.Ptr("Execute bash command and get the output"),
 					Parameters: map[string]any{
 						"type": "object",
 						"properties": map[string]any{
 							"code": map[string]any{
 								"type":        "string",
-								"description": "bash code that needs to be executed",
+								"description": "bash command to be executed",
 							},
 						},
 						"required": []string{"code"},

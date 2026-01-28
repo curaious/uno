@@ -66,12 +66,8 @@ func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, 
 
 	mounts := []MountConfig{
 		{
-			Source:      path.Join(m.cfg.RootDir, agentName, "workspace"),
-			Destination: "/global-workspace",
-		},
-		{
-			Source:      path.Join(m.cfg.RootDir, agentName, "namespaces", namespace, "workspace"),
-			Destination: "/named-workspace",
+			Source:      path.Join(m.cfg.RootDir, agentName, "skills"),
+			Destination: "/skills",
 		},
 		{
 			Source:      path.Join(m.cfg.RootDir, agentName, "namespaces", namespace, "sessions", sessionID),

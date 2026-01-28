@@ -117,14 +117,14 @@ func skillsToPrompts(skills []core.Skill) string {
 	var p strings.Builder
 
 	p.WriteString("<available_skills>")
-	p.WriteString("<usage>To use the skill, read the file using run_bash_code tool</usage>")
+	p.WriteString("<usage>To use the skill, read the file using execute_bash_commands tool</usage>")
 
 	for _, skill := range skills {
 		p.WriteString("<skill>")
 
 		p.WriteString(fmt.Sprintf("<name>%s</name>", skill.Name))
 		p.WriteString(fmt.Sprintf("<description>%s</description>", skill.Description))
-		p.WriteString(fmt.Sprintf("<location>%s</location>", skill.FileLocation))
+		p.WriteString(fmt.Sprintf("<location>/sandbox/skills/%s/SKILL.md</location>", skill.Name))
 
 		p.WriteString("</skill>")
 	}

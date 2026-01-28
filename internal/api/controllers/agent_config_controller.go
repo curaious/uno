@@ -46,6 +46,12 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
+		// Create sandbox data directory structure for version 0
+		if err := createSandboxDataDirectory(created.Name, created.Version); err != nil {
+			// Log error but don't fail the request - sandbox data can be created later
+			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s: %v\n", created.Name, err)
+		}
+
 		writeOK(ctx, stdCtx, "Agent config created successfully", created)
 	})
 
@@ -303,6 +309,12 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
+		// Create sandbox data directory structure for the new version
+		if err := createSandboxDataDirectory(created.Name, created.Version); err != nil {
+			// Log error but don't fail the request - sandbox data can be created later
+			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s version %d: %v\n", created.Name, created.Version, err)
+		}
+
 		writeOK(ctx, stdCtx, "Agent config version created successfully", created)
 	})
 
@@ -325,6 +337,12 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		if err != nil {
 			writeError(ctx, stdCtx, "Failed to create agent config version", perrors.NewErrInternalServerError("Failed to create agent config version", err))
 			return
+		}
+
+		// Create sandbox data directory structure for the new version
+		if err := createSandboxDataDirectory(created.Name, created.Version); err != nil {
+			// Log error but don't fail the request - sandbox data can be created later
+			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s version %d: %v\n", created.Name, created.Version, err)
 		}
 
 		writeOK(ctx, stdCtx, "Agent config version created successfully", created)
@@ -883,7 +901,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		// Build paths
 		agentDirName := fmt.Sprintf("%s_%d", config.Name, config.Version)
 		tempSkillPath := filepath.Join(wd, "sandbox-data", agentDirName, "temp", cleanSkillFolder)
-		skillsDir := filepath.Join(wd, "sandbox-data", agentDirName, "workspace", "skills")
+		skillsDir := filepath.Join(wd, "sandbox-data", agentDirName, "skills")
 		destSkillPath := filepath.Join(skillsDir, cleanSkillFolder)
 
 		// Check if temp skill exists
@@ -911,7 +929,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Build the relative file location for SKILL.md
-		fileLocation := filepath.Join("sandbox-data", agentDirName, "workspace", "skills", cleanSkillFolder, "SKILL.md")
+		fileLocation := filepath.Join("sandbox-data", agentDirName, "skills", cleanSkillFolder, "SKILL.md")
 
 		writeOK(ctx, stdCtx, "Skill committed successfully", map[string]string{
 			"file_location": fileLocation,
@@ -962,7 +980,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 
 		// Build the skill path
 		agentDirName := fmt.Sprintf("%s_%d", config.Name, config.Version)
-		skillPath := filepath.Join(wd, "sandbox-data", agentDirName, "workspace", "skills", cleanSkillFolder)
+		skillPath := filepath.Join(wd, "sandbox-data", agentDirName, "skills", cleanSkillFolder)
 
 		// Remove the skill directory
 		if err := os.RemoveAll(skillPath); err != nil {
@@ -972,6 +990,110 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 
 		writeOK(ctx, stdCtx, "Skill deleted successfully", nil)
 	})
+}
+
+// createSandboxDataDirectory creates the sandbox data directory structure for an agent
+// If version > 0, it copies the workspace content from version 0
+func createSandboxDataDirectory(agentName string, version int) error {
+	// Get working directory
+	wd, err := os.Getwd()
+	if err != nil {
+		return fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	// Create agent directory name: {AgentName}_{Version}
+	agentDirName := fmt.Sprintf("%s_%d", agentName, version)
+	agentDir := filepath.Join(wd, "sandbox-data", agentDirName)
+
+	// Create skills directory under workspace
+	skillsDir := filepath.Join(agentDir, "skills")
+	if err := os.MkdirAll(skillsDir, 0755); err != nil {
+		return fmt.Errorf("failed to create skills directory: %w", err)
+	}
+
+	// If this is a new version (version > 0), copy workspace and namespaces content from version 0
+	if version > 0 {
+		version0DirName := fmt.Sprintf("%s_0", agentName)
+		version0Dir := filepath.Join(wd, "sandbox-data", version0DirName)
+
+		// Copy skills directory from version 0
+		version0SkillsDir := filepath.Join(version0Dir, "skills")
+		if _, err := os.Stat(version0SkillsDir); err == nil {
+			// Copy skills content from version 0 to new version
+			if err := copyDirectory(version0SkillsDir, skillsDir); err != nil {
+				return fmt.Errorf("failed to copy workspace from version 0: %w", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// copyDirectory recursively copies a directory from source to destination
+func copyDirectory(src, dst string) error {
+	// Get source directory info
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+
+	// Create destination directory with same permissions
+	if err := os.MkdirAll(dst, srcInfo.Mode()); err != nil {
+		return err
+	}
+
+	// Read source directory
+	entries, err := os.ReadDir(src)
+	if err != nil {
+		return err
+	}
+
+	// Copy each entry
+	for _, entry := range entries {
+		srcPath := filepath.Join(src, entry.Name())
+		dstPath := filepath.Join(dst, entry.Name())
+
+		if entry.IsDir() {
+			// Recursively copy subdirectories
+			if err := copyDirectory(srcPath, dstPath); err != nil {
+				return err
+			}
+		} else {
+			// Copy file
+			if err := copyFile(srcPath, dstPath); err != nil {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+// copyFile copies a file from source to destination
+func copyFile(src, dst string) error {
+	// Open source file
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer srcFile.Close()
+
+	// Get source file info for permissions
+	srcInfo, err := srcFile.Stat()
+	if err != nil {
+		return err
+	}
+
+	// Create destination file
+	dstFile, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, srcInfo.Mode())
+	if err != nil {
+		return err
+	}
+	defer dstFile.Close()
+
+	// Copy file content
+	_, err = io.Copy(dstFile, srcFile)
+	return err
 }
 
 // parseSkillMD parses the SKILL.md file and extracts name and description from YAML frontmatter
