@@ -82,7 +82,7 @@ config:
 sandbox:
   enabled: true
   namespace: "uno"
-  image: "uno-sandbox:v6"
+  image: "praveenraj9495/uno-sandbox:latest"
   resources:
     cpu: "1"
     memory: "2Gi"

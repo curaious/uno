@@ -21,3 +21,4 @@ RESTATE_SERVER_ENDPOINT="http://host.docker.internal:8081"
 TEMPORAL_SERVER_HOST_PORT="host.docker.internal:7233"
 
 SANDBOX_ENABLED="true"
+SANDBOX_DEFAULT_IMAGE="praveenraj9495/uno-sandbox"

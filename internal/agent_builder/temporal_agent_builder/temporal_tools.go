@@ -2,6 +2,7 @@ package temporal_agent_builder
 
 import (
 	"context"
+	"os"
 
 	"github.com/curaious/uno/internal/services/agent_config"
 	"github.com/curaious/uno/pkg/agent-framework/core"
@@ -63,7 +64,7 @@ func BuildTemporalToolsList(workflowCtx workflow.Context, config *agent_config.T
 	}
 
 	if config.Sandbox != nil && config.Sandbox.Enabled {
-		image := "uno-sandbox:v6"
+		image := os.Getenv("SANDBOX_DEFAULT_IMAGE")
 		if config.Sandbox.DockerImage != nil {
 			image = *config.Sandbox.DockerImage
 		}

@@ -1,6 +1,8 @@
 package builder
 
 import (
+	"os"
+
 	"github.com/curaious/uno/internal/services/agent_config"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/agent-framework/tools"
@@ -26,7 +28,7 @@ func BuildToolsList(config *agent_config.ToolConfig, svc sandbox.Manager) []core
 	}
 
 	if config.Sandbox != nil && config.Sandbox.Enabled {
-		image := "uno-sandbox:v6"
+		image := os.Getenv("SANDBOX_DEFAULT_IMAGE")
 		if config.Sandbox.DockerImage != nil {
 			image = *config.Sandbox.DockerImage
 		}

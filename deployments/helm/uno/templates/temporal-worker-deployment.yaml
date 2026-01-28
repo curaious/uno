@@ -95,7 +95,7 @@ spec:
               value: {{ .Values.sandbox.enabled | toString | quote }}
             - name: SANDBOX_NAMESPACE
               value: {{ .Values.sandbox.namespace | quote }}
-            - name: SANDBOX_IMAGE
+            - name: SANDBOX_DEFAULT_IMAGE
               value: {{ .Values.sandbox.image | quote }}
           resources:
             {{- toYaml .Values.temporalWorker.resources | nindent 12 }}
