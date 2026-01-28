@@ -177,6 +177,7 @@ func (s *Server) StartTemporalWorker() {
 	w.RegisterActivityWithOptions(agentBuilder.Summarize, activity.RegisterOptions{Name: "Summarize"})
 	w.RegisterActivityWithOptions(agentBuilder.MCPListTools, activity.RegisterOptions{Name: "MCPListTools"})
 	w.RegisterActivityWithOptions(agentBuilder.MCPCallTool, activity.RegisterOptions{Name: "MCPCallTool"})
+	w.RegisterActivityWithOptions(agentBuilder.SandboxTool, activity.RegisterOptions{Name: "SandboxTool"})
 
 	w.RegisterWorkflowWithOptions(agentBuilder.BuildAndExecuteAgent, workflow.RegisterOptions{
 		Name: "AgentBuilder",

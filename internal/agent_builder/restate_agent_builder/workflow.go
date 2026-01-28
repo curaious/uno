@@ -117,6 +117,10 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 
 	// Tools
 	toolList := builder.BuildToolsList(in.AgentConfig.Config.Tools, b.svc.Sandbox)
+	var restateToolList []core.Tool
+	for _, tool := range toolList {
+		restateToolList = append(restateToolList, restate_runtime.NewRestateTool(ctx, tool))
+	}
 
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{
@@ -126,7 +130,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 		Output:      outputFormat,
 		History:     conversationManager,
 		McpServers:  mcpProxies,
-		Tools:       toolList,
+		Tools:       restateToolList,
 		Runtime:     nil,
 		MaxLoops:    in.AgentConfig.Config.MaxIteration,
 	}).WithLLM(llmClient).ExecuteWithExecutor(ctx, in.Input, cb)

@@ -85,11 +85,11 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *a
 	}
 
 	// Tools
-	toolList := builder.BuildToolsList(agentConfig.Config.Tools, b.svc.Sandbox)
+	toolList := BuildTemporalToolsList(ctx, agentConfig.Config.Tools)
 
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{
-		Name:        fmt.Sprintf("%s:%v", agentConfig.Name, agentConfig.Version),
+		Name:        fmt.Sprintf("%s_%v", agentConfig.Name, agentConfig.Version),
 		Instruction: instruction,
 		Parameters:  modelParams,
 		Output:      outputFormat,
