@@ -134,6 +134,7 @@
                       "gateway/agent-builder/model-configuration",
                       "gateway/agent-builder/system-prompt",
                       "gateway/agent-builder/built-in-tools",
+                      "gateway/agent-builder/skills",
                       "gateway/agent-builder/mcp-server",
                       "gateway/agent-builder/structured-output",
                       "gateway/agent-builder/conversation-history",
