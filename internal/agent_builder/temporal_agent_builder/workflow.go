@@ -46,7 +46,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx workflow.Context, agentConfig *a
 	projectID := agentConfig.ProjectID
 
 	// Build prompt
-	instruction := NewTemporalPromptProxy(ctx, projectID, agentConfig.Config.Prompt)
+	instruction := NewTemporalPromptProxy(ctx, projectID, agentConfig.Config.Prompt, agentConfig.Config.Skills)
 
 	// Model Configuration
 	modelParams, err := builder.BuildModelParams(agentConfig.Config.Model)

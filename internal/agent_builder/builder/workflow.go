@@ -31,7 +31,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 	projectID := agentConfig.ProjectID
 
 	// Build prompt
-	instruction := BuildPrompt(b.svc.Prompt, projectID, agentConfig.Config.Prompt)
+	instruction := BuildPrompt(b.svc.Prompt, projectID, agentConfig.Config.Prompt, agentConfig.Config.Skills)
 
 	// Model Configuration
 	modelParams, err := BuildModelParams(agentConfig.Config.Model)

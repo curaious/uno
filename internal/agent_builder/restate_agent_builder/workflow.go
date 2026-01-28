@@ -61,7 +61,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 	projectID := in.AgentConfig.ProjectID
 
 	// Build prompt
-	instruction := restate_runtime.NewRestatePrompt(ctx, builder.BuildPrompt(b.svc.Prompt, projectID, in.AgentConfig.Config.Prompt))
+	instruction := restate_runtime.NewRestatePrompt(ctx, builder.BuildPrompt(b.svc.Prompt, projectID, in.AgentConfig.Config.Prompt, in.AgentConfig.Config.Skills))
 
 	// Model Configuration
 	modelParams, err := builder.BuildModelParams(in.AgentConfig.Config.Model)
