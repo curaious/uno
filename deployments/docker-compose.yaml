@@ -81,7 +81,7 @@ services:
     env_file:
       - env_vars
     environment:
-      SANDBOX_DATA_PATH: ${HOME}/.uno/data
+      DATA_PATH: ${HOME}/.uno/data
     depends_on:
       uno-postgres:
         condition: service_healthy

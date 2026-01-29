@@ -27,7 +27,7 @@ spec:
         {{- toYaml .Values.podSecurityContext | nindent 8 }}
       {{- if .Values.sandbox.enabled }}
       volumes:
-        - name: sandbox-data
+        - name: agent-data
           persistentVolumeClaim:
             claimName: pvc-shared-workspace
       {{- end }}
@@ -39,8 +39,8 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           {{- if .Values.sandbox.enabled }}
           volumeMounts:
-            - name: sandbox-data
-              mountPath: /app/sandbox-data
+            - name: agent-data
+              mountPath: "/data/agent-data"
           {{- end }}
           ports:
             - name: http
@@ -108,6 +108,8 @@ spec:
               value: {{ .Values.sandbox.namespace | quote }}
             - name: SANDBOX_DEFAULT_IMAGE
               value: {{ .Values.sandbox.image | quote }}
+            - name: DATA_PATH
+              value: "/data"
           livenessProbe:
             httpGet:
               path: /api/health

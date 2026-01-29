@@ -21,9 +21,6 @@ type Config struct {
 	// Namespace where sandbox pods will be created.
 	Namespace string
 
-	// RootDir is the base directory path for workspace volumes.
-	RootDir string
-
 	// Resource hints (K8s quantities, e.g. "500m", "1Gi").
 	CPU    string
 	Memory string
@@ -117,7 +114,7 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 	// Create volumes and volume mounts
 	volumes := []corev1.Volume{
 		{
-			Name: "shared-workspace",
+			Name: "agent-data",
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 					ClaimName: sharedWorkspacePVCName,
@@ -126,7 +123,7 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 			},
 		},
 		{
-			Name: "workspace",
+			Name: "session-data",
 			VolumeSource: corev1.VolumeSource{
 				PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
 					ClaimName: workspacePVCName,
@@ -137,13 +134,13 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 
 	volumeMounts := []corev1.VolumeMount{
 		{
-			Name:      "shared-workspace",
-			MountPath: "/sandbox/skills",
+			Name:      "agent-data",
+			MountPath: "/skills",
 			SubPath:   agentName + "/skills",
 		},
 		{
-			Name:      "workspace",
-			MountPath: "/sandbox/workspace",
+			Name:      "session-data",
+			MountPath: "/workspace",
 		},
 	}
 
@@ -166,10 +163,10 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 				{
 					Name:         "sandbox",
 					Image:        image,
-					WorkingDir:   "/sandbox",
+					WorkingDir:   "/workspace",
 					VolumeMounts: volumeMounts,
 					Env: []corev1.EnvVar{
-						{Name: "SANDBOX_ROOT", Value: "/sandbox/workspace"},
+						{Name: "SANDBOX_ROOT", Value: "/workspace"},
 						{Name: "SANDBOX_PORT", Value: fmt.Sprintf("%d", m.cfg.Port)},
 					},
 					Ports: []corev1.ContainerPort{

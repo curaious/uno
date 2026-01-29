@@ -112,7 +112,7 @@ func GetEnvOrDefault(key, defaultValue string) string {
 
 // getDataPath returns the path where data is stored.
 func getDataPath() string {
-	if path := os.Getenv("SANDBOX_DATA_PATH"); path != "" {
+	if path := os.Getenv("DATA_PATH"); path != "" {
 		return path
 	}
 	// Default to ./data (relative to current working directory)
