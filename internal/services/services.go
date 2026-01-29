@@ -1,7 +1,6 @@
 package services
 
 import (
-	"log"
 	"log/slog"
 	"os"
 
@@ -80,11 +79,12 @@ func NewServices(conf *config.Config) *Services {
 		})
 		svc.Sandbox = sMgr
 
-		//kMgr, err := k8s_sandbox.NewManager(k8s_sandbox.Config{})
-		//if err != nil {
-		//	log.Fatal("Failed to create k8s sandbox manager", slog.Any("error", err))
-		//}
-		//svc.Sandbox = kMgr
+		kMgr, err := k8s_sandbox.NewManager(k8s_sandbox.Config{})
+		if err != nil {
+			slog.Info("Failed to create k8s sandbox manager", slog.Any("error", err))
+		} else {
+			svc.Sandbox = kMgr
+		}
 
 		slog.Info("Sandbox manager initialized",
 			slog.String("data_path", sandboxDataPath),
