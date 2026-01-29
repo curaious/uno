@@ -23,8 +23,9 @@ type MountConfig struct {
 }
 
 type Config struct {
-	Network string
-	RootDir string
+	Network         string
+	AgentDataPath   string
+	SessionDataPath string
 }
 
 type DockerSandboxManager struct {
@@ -66,17 +67,17 @@ func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, 
 
 	mounts := []MountConfig{
 		{
-			Source:      path.Join(m.cfg.RootDir, agentName, "skills"),
+			Source:      path.Join(m.cfg.AgentDataPath, agentName, "skills"),
 			Destination: "/skills",
 		},
 		{
-			Source:      path.Join(m.cfg.RootDir, agentName, "namespaces", namespace, "sessions", sessionID),
+			Source:      path.Join(m.cfg.SessionDataPath, sessionID),
 			Destination: "/workspace",
 		},
 	}
 
 	// Build docker run args
-	args := []string{"run", "-w", "/sandbox", "-d", "--name", name}
+	args := []string{"run", "-w", "/workspace", "-d", "--name", name}
 	if m.cfg.Network != "" {
 		args = append(args, "--network", m.cfg.Network)
 	}
@@ -84,13 +85,13 @@ func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, 
 	// Add volume mounts
 	for _, mount := range mounts {
 		if mount.Source != "" && mount.Destination != "" {
-			args = append(args, "-v", fmt.Sprintf("%s:%s", mount.Source, path.Join("/sandbox", mount.Destination)))
+			args = append(args, "-v", fmt.Sprintf("%s:%s", mount.Source, mount.Destination))
 		}
 	}
 
 	// optional envs
 	args = append(args,
-		"-e", "SANDBOX_ROOT=/sandbox/workspace",
+		"-e", "SANDBOX_ROOT=/workspace",
 		image,
 	)
 

@@ -124,7 +124,7 @@ func skillsToPrompts(skills []core.Skill) string {
 
 		p.WriteString(fmt.Sprintf("<name>%s</name>", skill.Name))
 		p.WriteString(fmt.Sprintf("<description>%s</description>", skill.Description))
-		p.WriteString(fmt.Sprintf("<location>/sandbox/skills/%s/SKILL.md</location>", skill.Name))
+		p.WriteString(fmt.Sprintf("<location>/skills/%s/SKILL.md</location>", skill.Name))
 
 		p.WriteString("</skill>")
 	}

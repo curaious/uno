@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+	"path"
+	"path/filepath"
 	"strconv"
 )
 
@@ -43,6 +45,9 @@ type Config struct {
 
 	// Temporal
 	TEMPORAL_SERVER_HOST_PORT string
+
+	// Data Path
+	DATA_PATH string
 }
 
 func ReadConfig() *Config {
@@ -87,6 +92,8 @@ func ReadConfig() *Config {
 		RESTATE_SERVER_ENDPOINT:  os.Getenv("RESTATE_SERVER_ENDPOINT"),
 
 		TEMPORAL_SERVER_HOST_PORT: os.Getenv("TEMPORAL_SERVER_HOST_PORT"),
+
+		DATA_PATH: getDataPath(),
 	}
 }
 
@@ -101,4 +108,24 @@ func getEnvOrDefault(key, defaultValue string) string {
 // environment access while still being easy to mock in tests.
 func GetEnvOrDefault(key, defaultValue string) string {
 	return getEnvOrDefault(key, defaultValue)
+}
+
+// getDataPath returns the path where data is stored.
+func getDataPath() string {
+	if path := os.Getenv("SANDBOX_DATA_PATH"); path != "" {
+		return path
+	}
+	// Default to ./data (relative to current working directory)
+	// This keeps sandbox data in the project root for local development
+	return filepath.Join(".", "data")
+}
+
+// GetAgentDataPath returns the path where agent data is stored.
+func (c *Config) GetAgentDataPath() string {
+	return path.Join(c.DATA_PATH, "agent-data")
+}
+
+// GetSessionDataPath returns the path to use for sandbox session data
+func (c *Config) GetSessionDataPath() string {
+	return path.Join(c.DATA_PATH, "session-data")
 }

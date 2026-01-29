@@ -3,7 +3,6 @@ package services
 import (
 	"log/slog"
 	"os"
-	"path"
 
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/db"
@@ -29,6 +28,8 @@ type Services struct {
 	Traces       *traces2.TracesService
 	Sandbox      sandbox.Manager
 	User         *user2.UserService
+
+	AgentDataPath string
 }
 
 func NewServices(conf *config.Config) *Services {
@@ -53,26 +54,27 @@ func NewServices(conf *config.Config) *Services {
 	}
 
 	svc := &Services{
-		Provider:     provider2.NewProviderService(provider2.NewProviderRepo(dbconn)),
-		VirtualKey:   virtual_key2.NewVirtualKeyService(virtual_key2.NewVirtualKeyRepo(dbconn)),
-		Project:      project2.NewProjectService(project2.NewProjectRepo(dbconn)),
-		Prompt:       prompt2.NewPromptService(prompt2.NewPromptRepo(dbconn)),
-		AgentConfig:  agent_config2.NewAgentConfigService(agent_config2.NewAgentConfigRepo(dbconn)),
-		Conversation: conversation2.NewConversationService(conversation2.NewConversationRepo(dbconn)),
-		Traces:       tracesSvc,
-		User:         user2.NewUserService(user2.NewUserRepo(dbconn)),
+		Provider:      provider2.NewProviderService(provider2.NewProviderRepo(dbconn)),
+		VirtualKey:    virtual_key2.NewVirtualKeyService(virtual_key2.NewVirtualKeyRepo(dbconn)),
+		Project:       project2.NewProjectService(project2.NewProjectRepo(dbconn)),
+		Prompt:        prompt2.NewPromptService(prompt2.NewPromptRepo(dbconn)),
+		AgentConfig:   agent_config2.NewAgentConfigService(agent_config2.NewAgentConfigRepo(dbconn)),
+		Conversation:  conversation2.NewConversationService(conversation2.NewConversationRepo(dbconn)),
+		Traces:        tracesSvc,
+		User:          user2.NewUserService(user2.NewUserRepo(dbconn)),
+		AgentDataPath: conf.GetAgentDataPath(),
 	}
 
 	// Initialize sandbox manager if explicitly enabled via environment / helm values.
 	if config.GetEnvOrDefault("SANDBOX_ENABLED", "false") == "true" {
-		wd, err := os.Getwd()
-		if err != nil {
-			slog.Warn("Failed to get working directory", slog.Any("error", err))
-			wd = "/"
+		sandboxDataPath := conf.GetAgentDataPath()
+		if err := os.MkdirAll(sandboxDataPath, 0755); err != nil {
+			slog.Warn("Failed to create sandbox data directory", slog.String("path", sandboxDataPath), slog.Any("error", err))
 		}
 
 		sMgr := docker_sandbox.NewManager(docker_sandbox.Config{
-			RootDir: path.Join(wd, "sandbox-data"),
+			AgentDataPath:   conf.GetAgentDataPath(),
+			SessionDataPath: conf.GetSessionDataPath(),
 		})
 		svc.Sandbox = sMgr
 
@@ -82,7 +84,9 @@ func NewServices(conf *config.Config) *Services {
 		//}
 		//svc.Sandbox = kMgr
 
-		slog.Info("Sandbox manager initialized")
+		slog.Info("Sandbox manager initialized",
+			slog.String("data_path", sandboxDataPath),
+			slog.String("mount_path", conf.GetSessionDataPath()))
 	}
 
 	return svc
