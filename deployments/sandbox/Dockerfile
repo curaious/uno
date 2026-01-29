@@ -26,16 +26,16 @@ ENV PYTHONUNBUFFERED=1 \
 WORKDIR /workspace
 
 # Common Python packages for data / scripting
-RUN pip install --no-cache-dir \
-    numpy \
-    pandas \
-    requests \
-    httpx \
-    pillow \
-    matplotlib \
-    scipy \
-    scikit-learn \
-    beautifulsoup4
+#RUN pip install --no-cache-dir \
+#    numpy \
+#    pandas \
+#    requests \
+#    httpx \
+#    pillow \
+#    matplotlib \
+#    scipy \
+#    scikit-learn \
+#    beautifulsoup4
 
 # Basic CLI tools
 RUN apt-get update && \
