@@ -9,6 +9,11 @@ import (
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/curaious/uno/pkg/sandbox"
 	"github.com/curaious/uno/pkg/sandbox/daemon"
+	"go.opentelemetry.io/otel"
+)
+
+var (
+	tracer = otel.Tracer("Tools")
 )
 
 type SandboxTool struct {
@@ -48,6 +53,9 @@ func NewSandboxTool(svc sandbox.Manager, image string) *SandboxTool {
 }
 
 func (t *SandboxTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
+	ctx, span := tracer.Start(ctx, "SandboxTool")
+	defer span.End()
+
 	var in Input
 	err := sonic.Unmarshal([]byte(params.Arguments), &in)
 	if err != nil {

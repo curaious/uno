@@ -12,7 +12,14 @@ import (
 	"time"
 
 	"github.com/curaious/uno/pkg/sandbox"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+var tracer = otel.Tracer("SandboxDaemonClient")
 
 // Client talks to a sandbox daemon inside a sandbox pod.
 type Client struct {
@@ -26,15 +33,20 @@ func NewClient(handle *sandbox.SandboxHandle) *Client {
 	return &Client{
 		baseURL: base,
 		httpClient: &http.Client{
-			Timeout: 120 * time.Second,
+			Timeout:   120 * time.Second,
+			Transport: otelhttp.NewTransport(http.DefaultTransport),
 		},
 	}
 }
 
 // RunBashCommand executes a bash command inside the sandbox.
 func (c *Client) RunBashCommand(ctx context.Context, in *ExecRequest) (*ExecResponse, error) {
+	ctx, span := tracer.Start(ctx, "RunBashCommand")
+	defer span.End()
 	var res ExecResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/exec/bash", in, &res); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &res, nil
@@ -42,8 +54,12 @@ func (c *Client) RunBashCommand(ctx context.Context, in *ExecRequest) (*ExecResp
 
 // RunPythonScript executes a Python script inside the sandbox.
 func (c *Client) RunPythonScript(ctx context.Context, in *ExecRequest) (*ExecResponse, error) {
+	ctx, span := tracer.Start(ctx, "RunPythonScript")
+	defer span.End()
 	var res ExecResponse
 	if err := c.doJSON(ctx, http.MethodPost, "/exec/python", in, &res); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &res, nil
@@ -51,8 +67,12 @@ func (c *Client) RunPythonScript(ctx context.Context, in *ExecRequest) (*ExecRes
 
 // ReadFile reads a file from the sandbox filesystem.
 func (c *Client) ReadFile(ctx context.Context, filePath string) (*fileContent, error) {
+	ctx, span := tracer.Start(ctx, "ReadFile", trace.WithAttributes(attribute.String("file.path", filePath)))
+	defer span.End()
 	var out fileContent
 	if err := c.doJSON(ctx, http.MethodGet, "/files/"+url.PathEscape(filePath), nil, &out); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &out, nil
@@ -60,9 +80,13 @@ func (c *Client) ReadFile(ctx context.Context, filePath string) (*fileContent, e
 
 // WriteFile writes content to a file in the sandbox filesystem.
 func (c *Client) WriteFile(ctx context.Context, filePath, content string) (*fileContent, error) {
+	ctx, span := tracer.Start(ctx, "WriteFile", trace.WithAttributes(attribute.String("file.path", filePath)))
+	defer span.End()
 	in := fileContent{Path: filePath, Content: content}
 	var out fileContent
 	if err := c.doJSON(ctx, http.MethodPost, "/files/"+url.PathEscape(filePath), in, &out); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
 	return &out, nil
@@ -70,7 +94,14 @@ func (c *Client) WriteFile(ctx context.Context, filePath, content string) (*file
 
 // DeleteFile deletes a file from the sandbox filesystem.
 func (c *Client) DeleteFile(ctx context.Context, filePath string) error {
-	return c.doJSON(ctx, http.MethodDelete, "/files/"+url.PathEscape(filePath), nil, nil)
+	ctx, span := tracer.Start(ctx, "DeleteFile", trace.WithAttributes(attribute.String("file.path", filePath)))
+	defer span.End()
+	if err := c.doJSON(ctx, http.MethodDelete, "/files/"+url.PathEscape(filePath), nil, nil); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
 }
 
 // doJSON sends a JSON request and decodes a JSON response (if out is non-nil).

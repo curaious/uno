@@ -12,6 +12,12 @@ import (
 	"time"
 
 	"github.com/curaious/uno/pkg/sandbox"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
+)
+
+var (
+	tracer = otel.Tracer("DockerSandbox")
 )
 
 // MountConfig represents a volume mount configuration.
@@ -47,6 +53,20 @@ func (m *DockerSandboxManager) GetAgentDataPath() string {
 }
 
 func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {
+	ctx, span := tracer.Start(ctx, "CreateSandbox")
+	defer span.End()
+
+	h, err := m.createSandbox(ctx, image, agentName, namespace, sessionID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+
+	return h, nil
+}
+
+func (m *DockerSandboxManager) createSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("sessionID is required")
 	}

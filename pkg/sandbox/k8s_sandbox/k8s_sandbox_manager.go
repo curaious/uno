@@ -9,11 +9,17 @@ import (
 	"time"
 
 	"github.com/curaious/uno/pkg/sandbox"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/codes"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
+)
+
+var (
+	tracer = otel.Tracer("K8SSandbox")
 )
 
 // Config defines how sandboxes (pods) are created.
@@ -84,6 +90,20 @@ func (m *kubeManager) GetAgentDataPath() string {
 }
 
 func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {
+	ctx, span := tracer.Start(ctx, "CreateSandbox")
+	defer span.End()
+
+	h, err := m.createSandbox(ctx, image, agentName, namespace, sessionID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+
+	return h, nil
+}
+
+func (m *kubeManager) createSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("sessionID is required")
 	}

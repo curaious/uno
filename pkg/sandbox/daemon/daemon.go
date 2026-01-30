@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"sync"
 	"time"
+
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 const (
@@ -93,8 +95,8 @@ func NewSandboxDaemon() {
 	addr := ":" + port
 	log.Printf("sandbox-daemon listening on %s (root=%s, idle_timeout=%v)", addr, filepath.Clean(root), IdleTimeout)
 
-	// Wrap the entire mux with idle tracking
-	handler := withIdleTracking(tracker, mux)
+	// Wrap with otel HTTP server tracing (extract/inject trace context), then idle tracking
+	handler := otelhttp.NewHandler(withIdleTracking(tracker, mux), "SandboxDaemon", otelhttp.WithServerName("sandbox-daemon"))
 
 	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("sandbox-daemon server error: %v", err)
