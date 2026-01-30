@@ -8,14 +8,19 @@ import (
 	"github.com/google/uuid"
 )
 
+type FileSystem interface {
+	CreateAgentDataDirectory(config *AgentConfig) error
+}
+
 // AgentConfigService handles business logic for agent configs
 type AgentConfigService struct {
 	repo *AgentConfigRepo
+	fs   FileSystem
 }
 
 // NewAgentConfigService creates a new agent config service
-func NewAgentConfigService(repo *AgentConfigRepo) *AgentConfigService {
-	return &AgentConfigService{repo: repo}
+func NewAgentConfigService(repo *AgentConfigRepo, fs FileSystem) *AgentConfigService {
+	return &AgentConfigService{repo: repo, fs: fs}
 }
 
 // Create creates a new agent config with version 0
@@ -40,6 +45,10 @@ func (s *AgentConfigService) Create(ctx context.Context, projectID uuid.UUID, re
 		return nil, fmt.Errorf("failed to create agent config: %w", err)
 	}
 
+	if err = s.fs.CreateAgentDataDirectory(config); err != nil {
+		return nil, fmt.Errorf("failed to create agent data directory: %w", err)
+	}
+
 	return config, nil
 }
 
@@ -54,6 +63,10 @@ func (s *AgentConfigService) UpdateVersion0(ctx context.Context, agentID uuid.UU
 	config, err := s.repo.UpdateVersion0(ctx, agentID, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update agent config: %w", err)
+	}
+
+	if err = s.fs.CreateAgentDataDirectory(config); err != nil {
+		return nil, fmt.Errorf("failed to create agent data directory: %w", err)
 	}
 
 	return config, nil
@@ -76,6 +89,10 @@ func (s *AgentConfigService) CreateVersion(ctx context.Context, agentID uuid.UUI
 	config, err := s.repo.CreateVersion(ctx, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent config version: %w", err)
+	}
+
+	if err = s.fs.CreateAgentDataDirectory(config); err != nil {
+		return nil, fmt.Errorf("failed to create agent data directory: %w", err)
 	}
 
 	return config, nil

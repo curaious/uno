@@ -7,6 +7,7 @@ import (
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/db"
 	agent_config2 "github.com/curaious/uno/internal/services/agent_config"
+	"github.com/curaious/uno/internal/services/agent_config/disk_storage"
 	conversation2 "github.com/curaious/uno/internal/services/conversation"
 	project2 "github.com/curaious/uno/internal/services/project"
 	prompt2 "github.com/curaious/uno/internal/services/prompt"
@@ -57,7 +58,7 @@ func NewServices(conf *config.Config) *Services {
 		VirtualKey:   virtual_key2.NewVirtualKeyService(virtual_key2.NewVirtualKeyRepo(dbconn)),
 		Project:      project2.NewProjectService(project2.NewProjectRepo(dbconn)),
 		Prompt:       prompt2.NewPromptService(prompt2.NewPromptRepo(dbconn)),
-		AgentConfig:  agent_config2.NewAgentConfigService(agent_config2.NewAgentConfigRepo(dbconn)),
+		AgentConfig:  agent_config2.NewAgentConfigService(agent_config2.NewAgentConfigRepo(dbconn), disk_storage.NewDiskStorage(conf.GetAgentDataPath())),
 		Conversation: conversation2.NewConversationService(conversation2.NewConversationRepo(dbconn)),
 		Traces:       tracesSvc,
 		User:         user2.NewUserService(user2.NewUserRepo(dbconn)),
