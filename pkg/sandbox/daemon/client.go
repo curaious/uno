@@ -1,4 +1,4 @@
-package sandbox
+package daemon
 
 import (
 	"bytes"
@@ -10,6 +10,8 @@ import (
 	"net/url"
 	"path"
 	"time"
+
+	"github.com/curaious/uno/pkg/sandbox"
 )
 
 // Client talks to a sandbox daemon inside a sandbox pod.
@@ -19,8 +21,8 @@ type Client struct {
 }
 
 // NewClient constructs a client for the given sandbox handle.
-func NewClient(handle *SandboxHandle) *Client {
-	base := fmt.Sprintf("http://%s:%d", handle.PodIP, handle.Port)
+func NewClient(handle *sandbox.SandboxHandle) *Client {
+	base := fmt.Sprintf("http://%s:%d", handle.PodIP, 8080)
 	return &Client{
 		baseURL: base,
 		httpClient: &http.Client{
@@ -29,51 +31,22 @@ func NewClient(handle *SandboxHandle) *Client {
 	}
 }
 
-type execRequestPayload struct {
-	Command        string            `json:"command,omitempty"`
-	Args           []string          `json:"args,omitempty"`
-	Script         string            `json:"script,omitempty"`
-	TimeoutSeconds int               `json:"timeout_seconds,omitempty"`
-	Workdir        string            `json:"workdir,omitempty"`
-	Env            map[string]string `json:"env,omitempty"`
-}
-
-type ExecResult struct{}
-
-type execResponsePayload = ExecResult
-
 // RunBashCommand executes a bash command inside the sandbox.
-func (c *Client) RunBashCommand(ctx context.Context, cmd string, args []string, workdir string, timeoutSeconds int) (*ExecResult, error) {
-	payload := execRequestPayload{
-		Command:        cmd,
-		Args:           args,
-		TimeoutSeconds: timeoutSeconds,
-		Workdir:        workdir,
-	}
-	var res execResponsePayload
-	if err := c.doJSON(ctx, http.MethodPost, "/exec/bash", payload, &res); err != nil {
+func (c *Client) RunBashCommand(ctx context.Context, in *ExecRequest) (*ExecResponse, error) {
+	var res ExecResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/exec/bash", in, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
 }
 
 // RunPythonScript executes a Python script inside the sandbox.
-func (c *Client) RunPythonScript(ctx context.Context, script, workdir string, timeoutSeconds int) (*ExecResult, error) {
-	payload := execRequestPayload{
-		Script:         script,
-		TimeoutSeconds: timeoutSeconds,
-		Workdir:        workdir,
-	}
-	var res execResponsePayload
-	if err := c.doJSON(ctx, http.MethodPost, "/exec/python", payload, &res); err != nil {
+func (c *Client) RunPythonScript(ctx context.Context, in *ExecRequest) (*ExecResponse, error) {
+	var res ExecResponse
+	if err := c.doJSON(ctx, http.MethodPost, "/exec/python", in, &res); err != nil {
 		return nil, err
 	}
 	return &res, nil
-}
-
-type fileContent struct {
-	Path    string `json:"path"`
-	Content string `json:"content"`
 }
 
 // ReadFile reads a file from the sandbox filesystem.

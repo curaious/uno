@@ -1,16 +1,14 @@
 package tools
 
 import (
-	"bytes"
 	"context"
-	"net/http"
 
 	"github.com/bytedance/sonic"
 	"github.com/curaious/uno/internal/utils"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/curaious/uno/pkg/sandbox"
-	"github.com/curaious/uno/pkg/sandbox/sandbox_daemon"
+	"github.com/curaious/uno/pkg/sandbox/daemon"
 )
 
 type SandboxTool struct {
@@ -61,24 +59,23 @@ func (t *SandboxTool) Execute(ctx context.Context, params *core.ToolCall) (*resp
 		return nil, err
 	}
 
-	req := sandbox_daemon.ExecRequest{
+	// Create a sandbox daemon client
+	cli := daemon.NewClient(sb)
+
+	// Run bash command
+	res, err := cli.RunBashCommand(ctx, &daemon.ExecRequest{
 		Command:        in.Code,
 		Args:           nil,
 		Script:         "",
 		TimeoutSeconds: 0,
 		Workdir:        "",
 		Env:            nil,
-	}
-
-	b, _ := sonic.Marshal(req)
-
-	resp, err := http.DefaultClient.Post("http://"+sb.PodIP+":8080/exec/bash", "application/json", bytes.NewBuffer(b))
+	})
 	if err != nil {
 		return nil, err
 	}
 
-	var res map[string]any
-	utils.DecodeJSON(resp.Body, &res)
+	// Serialize the output
 	txt, _ := sonic.Marshal(res)
 
 	return &responses.FunctionCallOutputMessage{

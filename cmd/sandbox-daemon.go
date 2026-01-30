@@ -5,7 +5,7 @@ import (
 
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/telemetry"
-	"github.com/curaious/uno/pkg/sandbox/sandbox_daemon"
+	"github.com/curaious/uno/pkg/sandbox/daemon"
 	"github.com/spf13/cobra"
 )
 
@@ -20,7 +20,7 @@ var sandboxDaemonCmd = &cobra.Command{
 		shutdownTelemetry := telemetry.NewProvider(conf.OTEL_EXPORTER_OTLP_ENDPOINT)
 		defer shutdownTelemetry()
 
-		sandbox_daemon.NewSandboxDaemon()
+		daemon.NewSandboxDaemon()
 	},
 }
 

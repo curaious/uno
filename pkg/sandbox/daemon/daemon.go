@@ -1,4 +1,4 @@
-package sandbox_daemon
+package daemon
 
 import (
 	"log"
