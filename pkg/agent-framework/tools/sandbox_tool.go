@@ -15,8 +15,8 @@ import (
 
 type SandboxTool struct {
 	*core.BaseTool
-	svc   sandbox.Manager
-	image string
+	sandboxManager sandbox.Manager
+	image          string
 }
 
 type Input struct {
@@ -44,8 +44,8 @@ func NewSandboxTool(svc sandbox.Manager, image string) *SandboxTool {
 			},
 			RequiresApproval: false,
 		},
-		svc:   svc,
-		image: image,
+		sandboxManager: svc,
+		image:          image,
 	}
 }
 
@@ -56,7 +56,7 @@ func (t *SandboxTool) Execute(ctx context.Context, params *core.ToolCall) (*resp
 		return nil, err
 	}
 
-	sb, err := t.svc.CreateSandbox(ctx, t.image, params.AgentName, params.Namespace, params.ConversationID)
+	sb, err := t.sandboxManager.CreateSandbox(ctx, t.image, params.AgentName, params.Namespace, params.ConversationID)
 	if err != nil {
 		return nil, err
 	}
