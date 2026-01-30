@@ -1,13 +1,8 @@
 package controllers
 
 import (
-	"archive/zip"
-	"bytes"
 	"encoding/json"
-	"fmt"
 	"io"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -618,13 +613,6 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		// Get agent config to verify it exists and get the version
-		config, err := svc.AgentConfig.GetLatestByName(stdCtx, projectID, name)
-		if err != nil {
-			writeError(ctx, stdCtx, "Agent config not found", perrors.NewErrInvalidRequest("Agent config not found", err))
-			return
-		}
-
 		// Parse multipart form
 		multipartForm, err := ctx.MultipartForm()
 		if err != nil {
@@ -654,30 +642,6 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 		defer file.Close()
 
-		// Create temp directory path: {AgentDataPath}/{AgentName}/temp
-		agentDirName := config.GetName()
-		tempDir := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "temp")
-		if err := os.MkdirAll(tempDir, 0755); err != nil {
-			writeError(ctx, stdCtx, "Failed to create temp directory", perrors.NewErrInternalServerError("Failed to create temp directory", err))
-			return
-		}
-
-		// Extract zip file name (without extension) to use as directory name
-		zipName := strings.TrimSuffix(fileHeader.Filename, filepath.Ext(fileHeader.Filename))
-		extractDir := filepath.Join(tempDir, zipName)
-
-		// Remove existing temp directory if it exists
-		if err := os.RemoveAll(extractDir); err != nil {
-			writeError(ctx, stdCtx, "Failed to clean existing temp directory", perrors.NewErrInternalServerError("Failed to clean existing temp directory", err))
-			return
-		}
-
-		// Create extract directory
-		if err := os.MkdirAll(extractDir, 0755); err != nil {
-			writeError(ctx, stdCtx, "Failed to create extract directory", perrors.NewErrInternalServerError("Failed to create extract directory", err))
-			return
-		}
-
 		// Read zip file content
 		zipData, err := io.ReadAll(file)
 		if err != nil {
@@ -685,99 +649,14 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		// Open zip reader using bytes.Reader which implements io.ReaderAt
-		zipReader, err := zip.NewReader(bytes.NewReader(zipData), int64(len(zipData)))
+		// Upload skill to temp via service
+		result, err := svc.AgentConfig.UploadSkillToTemp(stdCtx, projectID, name, zipData, fileHeader.Filename)
 		if err != nil {
-			writeError(ctx, stdCtx, "Failed to open zip file", perrors.NewErrInvalidRequest("Failed to open zip file", err))
+			writeError(ctx, stdCtx, "Failed to upload skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to upload skill", err))
 			return
 		}
 
-		// Extract all files from zip
-		for _, zipFile := range zipReader.File {
-			// Sanitize file path to prevent directory traversal
-			// Clean the path and ensure it's within extractDir
-			cleanName := filepath.Clean(zipFile.Name)
-			if strings.HasPrefix(cleanName, "..") || strings.Contains(cleanName, "..") {
-				writeError(ctx, stdCtx, "Invalid file path in zip", perrors.NewErrInvalidRequest("Invalid file path in zip", nil))
-				return
-			}
-			filePath := filepath.Join(extractDir, cleanName)
-
-			// Ensure the resolved path is still within extractDir
-			absExtractDir, err := filepath.Abs(extractDir)
-			if err != nil {
-				writeError(ctx, stdCtx, "Failed to resolve extract directory", perrors.NewErrInternalServerError("Failed to resolve extract directory", err))
-				return
-			}
-			absFilePath, err := filepath.Abs(filePath)
-			if err != nil {
-				writeError(ctx, stdCtx, "Failed to resolve file path", perrors.NewErrInternalServerError("Failed to resolve file path", err))
-				return
-			}
-			if !strings.HasPrefix(absFilePath, absExtractDir) {
-				writeError(ctx, stdCtx, "Invalid file path in zip", perrors.NewErrInvalidRequest("Invalid file path in zip", nil))
-				return
-			}
-
-			// Create directory if needed
-			if zipFile.FileInfo().IsDir() {
-				if err := os.MkdirAll(filePath, zipFile.FileInfo().Mode()); err != nil {
-					writeError(ctx, stdCtx, fmt.Sprintf("Failed to create directory: %s", zipFile.Name), perrors.NewErrInternalServerError("Failed to create directory", err))
-					return
-				}
-				continue
-			}
-
-			// Create parent directories
-			if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-				writeError(ctx, stdCtx, fmt.Sprintf("Failed to create parent directory for: %s", zipFile.Name), perrors.NewErrInternalServerError("Failed to create parent directory", err))
-				return
-			}
-
-			// Open file from zip
-			rc, err := zipFile.Open()
-			if err != nil {
-				writeError(ctx, stdCtx, fmt.Sprintf("Failed to open file from zip: %s", zipFile.Name), perrors.NewErrInternalServerError("Failed to open file from zip", err))
-				return
-			}
-
-			// Create destination file
-			outFile, err := os.OpenFile(filePath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, zipFile.FileInfo().Mode())
-			if err != nil {
-				rc.Close()
-				writeError(ctx, stdCtx, fmt.Sprintf("Failed to create file: %s", zipFile.Name), perrors.NewErrInternalServerError("Failed to create file", err))
-				return
-			}
-
-			// Copy file content
-			_, err = io.Copy(outFile, rc)
-			outFile.Close()
-			rc.Close()
-			if err != nil {
-				writeError(ctx, stdCtx, fmt.Sprintf("Failed to extract file: %s", zipFile.Name), perrors.NewErrInternalServerError("Failed to extract file", err))
-				return
-			}
-		}
-
-		// Parse SKILL.md to extract name and description
-		skillMDPath := filepath.Join(extractDir, "SKILL.md")
-		skillName, skillDescription, err := parseSkillMD(skillMDPath)
-		if err != nil {
-			// Clean up the extracted directory on error
-			os.RemoveAll(extractDir)
-			writeError(ctx, stdCtx, "Failed to parse SKILL.md: "+err.Error(), perrors.NewErrInvalidRequest("Failed to parse SKILL.md", err))
-			return
-		}
-
-		// Build the relative temp path for response (relative path for display)
-		relTempPath := filepath.Join(agentDirName, "temp", zipName)
-
-		writeOK(ctx, stdCtx, "Skill file uploaded and extracted to temp successfully", agent_config.TempSkillUploadResponse{
-			Name:        skillName,
-			Description: skillDescription,
-			TempPath:    relTempPath,
-			SkillFolder: zipName,
-		})
+		writeOK(ctx, stdCtx, "Skill file uploaded and extracted to temp successfully", result)
 	})
 
 	// Delete a skill from temp folder
@@ -801,27 +680,8 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		// Get agent config to verify it exists and get the version
-		config, err := svc.AgentConfig.GetLatestByName(stdCtx, projectID, name)
-		if err != nil {
-			writeError(ctx, stdCtx, "Agent config not found", perrors.NewErrInvalidRequest("Agent config not found", err))
-			return
-		}
-
-		// Sanitize skill folder name to prevent directory traversal
-		cleanSkillFolder := filepath.Clean(skillFolder)
-		if strings.Contains(cleanSkillFolder, "..") || strings.ContainsAny(cleanSkillFolder, "/\\") {
-			writeError(ctx, stdCtx, "Invalid skill folder name", perrors.NewErrInvalidRequest("Invalid skill folder name", nil))
-			return
-		}
-
-		// Build the temp skill path
-		agentDirName := config.GetName()
-		tempSkillPath := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "temp", cleanSkillFolder)
-
-		// Remove the temp skill directory
-		if err := os.RemoveAll(tempSkillPath); err != nil {
-			writeError(ctx, stdCtx, "Failed to delete temp skill", perrors.NewErrInternalServerError("Failed to delete temp skill", err))
+		if err := svc.AgentConfig.DeleteTempSkill(stdCtx, projectID, name, skillFolder); err != nil {
+			writeError(ctx, stdCtx, "Failed to delete temp skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to delete temp skill", err))
 			return
 		}
 
@@ -849,52 +709,11 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		// Get agent config to verify it exists and get the version
-		config, err := svc.AgentConfig.GetLatestByName(stdCtx, projectID, name)
+		fileLocation, err := svc.AgentConfig.CommitSkill(stdCtx, projectID, name, skillFolder)
 		if err != nil {
-			writeError(ctx, stdCtx, "Agent config not found", perrors.NewErrInvalidRequest("Agent config not found", err))
+			writeError(ctx, stdCtx, "Failed to commit skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to commit skill", err))
 			return
 		}
-
-		// Sanitize skill folder name to prevent directory traversal
-		cleanSkillFolder := filepath.Clean(skillFolder)
-		if strings.Contains(cleanSkillFolder, "..") || strings.ContainsAny(cleanSkillFolder, "/\\") {
-			writeError(ctx, stdCtx, "Invalid skill folder name", perrors.NewErrInvalidRequest("Invalid skill folder name", nil))
-			return
-		}
-
-		// Build paths
-		agentDirName := config.GetName()
-		tempSkillPath := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "temp", cleanSkillFolder)
-		skillsDir := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "skills")
-		destSkillPath := filepath.Join(skillsDir, cleanSkillFolder)
-
-		// Check if temp skill exists
-		if _, err := os.Stat(tempSkillPath); os.IsNotExist(err) {
-			writeError(ctx, stdCtx, "Temp skill not found", perrors.NewErrInvalidRequest("Temp skill not found", nil))
-			return
-		}
-
-		// Create skills directory if it doesn't exist
-		if err := os.MkdirAll(skillsDir, 0755); err != nil {
-			writeError(ctx, stdCtx, "Failed to create skills directory", perrors.NewErrInternalServerError("Failed to create skills directory", err))
-			return
-		}
-
-		// Remove existing skill directory if it exists
-		if err := os.RemoveAll(destSkillPath); err != nil {
-			writeError(ctx, stdCtx, "Failed to clean existing skill directory", perrors.NewErrInternalServerError("Failed to clean existing skill directory", err))
-			return
-		}
-
-		// Move from temp to skills directory
-		if err := os.Rename(tempSkillPath, destSkillPath); err != nil {
-			writeError(ctx, stdCtx, "Failed to move skill from temp", perrors.NewErrInternalServerError("Failed to move skill from temp", err))
-			return
-		}
-
-		// Build the relative file location for SKILL.md (relative path for storage/display)
-		fileLocation := filepath.Join(agentDirName, "skills", cleanSkillFolder, "SKILL.md")
 
 		writeOK(ctx, stdCtx, "Skill committed successfully", map[string]string{
 			"file_location": fileLocation,
@@ -922,73 +741,11 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
-		// Get agent config to verify it exists and get the version
-		config, err := svc.AgentConfig.GetLatestByName(stdCtx, projectID, name)
-		if err != nil {
-			writeError(ctx, stdCtx, "Agent config not found", perrors.NewErrInvalidRequest("Agent config not found", err))
-			return
-		}
-
-		// Sanitize skill folder name to prevent directory traversal
-		cleanSkillFolder := filepath.Clean(skillFolder)
-		if strings.Contains(cleanSkillFolder, "..") || strings.ContainsAny(cleanSkillFolder, "/\\") {
-			writeError(ctx, stdCtx, "Invalid skill folder name", perrors.NewErrInvalidRequest("Invalid skill folder name", nil))
-			return
-		}
-
-		// Build the skill path
-		agentDirName := config.GetName()
-		skillPath := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "skills", cleanSkillFolder)
-
-		// Remove the skill directory
-		if err := os.RemoveAll(skillPath); err != nil {
-			writeError(ctx, stdCtx, "Failed to delete skill", perrors.NewErrInternalServerError("Failed to delete skill", err))
+		if err := svc.AgentConfig.DeleteSavedSkill(stdCtx, projectID, name, skillFolder); err != nil {
+			writeError(ctx, stdCtx, "Failed to delete skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to delete skill", err))
 			return
 		}
 
 		writeOK(ctx, stdCtx, "Skill deleted successfully", nil)
 	})
-}
-
-// parseSkillMD parses the SKILL.md file and extracts name and description from YAML frontmatter
-func parseSkillMD(path string) (name string, description string, err error) {
-	content, err := os.ReadFile(path)
-	if err != nil {
-		return "", "", fmt.Errorf("SKILL.md not found in zip")
-	}
-
-	contentStr := string(content)
-
-	// Check if the file starts with YAML frontmatter delimiter
-	if !strings.HasPrefix(contentStr, "---") {
-		return "", "", fmt.Errorf("SKILL.md must start with YAML frontmatter (---)")
-	}
-
-	// Find the end of the frontmatter
-	endIdx := strings.Index(contentStr[3:], "---")
-	if endIdx == -1 {
-		return "", "", fmt.Errorf("SKILL.md has invalid YAML frontmatter (missing closing ---)")
-	}
-
-	frontmatter := contentStr[3 : endIdx+3]
-
-	// Parse YAML frontmatter line by line
-	lines := strings.Split(frontmatter, "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if strings.HasPrefix(line, "name:") {
-			name = strings.TrimSpace(strings.TrimPrefix(line, "name:"))
-		} else if strings.HasPrefix(line, "description:") {
-			description = strings.TrimSpace(strings.TrimPrefix(line, "description:"))
-		}
-	}
-
-	if name == "" {
-		return "", "", fmt.Errorf("SKILL.md frontmatter must contain 'name' field")
-	}
-	if description == "" {
-		return "", "", fmt.Errorf("SKILL.md frontmatter must contain 'description' field")
-	}
-
-	return name, description, nil
 }
