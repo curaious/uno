@@ -18,6 +18,8 @@ import (
 
 // Config defines how sandboxes (pods) are created.
 type Config struct {
+	AgentDataPath string
+
 	// Namespace where sandbox pods will be created.
 	Namespace string
 
@@ -75,6 +77,10 @@ func NewManager(cfg Config) (sandbox.Manager, error) {
 		cfg:       cfg,
 		bySession: make(map[string]*sandbox.SandboxHandle),
 	}, nil
+}
+
+func (m *kubeManager) GetAgentDataPath() string {
+	return m.cfg.AgentDataPath
 }
 
 func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {

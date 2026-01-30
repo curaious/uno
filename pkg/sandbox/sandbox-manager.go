@@ -15,6 +15,8 @@ type Manager interface {
 	GetSandbox(ctx context.Context, sessionID string) (*SandboxHandle, error)
 	// DeleteSandbox tears down the sandbox for the given session.
 	DeleteSandbox(ctx context.Context, sessionID string) error
+	// GetAgentDataPath returns the path where agent data is available
+	GetAgentDataPath() string
 }
 
 // SandboxHandle represents a running sandbox pod bound to a session.

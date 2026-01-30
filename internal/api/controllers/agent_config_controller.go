@@ -47,7 +47,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Create sandbox data directory structure for version 0
-		if err := createAgentDataDirectory(svc.AgentDataPath, created); err != nil {
+		if err := createAgentDataDirectory(svc.Sandbox.GetAgentDataPath(), created); err != nil {
 			// Log error but don't fail the request - sandbox data can be created later
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s: %v\n", created.Name, err)
 		}
@@ -243,7 +243,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Ensure sandbox data directory exists when config is saved
-		if err := createAgentDataDirectory(svc.AgentDataPath, updated); err != nil {
+		if err := createAgentDataDirectory(svc.Sandbox.GetAgentDataPath(), updated); err != nil {
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s: %v\n", updated.Name, err)
 		}
 
@@ -278,7 +278,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Ensure sandbox data directory exists when config is saved
-		if err := createAgentDataDirectory(svc.AgentDataPath, updated); err != nil {
+		if err := createAgentDataDirectory(svc.Sandbox.GetAgentDataPath(), updated); err != nil {
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s: %v\n", updated.Name, err)
 		}
 
@@ -320,7 +320,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Create sandbox data directory structure for the new version
-		if err := createAgentDataDirectory(svc.AgentDataPath, created); err != nil {
+		if err := createAgentDataDirectory(svc.Sandbox.GetAgentDataPath(), created); err != nil {
 			// Log error but don't fail the request - sandbox data can be created later
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s version %d: %v\n", created.Name, created.Version, err)
 		}
@@ -350,7 +350,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		// Create sandbox data directory structure for the new version
-		if err := createAgentDataDirectory(svc.AgentDataPath, created); err != nil {
+		if err := createAgentDataDirectory(svc.Sandbox.GetAgentDataPath(), created); err != nil {
 			// Log error but don't fail the request - sandbox data can be created later
 			fmt.Printf("Warning: Failed to create sandbox data directory for agent %s version %d: %v\n", created.Name, created.Version, err)
 		}
@@ -684,7 +684,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 
 		// Create temp directory path: {AgentDataPath}/{AgentName}/temp
 		agentDirName := config.GetName()
-		tempDir := filepath.Join(svc.AgentDataPath, agentDirName, "temp")
+		tempDir := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "temp")
 		if err := os.MkdirAll(tempDir, 0755); err != nil {
 			writeError(ctx, stdCtx, "Failed to create temp directory", perrors.NewErrInternalServerError("Failed to create temp directory", err))
 			return
@@ -845,7 +845,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 
 		// Build the temp skill path
 		agentDirName := config.GetName()
-		tempSkillPath := filepath.Join(svc.AgentDataPath, agentDirName, "temp", cleanSkillFolder)
+		tempSkillPath := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "temp", cleanSkillFolder)
 
 		// Remove the temp skill directory
 		if err := os.RemoveAll(tempSkillPath); err != nil {
@@ -893,8 +893,8 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 
 		// Build paths
 		agentDirName := config.GetName()
-		tempSkillPath := filepath.Join(svc.AgentDataPath, agentDirName, "temp", cleanSkillFolder)
-		skillsDir := filepath.Join(svc.AgentDataPath, agentDirName, "skills")
+		tempSkillPath := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "temp", cleanSkillFolder)
+		skillsDir := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "skills")
 		destSkillPath := filepath.Join(skillsDir, cleanSkillFolder)
 
 		// Check if temp skill exists
@@ -966,7 +966,7 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 
 		// Build the skill path
 		agentDirName := config.GetName()
-		skillPath := filepath.Join(svc.AgentDataPath, agentDirName, "skills", cleanSkillFolder)
+		skillPath := filepath.Join(svc.Sandbox.GetAgentDataPath(), agentDirName, "skills", cleanSkillFolder)
 
 		// Remove the skill directory
 		if err := os.RemoveAll(skillPath); err != nil {

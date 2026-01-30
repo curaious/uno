@@ -42,6 +42,10 @@ func NewManager(cfg Config) *DockerSandboxManager {
 	}
 }
 
+func (m *DockerSandboxManager) GetAgentDataPath() string {
+	return m.cfg.AgentDataPath
+}
+
 func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, agentName string, namespace string, sessionID string) (*sandbox.SandboxHandle, error) {
 	if sessionID == "" {
 		return nil, fmt.Errorf("sessionID is required")
