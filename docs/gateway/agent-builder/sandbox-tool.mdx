@@ -1,0 +1,101 @@
+---
+title: Sandbox Tool
+description: Run bash commands in a per-session isolated environment
+---
+
+The Sandbox Tool gives your agent the ability to execute bash commands in an isolated environment. Each conversation gets its own sandbox (container or pod) with a persistent workspace. The agent uses the **execute_bash_commands** tool to run shell commands and receive stdout, stderr, and exit code.
+
+## Overview
+
+When the Sandbox tool is enabled:
+
+- The agent can call **execute_bash_commands** with a `code` parameter (the bash command to run).
+- Each conversation session gets a dedicated sandbox (Docker container or Kubernetes pod, depending on deployment).
+- A **sandbox daemon** runs inside the sandbox and handles exec and file operations over HTTP.
+- The workspace is rooted at `/sandbox/workspace` (configurable via `SANDBOX_ROOT`). Agent data (e.g. skills) is mounted so the agent can read skill files via bash (e.g. `cat /sandbox/skills/.../SKILL.md`).
+- Sandboxes can shut down after an idle timeout; the next tool call will create a new one for the same session.
+
+This tool is required for [Skills](/gateway/agent-builder/skills) to be usable at runtime, because skills are read by the agent via **execute_bash_commands**.
+
+## Enabling the Sandbox Tool
+
+1. Open your agent in the Agent Builder.
+2. Go to the **Tools** tab.
+3. Enable **Sandbox** (Bash / execute_bash_commands).
+4. Optionally set a **Docker image** for the sandbox container. If not set, the server uses `SANDBOX_DEFAULT_IMAGE` from the environment.
+5. Save your agent.
+
+Sandbox must be enabled at the server level (e.g. `SANDBOX_ENABLED=true` and a valid sandbox manager). If the sandbox backend is not configured, enabling the tool in the UI will not provide a working sandbox.
+
+## Tool: execute_bash_commands
+
+The only tool exposed to the LLM is:
+
+| Property   | Value |
+|-----------|--------|
+| **Name**  | `execute_bash_commands` |
+| **Description** | Execute bash command and get the output |
+| **Parameters** | `code` (string, required) – the bash command to execute |
+
+The agent sends a JSON object with `code` set to the shell command (e.g. `"ls -la"`, `"cat /sandbox/workspace/foo.txt"`). Commands are run via `/bin/sh -c` inside the sandbox, so normal shell syntax (pipes, redirections, etc.) is supported.
+
+## Response format
+
+The sandbox returns a JSON object with:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `stdout` | string | Standard output of the command |
+| `stderr` | string | Standard error |
+| `exit_code` | int | Process exit code (0 for success) |
+| `duration_ms` | int64 | Execution time in milliseconds |
+
+Timeouts are enforced by the daemon (default 60 seconds). On timeout, the response may indicate failure and the process is killed.
+
+## How it works
+
+1. **Sandbox lifecycle**  
+   When the agent calls **execute_bash_commands**, the server uses the sandbox **Manager** to ensure a sandbox exists for the current session (agent + conversation). The manager can be backed by Docker (e.g. for local/dev) or Kubernetes (e.g. in production). It creates a container/pod running the sandbox image and the **sandbox daemon**.
+
+2. **Sandbox daemon**  
+   The daemon listens inside the sandbox (default port 8080). It exposes:
+   - **Exec**: `POST /exec/bash` and `POST /exec/python` with a JSON body (command/script, optional workdir, env, timeout). The agent-facing tool currently uses only bash.
+   - **Files**: `GET /files/<path>`, `POST /files/<path>`, `DELETE /files/<path>` for reading, writing, and deleting files under the sandbox root. Paths are validated so they cannot escape the root.
+
+3. **Workspace and agent data**  
+   The sandbox root is typically `/sandbox/workspace` (or `SANDBOX_ROOT`). Agent-specific data (e.g. skills) is mounted under a path the agent can access (e.g. `/sandbox/skills/...`), so the agent can run `cat /sandbox/skills/<name>/SKILL.md` to read skill content.
+
+4. **Idle timeout**  
+   The daemon may shut down the process after a period of inactivity (e.g. 30 seconds). The next tool call will trigger creation of a new sandbox for that session; any files only in the previous sandbox’s filesystem are not carried over unless they are on a persistent volume.
+
+## Configuration
+
+### Server / environment
+
+- **SANDBOX_ENABLED** – If set (e.g. `true`), the server initializes a sandbox manager (Docker or Kubernetes). If unset or disabled, the Sandbox tool is not available.
+- **SANDBOX_DEFAULT_IMAGE** – Default Docker image for sandbox containers/pods (e.g. `praveenraj9495/uno-sandbox:latest`). Must be an image that runs the Uno sandbox daemon (e.g. `uno sandbox-daemon`).
+- **SANDBOX_ROOT** – (Inside the sandbox container.) Root directory for the workspace and file API; default `/sandbox/workspace`.
+- **SANDBOX_PORT** – (Inside the sandbox container.) Port the daemon listens on; default `8080`.
+
+Kubernetes vs Docker is chosen at server startup (e.g. via config or env) and is not per-agent.
+
+### Agent / tool config
+
+- **Sandbox** tool **enabled** – Turns on the **execute_bash_commands** tool for that agent.
+- **docker_image** (optional) – Overrides the default sandbox image for that agent. If not set, `SANDBOX_DEFAULT_IMAGE` is used.
+
+## Relation to other features
+
+- **Skills** – Skills are stored under the agent’s sandbox data and mounted into the sandbox. The agent is instructed to use **execute_bash_commands** to read skill files (e.g. `SKILL.md`). Therefore, enabling the Sandbox tool is required for skills to work at runtime.
+- **Provider Code Execution** – The provider’s built-in code execution tool (e.g. for short snippets) is separate. The Sandbox tool is Uno-managed, session-scoped, and supports full bash and a persistent workspace plus file access.
+
+## Summary
+
+| Aspect | Detail |
+|--------|--------|
+| Tool name | `execute_bash_commands` |
+| Parameter | `code` (string) – bash command |
+| Backend | Per-session sandbox (Docker or Kubernetes) |
+| Daemon | HTTP server in sandbox: exec (bash/python) + file read/write/delete |
+| Workspace | `/sandbox/workspace` (or `SANDBOX_ROOT`) |
+| Required for | Using [Skills](/gateway/agent-builder/skills) at runtime |

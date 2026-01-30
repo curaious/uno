@@ -71,6 +71,7 @@
                       "uno-sdk/agents/tools/function-tools",
                       "uno-sdk/agents/tools/mcp-tools",
                       "uno-sdk/agents/tools/agent-as-a-tool",
+                      "uno-sdk/agents/tools/sandbox-tool",
                       "uno-sdk/agents/tools/human-in-the-loop"
                     ]
                   },
@@ -133,7 +134,14 @@
                       "gateway/agent-builder/agent-runtime",
                       "gateway/agent-builder/model-configuration",
                       "gateway/agent-builder/system-prompt",
-                      "gateway/agent-builder/built-in-tools",
+                      {
+                        "group": "Tools",
+                        "pages": [
+                          "gateway/agent-builder/provider-tools",
+                          "gateway/agent-builder/sandbox-tool"
+                        ],
+                        "expanded": true
+                      },
                       "gateway/agent-builder/skills",
                       "gateway/agent-builder/mcp-server",
                       "gateway/agent-builder/structured-output",
