@@ -13,6 +13,7 @@ import (
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/llm"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sandbox"
 	"github.com/curaious/uno/pkg/sdk/runtime/restate_runtime"
 	restate "github.com/restatedev/sdk-go"
 	"go.opentelemetry.io/otel"
@@ -29,16 +30,18 @@ type WorkflowInput struct {
 }
 
 type AgentBuilder struct {
-	llmGateway *gateway.LLMGateway
-	svc        *services.Services
-	broker     core.StreamBroker
+	llmGateway     *gateway.LLMGateway
+	svc            *services.Services
+	broker         core.StreamBroker
+	sandboxManager sandbox.Manager
 }
 
-func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, broker core.StreamBroker) *AgentBuilder {
+func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, broker core.StreamBroker, sandboxManager sandbox.Manager) *AgentBuilder {
 	return &AgentBuilder{
-		svc:        svc,
-		llmGateway: llmGateway,
-		broker:     broker,
+		svc:            svc,
+		llmGateway:     llmGateway,
+		broker:         broker,
+		sandboxManager: sandboxManager,
 	}
 }
 
@@ -115,7 +118,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx restate.WorkflowContext, in *Wor
 	}
 
 	// Tools
-	toolList := builder.BuildToolsList(in.AgentConfig.Config.Tools, b.svc.Sandbox)
+	toolList := builder.BuildToolsList(in.AgentConfig.Config.Tools, b.sandboxManager)
 	var restateToolList []core.Tool
 	for _, tool := range toolList {
 		restateToolList = append(restateToolList, restate_runtime.NewRestateTool(ctx, tool))

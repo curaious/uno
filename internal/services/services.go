@@ -2,7 +2,6 @@ package services
 
 import (
 	"log/slog"
-	"os"
 
 	"github.com/curaious/uno/internal/config"
 	"github.com/curaious/uno/internal/db"
@@ -15,9 +14,6 @@ import (
 	traces2 "github.com/curaious/uno/internal/services/traces"
 	user2 "github.com/curaious/uno/internal/services/user"
 	virtual_key2 "github.com/curaious/uno/internal/services/virtual_key"
-	"github.com/curaious/uno/pkg/sandbox"
-	"github.com/curaious/uno/pkg/sandbox/docker_sandbox"
-	"github.com/curaious/uno/pkg/sandbox/k8s_sandbox"
 )
 
 type Services struct {
@@ -28,7 +24,6 @@ type Services struct {
 	Conversation *conversation2.ConversationService
 	VirtualKey   *virtual_key2.VirtualKeyService
 	Traces       *traces2.TracesService
-	Sandbox      sandbox.Manager
 	User         *user2.UserService
 }
 
@@ -65,29 +60,6 @@ func NewServices(conf *config.Config) *Services {
 	}
 
 	// Initialize sandbox manager if explicitly enabled via environment / helm values.
-	if config.GetEnvOrDefault("SANDBOX_ENABLED", "false") == "true" {
-		agentDataPath := conf.GetAgentDataPath()
-		if err := os.MkdirAll(agentDataPath, 0755); err != nil {
-			slog.Warn("Failed to create sandbox data directory", slog.String("path", agentDataPath), slog.Any("error", err))
-		}
-
-		sMgr := docker_sandbox.NewManager(docker_sandbox.Config{
-			AgentDataPath:   agentDataPath,
-			SessionDataPath: conf.GetSessionDataPath(),
-		})
-		svc.Sandbox = sMgr
-
-		kMgr, err := k8s_sandbox.NewManager(k8s_sandbox.Config{
-			AgentDataPath: agentDataPath,
-		})
-		if err != nil {
-			slog.Info("Failed to create k8s sandbox manager", slog.Any("error", err))
-		} else {
-			svc.Sandbox = kMgr
-		}
-
-		slog.Info("Sandbox manager initialized", slog.String("agent_data_path", agentDataPath))
-	}
 
 	return svc
 }

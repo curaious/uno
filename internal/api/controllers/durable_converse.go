@@ -22,6 +22,7 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sandbox"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
 	restate "github.com/restatedev/sdk-go"
@@ -78,7 +79,7 @@ func RecordSpanError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
+func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker, sandboxManager sandbox.Manager) {
 	var temporalClient client.Client
 	if conf.TEMPORAL_SERVER_HOST_PORT != "" {
 		temporalClient = getTemporalClient(conf)
@@ -292,7 +293,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			// Start execution in goroutine so the handler can return and streaming can begin
 			go func() {
 				defer b.Close(ctx, "default")
-				_, err := builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in, *project.DefaultKey)
+				_, err := builder.NewAgentBuilder(svc, llmGateway, b, sandboxManager).BuildAndExecuteAgent(ctx, agentConfig, in, *project.DefaultKey)
 				if err != nil {
 					RecordSpanError(span, err)
 				}

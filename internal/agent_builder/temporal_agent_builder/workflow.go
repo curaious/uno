@@ -13,20 +13,23 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/history"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sandbox"
 	"go.temporal.io/sdk/workflow"
 )
 
 type AgentBuilder struct {
-	llmGateway *gateway.LLMGateway
-	svc        *services.Services
-	broker     core.StreamBroker
+	llmGateway     *gateway.LLMGateway
+	svc            *services.Services
+	broker         core.StreamBroker
+	sandboxManager sandbox.Manager
 }
 
-func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, broker core.StreamBroker) *AgentBuilder {
+func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, broker core.StreamBroker, sandboxManager sandbox.Manager) *AgentBuilder {
 	return &AgentBuilder{
-		svc:        svc,
-		llmGateway: llmGateway,
-		broker:     broker,
+		svc:            svc,
+		llmGateway:     llmGateway,
+		broker:         broker,
+		sandboxManager: sandboxManager,
 	}
 }
 

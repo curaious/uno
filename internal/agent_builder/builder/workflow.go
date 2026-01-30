@@ -10,19 +10,22 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/sandbox"
 )
 
 type AgentBuilder struct {
-	llmGateway *gateway.LLMGateway
-	svc        *services.Services
-	broker     core.StreamBroker
+	llmGateway     *gateway.LLMGateway
+	svc            *services.Services
+	broker         core.StreamBroker
+	sandboxManager sandbox.Manager
 }
 
-func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, broker core.StreamBroker) *AgentBuilder {
+func NewAgentBuilder(svc *services.Services, llmGateway *gateway.LLMGateway, broker core.StreamBroker, sandboxManager sandbox.Manager) *AgentBuilder {
 	return &AgentBuilder{
-		svc:        svc,
-		llmGateway: llmGateway,
-		broker:     broker,
+		svc:            svc,
+		llmGateway:     llmGateway,
+		broker:         broker,
+		sandboxManager: sandboxManager,
 	}
 }
 
@@ -71,7 +74,7 @@ func (b *AgentBuilder) BuildAndExecuteAgent(ctx context.Context, agentConfig *ag
 	}
 
 	// Tools
-	toolList := BuildToolsList(agentConfig.Config.Tools, b.svc.Sandbox)
+	toolList := BuildToolsList(agentConfig.Config.Tools, b.sandboxManager)
 
 	// Agent
 	return agents.NewAgent(&agents.AgentOptions{

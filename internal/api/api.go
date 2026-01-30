@@ -22,6 +22,9 @@ import (
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/gateway/middlewares/logger"
 	"github.com/curaious/uno/pkg/gateway/middlewares/virtual_key_middleware"
+	"github.com/curaious/uno/pkg/sandbox"
+	"github.com/curaious/uno/pkg/sandbox/docker_sandbox"
+	"github.com/curaious/uno/pkg/sandbox/k8s_sandbox"
 	"github.com/redis/go-redis/v9"
 	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/server"
@@ -36,14 +39,15 @@ import (
 
 // Server is an HTTP Server with access to *pm.App
 type Server struct {
-	conf        *config.Config
-	srv         *fasthttp.Server
-	addr        string
-	services    *services.Services
-	llmGateway  *gateway.LLMGateway
-	pubsub      *pubsub.PubSub
-	redisClient *redis.Client
-	broker      core.StreamBroker
+	conf          *config.Config
+	srv           *fasthttp.Server
+	addr          string
+	services      *services.Services
+	llmGateway    *gateway.LLMGateway
+	pubsub        *pubsub.PubSub
+	redisClient   *redis.Client
+	broker        core.StreamBroker
+	sandboxManger sandbox.Manager
 }
 
 // New creates a new server by wrapping *planner.App with *http.Server
@@ -108,15 +112,38 @@ func New() *Server {
 	}
 	slog.Info("Redis stream broker initialized")
 
+	// Sandbox manager
+	var sandboxManager sandbox.Manager
+	if config.GetEnvOrDefault("SANDBOX_ENABLED", "false") == "true" {
+		agentDataPath := conf.GetAgentDataPath()
+		if err := os.MkdirAll(agentDataPath, 0755); err != nil {
+			slog.Warn("Failed to create sandbox data directory", slog.String("path", agentDataPath), slog.Any("error", err))
+		}
+
+		sandboxManager, _ = k8s_sandbox.NewManager(k8s_sandbox.Config{
+			AgentDataPath: agentDataPath,
+		})
+
+		if sandboxManager == nil {
+			sandboxManager = docker_sandbox.NewManager(docker_sandbox.Config{
+				AgentDataPath:   agentDataPath,
+				SessionDataPath: conf.GetSessionDataPath(),
+			})
+		}
+
+		slog.Info("Sandbox manager initialized", slog.String("agent_data_path", agentDataPath))
+	}
+
 	s := &Server{
-		conf:        conf,
-		srv:         &fasthttp.Server{},
-		addr:        fmt.Sprintf("0.0.0.0:6060"),
-		services:    svc,
-		llmGateway:  llmGateway,
-		pubsub:      ps,
-		redisClient: redisClient,
-		broker:      broker,
+		conf:          conf,
+		srv:           &fasthttp.Server{},
+		addr:          fmt.Sprintf("0.0.0.0:6060"),
+		services:      svc,
+		llmGateway:    llmGateway,
+		pubsub:        ps,
+		redisClient:   redisClient,
+		broker:        broker,
+		sandboxManger: sandboxManager,
 	}
 
 	s.srv.Handler = s.initNewRoutes()
@@ -165,7 +192,7 @@ func (s *Server) StartTemporalWorker() {
 	}
 	defer cli.Close()
 
-	agentBuilder := temporal_agent_builder.NewAgentBuilder(s.services, s.llmGateway, s.broker)
+	agentBuilder := temporal_agent_builder.NewAgentBuilder(s.services, s.llmGateway, s.broker, s.sandboxManger)
 
 	w := worker.New(cli, "AgentBuilder", worker.Options{})
 
@@ -191,7 +218,7 @@ func (s *Server) StartTemporalWorker() {
 
 // StartRestateWorker the restate worker
 func (s *Server) StartRestateWorker() {
-	agentBuilder := restate_agent_builder.NewAgentBuilder(s.services, s.llmGateway, s.broker)
+	agentBuilder := restate_agent_builder.NewAgentBuilder(s.services, s.llmGateway, s.broker, s.sandboxManger)
 
 	if err := server.NewRestate().
 		Bind(restate.Reflect(agentBuilder)).

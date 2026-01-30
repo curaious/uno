@@ -12,7 +12,7 @@ import (
 )
 
 func (b *AgentBuilder) SandboxTool(ctx context.Context, image string, toolCall *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
-	sandboxTool := tools.NewSandboxTool(b.svc.Sandbox, image)
+	sandboxTool := tools.NewSandboxTool(b.sandboxManager, image)
 	return sandboxTool.Execute(ctx, toolCall)
 }
 
