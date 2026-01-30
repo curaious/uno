@@ -88,24 +88,36 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 		return nil, fmt.Errorf("sessionID is required")
 	}
 
-	// Fast path: already have a handle in memory.
-	if h := m.getCached(sessionID); h != nil {
-		return h, nil
-	}
-
 	podName := fmt.Sprintf("sandbox-%s", sessionID)
 
-	// Check if pod already exists.
+	// Fast path: cached and running
+	if h := m.getCached(sessionID); h != nil {
+		if running, _ := m.isPodRunning(ctx, h.PodName); running {
+			return h, nil
+		}
+		// Pod stopped (likely due to idle timeout), need to recreate
+		m.clearCached(sessionID)
+	}
+
+	// Check if pod already exists
 	pod, err := m.client.CoreV1().Pods(m.cfg.Namespace).Get(ctx, podName, metav1.GetOptions{})
 	if err == nil && pod != nil {
-		handle := &sandbox.SandboxHandle{
-			SessionID: sessionID,
-			PodName:   pod.Name,
-			PodIP:     pod.Status.PodIP,
-			Port:      m.cfg.Port,
+		// Pod exists - check if it's running
+		if pod.Status.Phase == corev1.PodRunning && pod.Status.PodIP != "" {
+			handle := &sandbox.SandboxHandle{
+				SessionID: sessionID,
+				PodName:   pod.Name,
+				PodIP:     pod.Status.PodIP,
+				Port:      m.cfg.Port,
+			}
+			m.setCached(handle)
+			return handle, nil
 		}
-		m.setCached(handle)
-		return handle, nil
+
+		// Pod exists but not running (stopped due to idle timeout), delete and recreate
+		if err := m.deletePod(ctx, podName); err != nil {
+			return nil, fmt.Errorf("delete stopped pod: %w", err)
+		}
 	}
 
 	// Ensure session workspace PVC exists (only PVC managed by sandbox)
@@ -210,10 +222,18 @@ func (m *kubeManager) CreateSandbox(ctx context.Context, image string, agentName
 }
 
 func (m *kubeManager) GetSandbox(ctx context.Context, sessionID string) (*sandbox.SandboxHandle, error) {
-	if h := m.getCached(sessionID); h != nil {
+	h := m.getCached(sessionID)
+	if h == nil {
+		return nil, &sandbox.NotFoundError{SessionID: sessionID}
+	}
+
+	// Check if pod is still running
+	if running, _ := m.isPodRunning(ctx, h.PodName); running {
 		return h, nil
 	}
-	return nil, &sandbox.NotFoundError{SessionID: sessionID}
+
+	// Pod stopped (likely due to idle timeout)
+	return nil, fmt.Errorf("sandbox pod stopped (idle timeout), call CreateSandbox to recreate")
 }
 
 func (m *kubeManager) DeleteSandbox(ctx context.Context, sessionID string) error {
@@ -279,6 +299,50 @@ func (m *kubeManager) setCached(h *sandbox.SandboxHandle) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.bySession[h.SessionID] = h
+}
+
+func (m *kubeManager) clearCached(sessionID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.bySession, sessionID)
+}
+
+func (m *kubeManager) isPodRunning(ctx context.Context, podName string) (bool, error) {
+	pod, err := m.client.CoreV1().Pods(m.cfg.Namespace).Get(ctx, podName, metav1.GetOptions{})
+	if err != nil {
+		return false, err
+	}
+	return pod.Status.Phase == corev1.PodRunning && pod.Status.PodIP != "", nil
+}
+
+func (m *kubeManager) deletePod(ctx context.Context, podName string) error {
+	propagation := metav1.DeletePropagationForeground
+	err := m.client.CoreV1().Pods(m.cfg.Namespace).Delete(ctx, podName, metav1.DeleteOptions{
+		PropagationPolicy: &propagation,
+	})
+	if err != nil {
+		return err
+	}
+
+	// Wait for pod to be fully deleted
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	timeout := time.After(30 * time.Second)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timeout:
+			return fmt.Errorf("timed out waiting for pod %s to be deleted", podName)
+		case <-ticker.C:
+			_, err := m.client.CoreV1().Pods(m.cfg.Namespace).Get(ctx, podName, metav1.GetOptions{})
+			if err != nil {
+				// Pod is gone
+				return nil
+			}
+		}
+	}
 }
 
 // ensureSessionPVC creates or gets the session-specific workspace PVC.

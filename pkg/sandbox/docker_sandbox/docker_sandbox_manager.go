@@ -51,22 +51,49 @@ func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, 
 		return nil, fmt.Errorf("sessionID is required")
 	}
 
-	// Fast path: cached
+	// Fast path: cached and running
 	if h := m.getCached(sessionID); h != nil {
-		return h, nil
+		if running, _ := isContainerRunning(ctx, h.PodName); running {
+			return h, nil
+		}
+		// Container stopped (likely due to idle timeout), restart it
+		if err := m.restartContainer(ctx, h); err == nil {
+			return h, nil
+		}
+		// Restart failed, clear cache and recreate
+		m.clearCached(sessionID)
 	}
 
 	name := fmt.Sprintf("sandbox-%s", sessionID)
 
-	// If container already exists, reuse it
-	if ip, err := inspectContainerIP(ctx, name); err == nil && ip != "" {
-		h := &sandbox.SandboxHandle{
-			SessionID: sessionID,
-			PodName:   name,
-			PodIP:     ip,
+	// If container already exists, check if it's running
+	if running, _ := isContainerRunning(ctx, name); running {
+		if ip, err := inspectContainerIP(ctx, name); err == nil && ip != "" {
+			h := &sandbox.SandboxHandle{
+				SessionID: sessionID,
+				PodName:   name,
+				PodIP:     ip,
+			}
+			m.setCached(h)
+			return h, nil
 		}
-		m.setCached(h)
-		return h, nil
+	}
+
+	// Container exists but is stopped, try to restart it
+	if exists, _ := containerExists(ctx, name); exists {
+		if ip, err := inspectContainerIP(ctx, name); err == nil && ip != "" {
+			h := &sandbox.SandboxHandle{
+				SessionID: sessionID,
+				PodName:   name,
+				PodIP:     ip,
+			}
+			if err := m.restartContainer(ctx, h); err == nil {
+				m.setCached(h)
+				return h, nil
+			}
+		}
+		// Failed to restart, remove and recreate
+		_ = runDocker(ctx, "rm", "-f", name)
 	}
 
 	mounts := []MountConfig{
@@ -141,11 +168,23 @@ func (m *DockerSandboxManager) CreateSandbox(ctx context.Context, image string, 
 	return h, nil
 }
 
-func (m *DockerSandboxManager) GetSandbox(_ context.Context, sessionID string) (*sandbox.SandboxHandle, error) {
-	if h := m.getCached(sessionID); h != nil {
+func (m *DockerSandboxManager) GetSandbox(ctx context.Context, sessionID string) (*sandbox.SandboxHandle, error) {
+	h := m.getCached(sessionID)
+	if h == nil {
+		return nil, fmt.Errorf("sandbox not found for session %s", sessionID)
+	}
+
+	// Check if container is still running
+	if running, _ := isContainerRunning(ctx, h.PodName); running {
 		return h, nil
 	}
-	return nil, fmt.Errorf("sandbox not found for session %s", sessionID)
+
+	// Container stopped (likely due to idle timeout), restart it
+	if err := m.restartContainer(ctx, h); err != nil {
+		return nil, fmt.Errorf("sandbox container stopped and failed to restart: %w", err)
+	}
+
+	return h, nil
 }
 
 func (m *DockerSandboxManager) DeleteSandbox(ctx context.Context, sessionID string) error {
@@ -179,6 +218,35 @@ func (m *DockerSandboxManager) setCached(h *sandbox.SandboxHandle) {
 	m.bySession[h.SessionID] = h
 }
 
+func (m *DockerSandboxManager) clearCached(sessionID string) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.bySession, sessionID)
+}
+
+func (m *DockerSandboxManager) restartContainer(ctx context.Context, h *sandbox.SandboxHandle) error {
+	// Start the stopped container
+	if err := runDocker(ctx, "start", h.PodName); err != nil {
+		return fmt.Errorf("docker start: %w", err)
+	}
+
+	// Wait for container to be healthy
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+		if resp, err := http.DefaultClient.Get("http://" + h.PodIP + ":8080/health"); err == nil && resp.StatusCode == 200 {
+			resp.Body.Close()
+			return nil
+		}
+		time.Sleep(500 * time.Millisecond)
+	}
+	return fmt.Errorf("container %s did not become healthy after restart", h.PodName)
+}
+
 func runDocker(ctx context.Context, args ...string) error {
 	cmd := exec.CommandContext(ctx, "docker", args...)
 	var stderr bytes.Buffer
@@ -203,4 +271,28 @@ func inspectContainerIP(ctx context.Context, name string) (string, error) {
 	}
 	ip := strings.TrimSpace(out.String())
 	return ip, nil
+}
+
+func isContainerRunning(ctx context.Context, name string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "docker", "inspect", "-f", "{{.State.Running}}", name)
+	var out, stderr bytes.Buffer
+	cmd.Stdout = &out
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		return false, fmt.Errorf("%v: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	return strings.TrimSpace(out.String()) == "true", nil
+}
+
+func containerExists(ctx context.Context, name string) (bool, error) {
+	cmd := exec.CommandContext(ctx, "docker", "inspect", name)
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+
+	if err := cmd.Run(); err != nil {
+		// Container doesn't exist
+		return false, nil
+	}
+	return true, nil
 }
