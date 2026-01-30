@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -21,10 +22,13 @@ import (
 	"github.com/curaious/uno/pkg/agent-framework/streaming"
 	"github.com/curaious/uno/pkg/gateway"
 	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sandbox"
 	"github.com/fasthttp/router"
 	"github.com/google/uuid"
+	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/ingress"
 	"github.com/valyala/fasthttp"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -75,15 +79,15 @@ func RecordSpanError(span trace.Span, err error) {
 	span.SetStatus(codes.Error, err.Error())
 }
 
-func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker) {
+func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmGateway *gateway.LLMGateway, conf *config.Config, broker core.StreamBroker, sandboxManager sandbox.Manager) {
 	var temporalClient client.Client
-	if strings.Contains(conf.RUNTIME_ENABLED, "temporal") {
+	if conf.TEMPORAL_SERVER_HOST_PORT != "" {
 		temporalClient = getTemporalClient(conf)
 	}
 
 	var restateClient *ingress.Client
-	if strings.Contains(conf.RUNTIME_ENABLED, "restate") {
-		restateClient = ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT)
+	if conf.RESTATE_SERVER_ENDPOINT != "" {
+		restateClient = ingress.NewClient(conf.RESTATE_SERVER_ENDPOINT, restate.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}))
 	}
 
 	r.POST("/api/agent-server/converse", func(reqCtx *fasthttp.RequestCtx) {
@@ -289,7 +293,7 @@ func RegisterDurableConverseRoute(r *router.Router, svc *services.Services, llmG
 			// Start execution in goroutine so the handler can return and streaming can begin
 			go func() {
 				defer b.Close(ctx, "default")
-				_, err := builder.NewAgentBuilder(svc, llmGateway, b).BuildAndExecuteAgent(ctx, agentConfig, in, *project.DefaultKey)
+				_, err := builder.NewAgentBuilder(svc, llmGateway, b, sandboxManager).BuildAndExecuteAgent(ctx, agentConfig, in, *project.DefaultKey)
 				if err != nil {
 					RecordSpanError(span, err)
 				}

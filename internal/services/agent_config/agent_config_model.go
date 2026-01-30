@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/curaious/uno/internal/utils"
@@ -64,6 +65,7 @@ type ToolConfig struct {
 	ImageGeneration *ImageGenerationToolConfig `json:"image_generation,omitempty"`
 	WebSearch       *WebSearchToolConfig       `json:"web_search,omitempty"`
 	CodeExecution   *CodeExecutionToolConfig   `json:"code_execution,omitempty"`
+	Sandbox         *SandboxToolConfig         `json:"sandbox,omitempty"`
 }
 
 // ImageGenerationToolConfig represents parameters for the image generation tool
@@ -81,6 +83,27 @@ type CodeExecutionToolConfig struct {
 	Enabled bool `json:"enabled"`
 }
 
+// SandboxToolConfig represents parameters for the sandbox tool
+type SandboxToolConfig struct {
+	Enabled     bool    `json:"enabled"`
+	DockerImage *string `json:"docker_image,omitempty"` // Optional Docker container image
+}
+
+// SkillConfig represents a skill's metadata stored in the agent config
+type SkillConfig struct {
+	Name         string `json:"name"`          // Skill name from SKILL.md frontmatter
+	Description  string `json:"description"`   // Skill description from SKILL.md frontmatter
+	FileLocation string `json:"file_location"` // Path to SKILL.md file relative to sandbox-data
+}
+
+// TempSkillUploadResponse represents the response when uploading a skill to temp folder
+type TempSkillUploadResponse struct {
+	Name        string `json:"name"`         // Skill name parsed from SKILL.md
+	Description string `json:"description"`  // Skill description parsed from SKILL.md
+	TempPath    string `json:"temp_path"`    // Path to the temp folder where skill was extracted
+	SkillFolder string `json:"skill_folder"` // Folder name of the skill (from zip name)
+}
+
 // AgentConfigData represents the complete JSON configuration stored in the config column
 type AgentConfigData struct {
 	MaxIteration *int              `json:"max_iteration,omitempty"`
@@ -91,6 +114,7 @@ type AgentConfigData struct {
 	MCPServers   []MCPServerConfig `json:"mcp_servers,omitempty"`
 	History      *HistoryConfig    `json:"history,omitempty"`
 	Tools        *ToolConfig       `json:"tools,omitempty"`
+	Skills       []SkillConfig     `json:"skills,omitempty"` // Skills attached to this agent
 }
 
 // Scan implements the sql.Scanner interface for database/sql
@@ -129,6 +153,10 @@ type AgentConfig struct {
 	Config    AgentConfigData `json:"config" db:"config"`
 	CreatedAt time.Time       `json:"created_at" db:"created_at"`
 	UpdatedAt time.Time       `json:"updated_at" db:"updated_at"`
+}
+
+func (c *AgentConfig) GetName() string {
+	return strings.ToLower(fmt.Sprintf("%s-%v", c.Name, c.Version))
 }
 
 // CreateAgentConfigRequest represents the request to create a new agent config

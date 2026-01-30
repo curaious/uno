@@ -1,0 +1,21 @@
+{{- if .Values.sandbox.enabled }}
+# PVC in release namespace - mounted by main deployment at /app/sandbox-data
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pvc-shared-workspace
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "uno.labels" . | nindent 4 }}
+    app: uno-sandbox
+    component: shared-workspace
+spec:
+  accessModes:
+    {{- toYaml (.Values.sandbox.sharedWorkspacePvc.accessModes | default (list "ReadWriteOnce")) | nindent 4 }}
+  resources:
+    requests:
+      storage: {{ .Values.sandbox.sharedWorkspacePvc.size | quote }}
+  {{- if .Values.sandbox.sharedWorkspacePvc.storageClass }}
+  storageClassName: {{ .Values.sandbox.sharedWorkspacePvc.storageClass | quote }}
+  {{- end }}
+{{- end }}

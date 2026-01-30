@@ -11,12 +11,26 @@ import (
 	"github.com/google/uuid"
 )
 
-func BuildPrompt(svc *prompt.PromptService, projectID uuid.UUID, config *agent_config.PromptConfig) core.SystemPromptProvider {
+func BuildPrompt(svc *prompt.PromptService, projectID uuid.UUID, config *agent_config.PromptConfig, skillConfig []agent_config.SkillConfig) core.SystemPromptProvider {
+	var opts []prompts.PromptOption
+	var skills []core.Skill
+	for _, skill := range skillConfig {
+		skills = append(skills, core.Skill{
+			Name:         skill.Name,
+			Description:  skill.Description,
+			FileLocation: skill.FileLocation,
+		})
+	}
+
+	if skills != nil && len(skills) > 0 {
+		opts = append(opts, prompts.WithSkills(skills))
+	}
+
 	var instruction core.SystemPromptProvider
 	if config.RawPrompt != nil {
-		instruction = prompts.New(*config.RawPrompt)
+		instruction = prompts.New(*config.RawPrompt, opts...)
 	} else if *config.PromptID != uuid.Nil {
-		instruction = prompts.NewWithLoader(adapters.NewInternalPromptPersistence(svc, projectID, *config.PromptID, *config.Version))
+		instruction = prompts.NewWithLoader(adapters.NewInternalPromptPersistence(svc, projectID, *config.PromptID, *config.Version), opts...)
 	} else {
 		slog.Warn("no system prompt provided")
 	}

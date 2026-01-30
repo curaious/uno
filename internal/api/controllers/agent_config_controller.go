@@ -2,7 +2,9 @@ package controllers
 
 import (
 	"encoding/json"
+	"io"
 	"strconv"
+	"strings"
 
 	"github.com/curaious/uno/internal/perrors"
 	"github.com/curaious/uno/internal/services"
@@ -343,6 +345,8 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			return
 		}
 
+		// TODO: delete the agent data also
+
 		writeOK(ctx, stdCtx, "Agent config deleted successfully", nil)
 	})
 
@@ -384,6 +388,8 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 			writeError(ctx, stdCtx, "Failed to delete agent config version", perrors.NewErrInternalServerError("Failed to delete agent config version", err))
 			return
 		}
+
+		// TODO: delete the agent data also
 
 		writeOK(ctx, stdCtx, "Agent config version deleted successfully", nil)
 	})
@@ -590,5 +596,156 @@ func RegisterAgentConfigRoutes(r *router.Router, svc *services.Services) {
 		}
 
 		writeOK(ctx, stdCtx, "Alias deleted successfully", nil)
+	})
+
+	// Upload skills zip file to temp folder and parse SKILL.md
+	r.POST("/api/agent-server/agent-configs/skills/upload", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		name, err := requireStringQuery(ctx, "name")
+		if err != nil {
+			writeError(ctx, stdCtx, "Agent config name is required", perrors.NewErrInvalidRequest("Agent config name is required", err))
+			return
+		}
+
+		// Parse multipart form
+		multipartForm, err := ctx.MultipartForm()
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to parse multipart form", perrors.NewErrInvalidRequest("Failed to parse multipart form", err))
+			return
+		}
+		defer multipartForm.RemoveAll()
+
+		// Get the file from form
+		fileHeaders := multipartForm.File["file"]
+		if len(fileHeaders) == 0 {
+			writeError(ctx, stdCtx, "No file provided", perrors.NewErrInvalidRequest("No file provided", nil))
+			return
+		}
+
+		fileHeader := fileHeaders[0]
+		if !strings.HasSuffix(strings.ToLower(fileHeader.Filename), ".zip") {
+			writeError(ctx, stdCtx, "File must be a .zip file", perrors.NewErrInvalidRequest("File must be a .zip file", nil))
+			return
+		}
+
+		// Open the uploaded file
+		file, err := fileHeader.Open()
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to open uploaded file", perrors.NewErrInternalServerError("Failed to open uploaded file", err))
+			return
+		}
+		defer file.Close()
+
+		// Read zip file content
+		zipData, err := io.ReadAll(file)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to read zip file", perrors.NewErrInternalServerError("Failed to read zip file", err))
+			return
+		}
+
+		// Upload skill to temp via service
+		result, err := svc.AgentConfig.UploadSkillToTemp(stdCtx, projectID, name, zipData, fileHeader.Filename)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to upload skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to upload skill", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Skill file uploaded and extracted to temp successfully", result)
+	})
+
+	// Delete a skill from temp folder
+	r.DELETE("/api/agent-server/agent-configs/skills/temp", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		name, err := requireStringQuery(ctx, "name")
+		if err != nil {
+			writeError(ctx, stdCtx, "Agent config name is required", perrors.NewErrInvalidRequest("Agent config name is required", err))
+			return
+		}
+
+		skillFolder, err := requireStringQuery(ctx, "skill_folder")
+		if err != nil {
+			writeError(ctx, stdCtx, "Skill folder name is required", perrors.NewErrInvalidRequest("Skill folder name is required", err))
+			return
+		}
+
+		if err := svc.AgentConfig.DeleteTempSkill(stdCtx, projectID, name, skillFolder); err != nil {
+			writeError(ctx, stdCtx, "Failed to delete temp skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to delete temp skill", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Temp skill deleted successfully", nil)
+	})
+
+	// Move skills from temp to actual location (called during save)
+	r.POST("/api/agent-server/agent-configs/skills/commit", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		name, err := requireStringQuery(ctx, "name")
+		if err != nil {
+			writeError(ctx, stdCtx, "Agent config name is required", perrors.NewErrInvalidRequest("Agent config name is required", err))
+			return
+		}
+
+		skillFolder, err := requireStringQuery(ctx, "skill_folder")
+		if err != nil {
+			writeError(ctx, stdCtx, "Skill folder name is required", perrors.NewErrInvalidRequest("Skill folder name is required", err))
+			return
+		}
+
+		fileLocation, err := svc.AgentConfig.CommitSkill(stdCtx, projectID, name, skillFolder)
+		if err != nil {
+			writeError(ctx, stdCtx, "Failed to commit skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to commit skill", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Skill committed successfully", map[string]string{
+			"file_location": fileLocation,
+		})
+	})
+
+	// Delete a saved skill
+	r.DELETE("/api/agent-server/agent-configs/skills", func(ctx *fasthttp.RequestCtx) {
+		stdCtx := requestContext(ctx)
+		projectID, err := requireUUIDQuery(ctx, "project_id")
+		if err != nil {
+			writeError(ctx, stdCtx, "Project ID is required", perrors.NewErrInvalidRequest("Project ID is required", err))
+			return
+		}
+
+		name, err := requireStringQuery(ctx, "name")
+		if err != nil {
+			writeError(ctx, stdCtx, "Agent config name is required", perrors.NewErrInvalidRequest("Agent config name is required", err))
+			return
+		}
+
+		skillFolder, err := requireStringQuery(ctx, "skill_folder")
+		if err != nil {
+			writeError(ctx, stdCtx, "Skill folder name is required", perrors.NewErrInvalidRequest("Skill folder name is required", err))
+			return
+		}
+
+		if err := svc.AgentConfig.DeleteSavedSkill(stdCtx, projectID, name, skillFolder); err != nil {
+			writeError(ctx, stdCtx, "Failed to delete skill: "+err.Error(), perrors.NewErrInternalServerError("Failed to delete skill", err))
+			return
+		}
+
+		writeOK(ctx, stdCtx, "Skill deleted successfully", nil)
 	})
 }

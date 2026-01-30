@@ -341,7 +341,7 @@ export const MCPServers: React.FC = props => {
               id="endpoint"
               value={formData.endpoint}
               onChange={(e) => setFormData({...formData, endpoint: e.target.value})}
-              placeholder="http://localhost:9001/planner-mcp/sse"
+              placeholder="http://localhost:9001/mcp/sse"
               helperText={formErrors.endpoint}
               error={!!formErrors.endpoint}
               fullWidth

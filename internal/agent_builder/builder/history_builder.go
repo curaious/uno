@@ -21,7 +21,7 @@ func BuildConversationManager(svc *services.Services, projectID uuid.UUID, llmGa
 	if config.Summarizer != nil && config.Summarizer.Type != "none" {
 		switch config.Summarizer.Type {
 		case "llm":
-			summarizerInstruction := BuildPrompt(svc.Prompt, projectID, config.Summarizer.LLMSummarizerPrompt)
+			summarizerInstruction := BuildPrompt(svc.Prompt, projectID, config.Summarizer.LLMSummarizerPrompt, nil)
 			summarizerLLM := BuildLLMClient(llmGateway, key, llm.ProviderName(config.Summarizer.LLMSummarizerModel.ProviderType), config.Summarizer.LLMSummarizerModel.ModelID)
 			summarizerModelParams, err := BuildModelParams(config.Summarizer.LLMSummarizerModel)
 			if err != nil {

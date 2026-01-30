@@ -44,7 +44,7 @@ func NewGetUserTool() *GetUserTool {
 	}
 }
 
-func (t *GetUserTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *GetUserTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	return &responses.FunctionCallOutputMessage{
 		ID:     params.ID,
 		CallID: params.CallID,
@@ -80,7 +80,7 @@ func NewDeleteUserTool() *DeleteUserTool {
 	}
 }
 
-func (t *DeleteUserTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *DeleteUserTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	args := map[string]any{}
 	json.Unmarshal([]byte(params.Arguments), &args)
 

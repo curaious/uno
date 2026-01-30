@@ -36,7 +36,7 @@ func NewCustomTool() *CustomTool {
 	}
 }
 
-func (t *CustomTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *CustomTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
     // Parse arguments
     args := map[string]interface{}{}
     if err := json.Unmarshal([]byte(params.Arguments), &args); err != nil {

@@ -1,0 +1,138 @@
+---
+title: Sandbox Tool
+description: Run bash commands in a per-session isolated environment
+---
+
+The Sandbox Tool lets your agent run bash commands in an isolated environment. Each conversation gets its own sandbox (Docker container or Kubernetes pod) with a persistent workspace. The agent uses the **execute_bash_commands** tool to run shell commands and receive stdout, stderr, and exit code.
+
+## Overview
+
+When you attach the Sandbox tool to an agent:
+
+- The agent can call **execute_bash_commands** with a `code` parameter (the bash command to run).
+- Each session gets a dedicated sandbox created by a **sandbox manager** (Docker or Kubernetes).
+- A **sandbox daemon** runs inside the sandbox and handles command execution over HTTP.
+- The workspace is rooted at `/sandbox/workspace`. Agent data (e.g. skills) can be mounted so the agent can read it via bash (e.g. `cat /sandbox/skills/.../SKILL.md`).
+
+## Example: Agent with Sandbox
+
+The following example uses the Uno SDK to create an agent with the Sandbox tool, using the Docker-backed sandbox manager. It runs a single turn asking for the current time; the agent will use **execute_bash_commands** to run e.g. `date`.
+
+```go
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	"github.com/bytedance/sonic"
+	"github.com/curaious/uno/pkg/agent-framework/agents"
+	"github.com/curaious/uno/pkg/agent-framework/core"
+	"github.com/curaious/uno/pkg/agent-framework/tools"
+	"github.com/curaious/uno/pkg/gateway"
+	"github.com/curaious/uno/pkg/llm"
+	"github.com/curaious/uno/pkg/llm/responses"
+	"github.com/curaious/uno/pkg/sandbox/docker_sandbox"
+	"github.com/curaious/uno/pkg/sdk"
+)
+
+func main() {
+	client, err := sdk.New(&sdk.ClientOptions{
+		LLMConfigs: sdk.NewInMemoryConfigStore([]*gateway.ProviderConfig{
+			{
+				ProviderName:  llm.ProviderNameOpenAI,
+				BaseURL:       "",
+				CustomHeaders: nil,
+				ApiKeys: []*gateway.APIKeyConfig{
+					{
+						Name:   "Key 1",
+						APIKey: os.Getenv("OPENAI_API_KEY"),
+					},
+				},
+			},
+		}),
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	model := client.NewLLM(sdk.LLMOptions{
+		Provider: llm.ProviderNameOpenAI,
+		Model:    "gpt-4.1-mini",
+	})
+
+	history := client.NewConversationManager()
+	agent := agents.NewAgent(&agents.AgentOptions{
+		Name:        "hello-world-agent",
+		Instruction: client.Prompt("You are a helpful assistant with access to terminal (bash)"),
+		LLM:         model,
+		History:     history,
+		Tools: []core.Tool{
+			tools.NewSandboxTool(docker_sandbox.NewManager(docker_sandbox.Config{
+				AgentDataPath: "/path/to/agent-data",
+			}), "uno-sandbox:v7"),
+		},
+	})
+
+	out, err := agent.Execute(context.Background(), &agents.AgentInput{
+		Messages: []responses.InputMessageUnion{
+			responses.UserMessage("What is the current time?"),
+		},
+		Namespace:         "default",
+		PreviousMessageID: "",
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	b, _ := sonic.Marshal(out)
+	fmt.Println(string(b))
+}
+```
+
+The full example is in `examples/agents/10_agent_with_sandbox/main.go`.
+
+## Key pieces
+
+- **SDK client** – `sdk.New` with `LLMConfigs` (e.g. OpenAI). The client is used to create an LLM, conversation history, and prompts.
+- **Sandbox manager** – `docker_sandbox.NewManager(docker_sandbox.Config{...})` for local or Docker-based sandboxes. For production you would typically use a Kubernetes-backed manager that implements `sandbox.Manager`. The manager creates and tracks one sandbox per session.
+- **AgentDataPath** – Host path where agent data (e.g. skills) lives; it is mounted into the sandbox so the agent can read it via bash. Must exist and be writable if you use skills.
+- **Sandbox image** – The Docker image for the sandbox container (e.g. `uno-sandbox:v7`). It must run the Uno sandbox daemon (e.g. `uno sandbox-daemon`). Build from `deployments/sandbox/Dockerfile` or use a pre-built image.
+- **Tool registration** – `tools.NewSandboxTool(manager, image)` returns a `core.Tool` that exposes **execute_bash_commands** to the LLM. Pass it in `AgentOptions.Tools` along with any other tools.
+
+## Tool: execute_bash_commands
+
+The Sandbox tool exposes a single function to the LLM:
+
+| Property       | Value |
+|----------------|-------|
+| **Name**       | `execute_bash_commands` |
+| **Description**| Execute bash command and get the output |
+| **Parameters** | `code` (string, required) – the bash command to execute |
+
+Commands are run via `/bin/sh -c` inside the sandbox, so normal shell syntax (pipes, redirections, etc.) is supported.
+
+## Response format
+
+The sandbox returns a JSON object with:
+
+| Field        | Type  | Description |
+|-------------|-------|-------------|
+| `stdout`    | string| Standard output of the command |
+| `stderr`    | string| Standard error |
+| `exit_code` | int   | Process exit code (0 for success) |
+| `duration_ms` | int64 | Execution time in milliseconds |
+
+Timeouts are enforced by the daemon (default 60 seconds). On timeout, the response may indicate failure and the process is killed.
+
+## Summary
+
+| Aspect     | Detail |
+|-----------|--------|
+| Tool name | `execute_bash_commands` |
+| Parameter | `code` (string) – bash command |
+| SDK API   | `tools.NewSandboxTool(manager, image)` |
+| Manager   | `docker_sandbox.NewManager(config)` or Kubernetes-backed `sandbox.Manager` |
+| Example   | `examples/agents/10_agent_with_sandbox/main.go` |

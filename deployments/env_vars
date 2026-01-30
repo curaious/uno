@@ -16,9 +16,9 @@ REDIS_PORT=6379
 
 ALLOWED_HEADERS="Content-Type, Authorization"
 
-RESTATE_WORKER_HOST_PORT="0.0.0.0:9080"
 RESTATE_SERVER_ENDPOINT="http://host.docker.internal:8081"
 
 TEMPORAL_SERVER_HOST_PORT="host.docker.internal:7233"
 
-RUNTIME_ENABLED=""
+SANDBOX_ENABLED="true"
+SANDBOX_DEFAULT_IMAGE="praveenraj9495/uno-sandbox:latest"

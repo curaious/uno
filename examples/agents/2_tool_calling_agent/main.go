@@ -43,7 +43,7 @@ func NewCustomTool() *CustomTool {
 	}
 }
 
-func (t *CustomTool) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *CustomTool) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	return &responses.FunctionCallOutputMessage{
 		ID:     params.ID,
 		CallID: params.CallID,

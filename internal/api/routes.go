@@ -46,7 +46,7 @@ func (s *Server) initNewRoutes() fasthttp.RequestHandler {
 	controllers.RegisterPromptRoutes(r, s.services)
 	controllers.RegisterAgentConfigRoutes(r, s.services)
 	controllers.RegisterConversationRoutes(r, s.services)
-	controllers.RegisterDurableConverseRoute(r, s.services, s.llmGateway, s.conf, s.broker)
+	controllers.RegisterDurableConverseRoute(r, s.services, s.llmGateway, s.conf, s.broker, s.sandboxManger)
 
 	return s.withMiddlewares(r.Handler, auth)
 }

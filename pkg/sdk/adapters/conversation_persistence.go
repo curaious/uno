@@ -39,6 +39,11 @@ func NewExternalConversationPersistence(endpoint string, projectID uuid.UUID) *E
 	}
 }
 
+// NewConversationID generates a unique ID for a conversation
+func (p *ExternalConversationPersistence) NewConversationID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 // NewRunID generates a unique ID for a run
 func (p *ExternalConversationPersistence) NewRunID(ctx context.Context) string {
 	return uuid.NewString()

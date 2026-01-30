@@ -1,0 +1,96 @@
+replicaCount: 1
+
+# Restate worker (same image, runs restate-worker command)
+restateWorker:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+# Temporal worker (same image, runs temporal-worker command)
+temporalWorker:
+  replicaCount: 1
+  resources:
+    requests:
+      memory: "256Mi"
+      cpu: "250m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
+
+image:
+  repository: uno-gateway
+  pullPolicy: IfNotPresent
+  tag: "v4"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+service:
+  type: ClusterIP
+  port: 6060
+
+podAnnotations: {}
+
+podSecurityContext: {}
+securityContext: {}
+
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "250m"
+  limits:
+    memory: "512Mi"
+    cpu: "500m"
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Connection to infra (override if release/name differ)
+infra:
+  postgresql: "host.orb.internal:5432"
+  redis: "host.orb.internal:6379"
+  clickhouse: "host.orb.internal:8123"
+  otelCollector: "host.orb.internal:4318"
+  restate: "http://host.orb.internal:8081"
+  temporal: "host.orb.internal:7233"
+
+config:
+  db:
+    name: "uno"
+    username: "postgres"
+    password: "postgres"
+    disableTLS: "true"
+  clickhouse:
+    database: "otel"
+    username: "default"
+    password: ""
+    useTLS: false
+
+# Sandbox configuration
+sandbox:
+  enabled: true
+  namespace: "uno"
+  image: "praveenraj9495/uno-sandbox:latest"
+  resources:
+    cpu: "1"
+    memory: "2Gi"
+  # Shared workspace PVC (pvc-shared-workspace) - used by deployment at /app/sandbox-data and by sandbox pods
+  sharedWorkspacePvc:
+    size: "200Mi"
+    # ReadWriteOnce works with local-path, gp2, etc. Use ReadWriteMany only with RWX-capable storage (NFS, EFS, Azure Files).
+    accessModes:
+      - ReadWriteOnce
+    storageClass: ""  # leave empty for default (e.g. local-path); set when using ReadWriteMany (e.g. "nfs", "efs-sc")
+

@@ -3,12 +3,15 @@ package restate_runtime
 import (
 	"context"
 	"fmt"
+	"net/http"
 
 	"github.com/curaious/uno/pkg/agent-framework/agents"
 	"github.com/curaious/uno/pkg/agent-framework/core"
 	"github.com/curaious/uno/pkg/llm/responses"
 	"github.com/google/uuid"
+	restate "github.com/restatedev/sdk-go"
 	"github.com/restatedev/sdk-go/ingress"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 )
 
 // WorkflowInput is the input structure for the Restate workflow.
@@ -32,7 +35,7 @@ type RestateRuntime struct {
 // NewRestateRuntime creates a new Restate runtime.
 // The agentName is used to look up the agent config inside the workflow.
 func NewRestateRuntime(endpoint string, broker core.StreamBroker) *RestateRuntime {
-	client := ingress.NewClient(endpoint)
+	client := ingress.NewClient(endpoint, restate.WithHttpClient(&http.Client{Transport: otelhttp.NewTransport(http.DefaultTransport)}))
 	return &RestateRuntime{
 		client: client,
 		broker: broker,

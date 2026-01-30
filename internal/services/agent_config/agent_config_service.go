@@ -8,14 +8,37 @@ import (
 	"github.com/google/uuid"
 )
 
+// FileSystem defines the interface for file operations related to agent configurations.
+// This abstraction allows for different storage backends (local disk, S3, GCP Storage, etc.)
+type FileSystem interface {
+	// CreateAgentDataDirectory creates the directory structure for an agent
+	CreateAgentDataDirectory(config *AgentConfig) error
+
+	// UploadSkillToTemp extracts a skill zip file to the agent's temp directory
+	// and parses the SKILL.md file to extract metadata.
+	// Returns the parsed skill info including name, description, and paths.
+	UploadSkillToTemp(agentName string, zipData []byte, zipFileName string) (*TempSkillUploadResponse, error)
+
+	// DeleteTempSkill removes a skill from the agent's temp directory
+	DeleteTempSkill(agentName string, skillFolder string) error
+
+	// CommitSkill moves a skill from temp to the permanent skills directory
+	// Returns the relative file location of the SKILL.md file
+	CommitSkill(agentName string, skillFolder string) (fileLocation string, err error)
+
+	// DeleteSavedSkill removes a committed skill from the agent's skills directory
+	DeleteSavedSkill(agentName string, skillFolder string) error
+}
+
 // AgentConfigService handles business logic for agent configs
 type AgentConfigService struct {
 	repo *AgentConfigRepo
+	fs   FileSystem
 }
 
 // NewAgentConfigService creates a new agent config service
-func NewAgentConfigService(repo *AgentConfigRepo) *AgentConfigService {
-	return &AgentConfigService{repo: repo}
+func NewAgentConfigService(repo *AgentConfigRepo, fs FileSystem) *AgentConfigService {
+	return &AgentConfigService{repo: repo, fs: fs}
 }
 
 // Create creates a new agent config with version 0
@@ -40,6 +63,10 @@ func (s *AgentConfigService) Create(ctx context.Context, projectID uuid.UUID, re
 		return nil, fmt.Errorf("failed to create agent config: %w", err)
 	}
 
+	if err = s.fs.CreateAgentDataDirectory(config); err != nil {
+		return nil, fmt.Errorf("failed to create agent data directory: %w", err)
+	}
+
 	return config, nil
 }
 
@@ -54,6 +81,10 @@ func (s *AgentConfigService) UpdateVersion0(ctx context.Context, agentID uuid.UU
 	config, err := s.repo.UpdateVersion0(ctx, agentID, req)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update agent config: %w", err)
+	}
+
+	if err = s.fs.CreateAgentDataDirectory(config); err != nil {
+		return nil, fmt.Errorf("failed to create agent data directory: %w", err)
 	}
 
 	return config, nil
@@ -76,6 +107,10 @@ func (s *AgentConfigService) CreateVersion(ctx context.Context, agentID uuid.UUI
 	config, err := s.repo.CreateVersion(ctx, agentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create agent config version: %w", err)
+	}
+
+	if err = s.fs.CreateAgentDataDirectory(config); err != nil {
+		return nil, fmt.Errorf("failed to create agent data directory: %w", err)
 	}
 
 	return config, nil
@@ -361,4 +396,48 @@ func (s *AgentConfigService) UpdateAlias(ctx context.Context, projectID, id uuid
 // DeleteAlias deletes an alias by ID
 func (s *AgentConfigService) DeleteAlias(ctx context.Context, projectID, id uuid.UUID) error {
 	return s.repo.DeleteAlias(ctx, projectID, id)
+}
+
+// UploadSkillToTemp uploads a skill zip file to the agent's temp directory
+func (s *AgentConfigService) UploadSkillToTemp(ctx context.Context, projectID uuid.UUID, agentName string, zipData []byte, zipFileName string) (*TempSkillUploadResponse, error) {
+	// Verify agent config exists
+	_, err := s.repo.GetLatestByName(ctx, projectID, agentName)
+	if err != nil {
+		return nil, fmt.Errorf("agent config not found: %w", err)
+	}
+
+	return s.fs.UploadSkillToTemp(agentName, zipData, zipFileName)
+}
+
+// DeleteTempSkill removes a skill from the agent's temp directory
+func (s *AgentConfigService) DeleteTempSkill(ctx context.Context, projectID uuid.UUID, agentName string, skillFolder string) error {
+	// Verify agent config exists
+	_, err := s.repo.GetLatestByName(ctx, projectID, agentName)
+	if err != nil {
+		return fmt.Errorf("agent config not found: %w", err)
+	}
+
+	return s.fs.DeleteTempSkill(agentName, skillFolder)
+}
+
+// CommitSkill moves a skill from temp to the permanent skills directory
+func (s *AgentConfigService) CommitSkill(ctx context.Context, projectID uuid.UUID, agentName string, skillFolder string) (string, error) {
+	// Verify agent config exists
+	_, err := s.repo.GetLatestByName(ctx, projectID, agentName)
+	if err != nil {
+		return "", fmt.Errorf("agent config not found: %w", err)
+	}
+
+	return s.fs.CommitSkill(agentName, skillFolder)
+}
+
+// DeleteSavedSkill removes a committed skill from the agent's skills directory
+func (s *AgentConfigService) DeleteSavedSkill(ctx context.Context, projectID uuid.UUID, agentName string, skillFolder string) error {
+	// Verify agent config exists
+	_, err := s.repo.GetLatestByName(ctx, projectID, agentName)
+	if err != nil {
+		return fmt.Errorf("agent config not found: %w", err)
+	}
+
+	return s.fs.DeleteSavedSkill(agentName, skillFolder)
 }

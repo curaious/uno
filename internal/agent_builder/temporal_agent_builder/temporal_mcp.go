@@ -34,7 +34,7 @@ func (b *AgentBuilder) MCPListTools(ctx context.Context, config *agent_config.MC
 	return tools, nil
 }
 
-func (b *AgentBuilder) MCPCallTool(ctx context.Context, config *agent_config.MCPServerConfig, params *responses.FunctionCallMessage, runContext map[string]any) (*responses.FunctionCallOutputMessage, error) {
+func (b *AgentBuilder) MCPCallTool(ctx context.Context, config *agent_config.MCPServerConfig, params *core.ToolCall, runContext map[string]any) (*responses.FunctionCallOutputMessage, error) {
 	client, err := builder.BuildMCPClient(config)
 	if err != nil {
 		return nil, err
@@ -101,7 +101,7 @@ func NewTemporalMCPToolProxy(workflowCtx workflow.Context, config *agent_config.
 	}
 }
 
-func (t *TemporalMCPToolProxy) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *TemporalMCPToolProxy) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	var output *responses.FunctionCallOutputMessage
 	err := workflow.ExecuteActivity(t.workflowCtx, "MCPCallTool", t.config, params, t.runContext).Get(t.workflowCtx, &output)
 	if err != nil {

@@ -2,6 +2,8 @@ package config
 
 import (
 	"os"
+	"path"
+	"path/filepath"
 	"strconv"
 )
 
@@ -44,8 +46,8 @@ type Config struct {
 	// Temporal
 	TEMPORAL_SERVER_HOST_PORT string
 
-	// Runtime
-	RUNTIME_ENABLED string
+	// Data Path
+	DATA_PATH string
 }
 
 func ReadConfig() *Config {
@@ -91,7 +93,7 @@ func ReadConfig() *Config {
 
 		TEMPORAL_SERVER_HOST_PORT: os.Getenv("TEMPORAL_SERVER_HOST_PORT"),
 
-		RUNTIME_ENABLED: os.Getenv("RUNTIME_ENABLED"),
+		DATA_PATH: getDataPath(),
 	}
 }
 
@@ -100,4 +102,29 @@ func getEnvOrDefault(key, defaultValue string) string {
 		return value
 	}
 	return defaultValue
+}
+
+// GetEnvOrDefault is an exported helper for other packages that need simple
+// environment access while still being easy to mock in tests.
+func GetEnvOrDefault(key, defaultValue string) string {
+	return getEnvOrDefault(key, defaultValue)
+}
+
+// getDataPath returns the path where data is stored.
+func getDataPath() string {
+	if p := os.Getenv("DATA_PATH"); p != "" {
+		return p
+	}
+
+	return filepath.Join(".", "data")
+}
+
+// GetAgentDataPath returns the path where agent data is stored.
+func (c *Config) GetAgentDataPath() string {
+	return path.Join(c.DATA_PATH, "agent-data")
+}
+
+// GetSessionDataPath returns the path to use for sandbox session data
+func (c *Config) GetSessionDataPath() string {
+	return path.Join(c.DATA_PATH, "session-data")
 }

@@ -1,0 +1,62 @@
+---
+title: Skills
+description: Attach reusable Agent Skills to your agents
+---
+
+Skills are reusable capability bundles that extend your agent's behavior. Each skill is a zip file containing a **SKILL.md** file with YAML frontmatter. The agent receives skill names, descriptions, and file locations in its system prompt and can read skill content at runtime using the **execute_bash_commands** tool.
+
+## Prerequisite: Enable the Bash tool
+
+For the agent to use skills at runtime, the **Sandbox** tool (which provides `execute_bash_commands`) must be enabled:
+
+1. Open your agent in the Agent Builder.
+2. Go to the **Tools** tab.
+3. Enable **Sandbox** (Bash / execute_bash_commands).
+4. Save the agent.
+
+Without this, the agent will see skill metadata in its prompt but cannot read the skill files.
+
+## Skill package format
+
+Each skill is distributed as a **.zip** file. The zip must contain a **SKILL.md** file at the root. **SKILL.md** must:
+
+- Start with YAML frontmatter between `---` delimiters.
+- Include a **name** field (used in the prompt and UI).
+- Include a **description** field (used in the prompt and UI).
+
+Example **SKILL.md**:
+
+```markdown
+---
+name: My Skill Name
+description: Short description of when and how to use this skill.
+---
+
+Your skill content in Markdown. The agent will read this file when the skill is used.
+```
+
+The zip filename (without `.zip`) becomes the **skill folder** name on the server (e.g. `my-skill.zip` → folder `my-skill`). The server parses **SKILL.md** to extract `name` and `description`; invalid or missing frontmatter will cause upload to fail.
+
+## Using the Skills tab in the UI
+
+1. Open the agent: **Agent Framework → Agents → [your agent]** (e.g. `http://localhost:3000/agent-framework/agents/{agent-id}`).
+2. Select the **Skills** tab.
+
+### Saved skills
+
+- Lists skills already attached to the agent (stored under `sandbox-data/{AgentName}_{Version}/skills/`).
+- Each row shows **name**, **description**, and **file_location**.
+- Use the delete (trash) icon to **mark for deletion**. Changes apply when you click **Save**; the server removes the skill folder and updates the agent config.
+
+### Upload new skills
+
+- Click **Upload Skill Zip** and choose a `.zip` file that contains a root **SKILL.md** with valid frontmatter.
+- The file is uploaded to a **temp** area and parsed; name and description appear under **Pending Skills**.
+- You can remove a pending skill with the trash icon (deletes from temp only).
+- Click **Save** to **commit** pending skills: each pending skill is moved from temp to the agent’s skills directory and added to the agent config. After save, they appear under **Saved Skills**.
+
+New agents must be created first; the upload button is disabled until the agent exists.
+
+## How skills are used at runtime
+
+The agent config stores a **skills** array of `{ name, description, file_location }`. When building the system prompt, each skill is injected as an available skill; the prompt instructs the agent to use the **execute_bash_commands** tool to read the skill file (e.g. `/sandbox/skills/{name}/SKILL.md`). The Sandbox tool mounts the agent’s `skills` directory into the container, so enabling the Sandbox (Bash) tool is required for skills to be usable at runtime.

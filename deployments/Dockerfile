@@ -59,8 +59,8 @@ FROM alpine:3.19
 
 WORKDIR /app
 
-# Install runtime dependencies
-RUN apk add --no-cache ca-certificates tzdata nginx
+# Install runtime dependencies (docker-cli for Docker-out-of-Docker via mounted socket)
+RUN apk add --no-cache ca-certificates tzdata nginx docker-cli
 
 # Create non-root user
 RUN addgroup -g 1000 uno && \

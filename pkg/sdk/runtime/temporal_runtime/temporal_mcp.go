@@ -37,7 +37,7 @@ func (t *TemporalMCPServer) ListTools(ctx context.Context, runContext map[string
 	return tools, nil
 }
 
-func (t *TemporalMCPServer) ExecuteTool(ctx context.Context, params *responses.FunctionCallMessage, runContext map[string]any) (*responses.FunctionCallOutputMessage, error) {
+func (t *TemporalMCPServer) ExecuteTool(ctx context.Context, params *core.ToolCall, runContext map[string]any) (*responses.FunctionCallOutputMessage, error) {
 	// TODO: directly call the tool without listing
 	mcpTools, err := t.wrappedMcpServer.ListTools(ctx, runContext)
 	if err != nil {
@@ -100,7 +100,7 @@ func NewTemporalMCPToolProxy(workflowCtx workflow.Context, prefix string, runCon
 	}
 }
 
-func (t *TemporalMCPToolProxy) Execute(ctx context.Context, params *responses.FunctionCallMessage) (*responses.FunctionCallOutputMessage, error) {
+func (t *TemporalMCPToolProxy) Execute(ctx context.Context, params *core.ToolCall) (*responses.FunctionCallOutputMessage, error) {
 	var output *responses.FunctionCallOutputMessage
 	err := workflow.ExecuteActivity(t.workflowCtx, t.prefix+"_ExecuteMCPToolActivity", params, t.runContext).Get(t.workflowCtx, &output)
 	if err != nil {

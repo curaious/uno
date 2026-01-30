@@ -61,10 +61,33 @@ export interface CodeExecutionToolConfig {
   [key: string]: any;
 }
 
+export interface SandboxToolConfig {
+  enabled: boolean;
+  docker_image?: string;
+  // Future config options can be added here
+  [key: string]: any;
+}
+
 export interface ToolsConfig {
   image_generation?: ImageGenerationToolConfig;
   web_search?: WebSearchToolConfig;
   code_execution?: CodeExecutionToolConfig;
+  sandbox?: SandboxToolConfig;
+}
+
+// Skill stored in the agent config
+export interface SkillConfig {
+  name: string;          // Skill name from SKILL.md frontmatter
+  description: string;   // Skill description from SKILL.md frontmatter
+  file_location: string; // Path to SKILL.md file relative to sandbox-data
+}
+
+// Temp skill that's been uploaded but not yet saved
+export interface TempSkillUploadResponse {
+  name: string;         // Skill name parsed from SKILL.md
+  description: string;  // Skill description parsed from SKILL.md
+  temp_path: string;    // Path to the temp folder where skill was extracted
+  skill_folder: string; // Folder name of the skill (from zip name)
 }
 
 export interface AgentConfigData {
@@ -76,6 +99,7 @@ export interface AgentConfigData {
   mcp_servers?: MCPServerConfig[];
   history?: HistoryConfig;
   tools?: ToolsConfig;
+  skills?: SkillConfig[];
 }
 
 export interface AgentConfig {

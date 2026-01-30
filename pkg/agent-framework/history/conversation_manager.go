@@ -12,6 +12,7 @@ import (
 )
 
 type ConversationPersistenceAdapter interface {
+	NewConversationID(ctx context.Context) string
 	NewRunID(ctx context.Context) string
 	LoadMessages(ctx context.Context, namespace string, previousMessageID string) ([]conversation.ConversationMessage, error)
 	SaveMessages(ctx context.Context, namespace, msgId, previousMsgId, conversationId string, messages []responses.InputMessageUnion, meta map[string]any) error
@@ -109,6 +110,10 @@ func NewRun(ctx context.Context, cm *CommonConversationManager, namespace string
 		o(cr)
 	}
 
+	if cr.conversationId == "" {
+		cr.conversationId = cr.ConversationPersistenceAdapter.NewConversationID(ctx)
+	}
+
 	return cr, nil
 }
 
@@ -171,6 +176,7 @@ func (cm *ConversationRunManager) LoadMessages(ctx context.Context, namespace st
 			cm.msgIdToRunId[m.ID()] = msg.MessageID
 		}
 		cm.threadId = msg.ThreadID
+		cm.conversationId = msg.ConversationID
 
 		messages = append(messages, msg.Messages...)
 
@@ -206,6 +212,11 @@ func (cm *ConversationRunManager) GetMeta() map[string]any {
 // GetMessageID returns the current run id
 func (cm *ConversationRunManager) GetMessageID() string {
 	return cm.msgId
+}
+
+// GetConversationID GetOrCreateConversationID returns the conversation ID, if it doesn't exist it will create one
+func (cm *ConversationRunManager) GetConversationID() string {
+	return cm.conversationId
 }
 
 func (cm *ConversationRunManager) SaveMessages(ctx context.Context, meta map[string]any) error {

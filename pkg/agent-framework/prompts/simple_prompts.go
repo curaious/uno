@@ -2,10 +2,13 @@ package prompts
 
 import (
 	"context"
+	"fmt"
 	"regexp"
+	"strings"
 	"text/template"
 
 	"github.com/curaious/uno/internal/utils"
+	"github.com/curaious/uno/pkg/agent-framework/core"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/codes"
 )
@@ -36,6 +39,7 @@ func (sl *StringLoader) LoadPrompt(ctx context.Context) (string, error) {
 type SimplePrompt struct {
 	loader   PromptLoader
 	resolver PromptResolverFn
+	skills   []core.Skill
 }
 
 func New(prompt string, opts ...PromptOption) *SimplePrompt {
@@ -63,6 +67,12 @@ func WithResolver(resolverFn PromptResolverFn) PromptOption {
 	}
 }
 
+func WithSkills(skills []core.Skill) PromptOption {
+	return func(sp *SimplePrompt) {
+		sp.skills = skills
+	}
+}
+
 func (sp *SimplePrompt) GetPrompt(ctx context.Context, data map[string]any) (string, error) {
 	ctx, span := tracer.Start(ctx, "GetPrompt")
 	defer span.End()
@@ -73,6 +83,8 @@ func (sp *SimplePrompt) GetPrompt(ctx context.Context, data map[string]any) (str
 		span.SetStatus(codes.Error, err.Error())
 		return "", err
 	}
+
+	prompt += "\n\n" + skillsToPrompts(sp.skills)
 
 	if data == nil {
 		return prompt, nil
@@ -95,4 +107,29 @@ func DefaultResolver(prompt string, data map[string]any) (string, error) {
 	}
 
 	return utils.ExecuteTemplate(tmpl, data)
+}
+
+func skillsToPrompts(skills []core.Skill) string {
+	if skills == nil || len(skills) == 0 {
+		return ""
+	}
+
+	var p strings.Builder
+
+	p.WriteString("<available_skills>")
+	p.WriteString("<usage>To use the skill, read the file using execute_bash_commands tool</usage>")
+
+	for _, skill := range skills {
+		p.WriteString("<skill>")
+
+		p.WriteString(fmt.Sprintf("<name>%s</name>", skill.Name))
+		p.WriteString(fmt.Sprintf("<description>%s</description>", skill.Description))
+		p.WriteString(fmt.Sprintf("<location>/skills/%s/SKILL.md</location>", skill.Name))
+
+		p.WriteString("</skill>")
+	}
+
+	p.WriteString("</available_skills>")
+
+	return p.String()
 }

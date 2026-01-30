@@ -68,6 +68,11 @@ func NewInMemoryConversationPersistence() *InMemoryConversationPersistence {
 	}
 }
 
+// NewConversationID generates a unique ID for a conversation
+func (p *InMemoryConversationPersistence) NewConversationID(ctx context.Context) string {
+	return uuid.NewString()
+}
+
 // NewRunID generates a unique ID for a run
 func (p *InMemoryConversationPersistence) NewRunID(ctx context.Context) string {
 	return uuid.NewString()
